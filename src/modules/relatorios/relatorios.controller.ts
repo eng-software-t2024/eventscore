@@ -90,4 +90,3 @@ export class RelatoriosController {
     return new StreamableFile(arquivo.buffer);
   }
 }
-

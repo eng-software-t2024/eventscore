@@ -142,4 +142,3 @@ describe('XlsxPlanilhaExporter', () => {
     expect(sheet.name.length).toBeLessThanOrEqual(31);
   });
 });
-

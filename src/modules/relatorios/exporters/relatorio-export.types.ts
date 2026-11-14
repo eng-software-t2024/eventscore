@@ -79,4 +79,3 @@ export function formatarDataHoraGeracao(data: Date = new Date()): string {
   const minutos = String(data.getUTCMinutes()).padStart(2, '0');
   return `${dia}/${mes}/${ano} ${horas}:${minutos}`;
 }
-

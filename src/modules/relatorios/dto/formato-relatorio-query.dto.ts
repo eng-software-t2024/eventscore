@@ -12,4 +12,3 @@ export class FormatoRelatorioQueryDto {
   @IsEnum(FormatoRelatorio, { message: 'O formato deve ser PDF ou XLSX' })
   formato!: FormatoRelatorio;
 }
-

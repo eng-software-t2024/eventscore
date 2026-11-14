@@ -157,4 +157,3 @@ describe('PdfTabelaExporter e utilitários de exportação', () => {
     });
   });
 });
-
