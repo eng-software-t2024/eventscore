@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
 import { api, type Schemas } from '../../api/client';
 import { useLayout } from '../../components/Layout';
-import { montarDesafio, paraFormulario, type Desafio, type FormDesafio } from './regras.ts';
+import { camposAlterados, MAX_DESCRICAO, MAX_NOME, montarDesafio, paraFormulario, type Desafio, type FormDesafio } from './regras.ts';
 import './Desafios.css';
 
 type Dia = Schemas['DiaEventoDto'];
@@ -74,9 +74,15 @@ export default function Desafios() {
     setErro('');
     setSalvando(true);
     try {
-      const corpo = JSON.stringify(resultado.dados);
-      if (editando) await api(`${base}/desafios/${editando.id}`, { method: 'PATCH', body: corpo });
-      else await api(`${base}/desafios`, { method: 'POST', body: corpo });
+      if (editando) {
+        const mudancas = camposAlterados(editando, resultado.dados);
+        // Nada mudou: não há o que enviar.
+        if (Object.keys(mudancas).length > 0) {
+          await api(`${base}/desafios/${editando.id}`, { method: 'PATCH', body: JSON.stringify(mudancas) });
+        }
+      } else {
+        await api(`${base}/desafios`, { method: 'POST', body: JSON.stringify(resultado.dados) });
+      }
       novo();
       carregar();
     } catch (err) {
@@ -126,11 +132,11 @@ export default function Desafios() {
           </h2>
           <label className="campo">
             Nome
-            <input value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} required placeholder="Ex.: Hackathon" />
+            <input value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} required maxLength={MAX_NOME} placeholder="Ex.: Hackathon" />
           </label>
           <label className="campo">
             Descrição
-            <input value={form.descricao} onChange={(e) => setForm({ ...form, descricao: e.target.value })} placeholder="Opcional" />
+            <input value={form.descricao} onChange={(e) => setForm({ ...form, descricao: e.target.value })} maxLength={MAX_DESCRICAO} placeholder="Opcional" />
           </label>
           <label className="campo">
             Dia
