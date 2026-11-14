@@ -6,6 +6,7 @@ import { AuthModule } from './modules/auth/auth.module.js';
 import { AuthUserRepository } from './modules/auth/auth-user.repository.js';
 import { PrismaAuthUserRepository } from './modules/auth/prisma-auth-user.repository.js';
 import { EventosModule } from './modules/eventos/eventos.module.js';
+import { RelatoriosModule } from './modules/relatorios/relatorios.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 
 @Module({
@@ -22,6 +23,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
     }),
     HealthModule,
     EventosModule,
+    RelatoriosModule,
   ],
 })
 export class AppModule {}
