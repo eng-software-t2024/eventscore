@@ -1,8 +1,13 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { validateEnv } from './config/env.js';
+import { validateAppEnv } from './config/env.js';
 import { HealthModule } from './health/health.module.js';
+import { AuthModule } from './modules/auth/auth.module.js';
+import { AuthUserRepository } from './modules/auth/auth-user.repository.js';
+import { PrismaAuthUserRepository } from './modules/auth/prisma-auth-user.repository.js';
 import { EventosModule } from './modules/eventos/eventos.module.js';
+import { GruposModule } from './modules/grupos/grupos.module.js';
+import { ParticipantesModule } from './modules/participantes/participantes.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { DiasEventoModule } from './modules/dias-evento/dias-evento.module.js';
 
@@ -11,12 +16,18 @@ import { DiasEventoModule } from './modules/dias-evento/dias-evento.module.js';
     ConfigModule.forRoot({
       isGlobal: true,
       cache: true,
-      validate: validateEnv,
+      validate: validateAppEnv,
     }),
     PrismaModule,
+    AuthModule.register({
+      provide: AuthUserRepository,
+      useClass: PrismaAuthUserRepository,
+    }),
     HealthModule,
     EventosModule,
     DiasEventoModule,
+    GruposModule,
+    ParticipantesModule,
   ],
 })
 export class AppModule {}

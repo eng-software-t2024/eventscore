@@ -65,6 +65,17 @@ import { EventosService } from './eventos.service.js'; // correto
 import { EventosService } from './eventos.service';    // não compila
 ```
 
+### Nomes em inglês
+
+Funções, métodos, variáveis, parâmetros e constantes são escritos em inglês, mesmo quando o domínio tem nome em português:
+
+```ts
+async list(eventId: number) { ... } // correto
+async listar(eventoId: number) { ... } // incorreto
+```
+
+Exceção: propriedades de DTOs, entidades e parâmetros de rota que espelham o contrato OpenAPI (T06) mantêm o nome do contrato (`nome`, `cor`, `quantidadeParticipantes`, `eventoId`, `grupoId`). O código que as manipula continua em inglês.
+
 ### Acesso ao banco
 
 O `PrismaModule` é global. Basta injetar o `PrismaService`:
@@ -74,7 +85,7 @@ O `PrismaModule` é global. Basta injetar o `PrismaService`:
 export class EventosService {
   constructor(private readonly prisma: PrismaService) {}
 
-  listar() {
+  list() {
     return this.prisma.evento.findMany();
   }
 }
@@ -113,6 +124,8 @@ const prismaMock = { evento: { findMany: vi.fn() } };
 
 A maior parte dos testes deve ser unitária, principalmente nos cálculos de pontuação. Os testes e2e cobrem o que só existe na camada HTTP: guards, pipes de validação e formato de erro.
 
+Regra: toda implementação de código (service, controller, DTO, utilitário) deve ser entregue acompanhada de testes unitários (`*.spec.ts`) no mesmo diretório. Não abra PR sem os testes correspondentes.
+
 ## Migrações
 
 O `prisma/schema.prisma` descreve as tabelas para o Prisma Client. CHECKs, índices de expressão, triggers, funções e views existem só no SQL das migrações em `prisma/migrations/`, porque o Prisma não os representa. Detalhes no [ADR 0001](docs/adr/0001-orm-prisma.md).
@@ -140,8 +153,12 @@ npm run format:check
 npm run lint
 npm run typecheck
 npm test
-npm run test:e2e
+TEST_DATABASE_URL=postgresql://usuario:senha@localhost:5432/eventscore_test npm run test:e2e
 ```
+
+O banco informado em `TEST_DATABASE_URL` deve ser exclusivo para testes e ter
+um nome que contenha o marcador `test`. A suíte recusa conexões sem essa
+proteção.
 
 Se a formatação falhar, `npm run format` corrige.
 
