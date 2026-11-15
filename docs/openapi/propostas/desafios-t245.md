@@ -1,6 +1,8 @@
 # Taiga #245 — Proposta de contrato de desafios
 
-Status: proposta local para revisão. Não aprovada; módulo, DTOs TypeScript,
+Status: proposta em revisão no PR #31. Aceite do frontend registrado com a
+condição de reenvio de valores iguais detalhada abaixo; revisão backend e
+incorporação ao contrato oficial ainda pendentes. Módulo, DTOs TypeScript,
 service e endpoints ainda não implementados nesta task.
 
 O recorte [desafios-t245.yaml](./desafios-t245.yaml) reúne as cinco operações
@@ -22,9 +24,13 @@ Não altera o OpenAPI v0.1 nem publica uma versão oficial v0.2.
   e revisão do backend antes de implementar o novo contrato.
 
 O mock do frontend é referência de compatibilidade, não comprovação de
-aprovação do OpenAPI oficial. Os pontos abaixo ainda precisam de aceite.
-Ikki deve alinhar a incorporação e o versionamento desse recorte. Luiz Meneses
-deve confirmar o payload e as escolhas de comportamento antes dos DTOs.
+aprovação do OpenAPI oficial. Luiz Meneses registrou o
+[aceite do frontend no PR #31](https://github.com/hanrrysantos/event-score/pull/31#issuecomment-6882622692)
+em 14/11/2026 sobre o commit `357a506`, condicionado a não bloquear o reenvio
+do mesmo dia e da mesma tabela após resultados. Esta revisão incorpora a
+condição no documento e no OpenAPI. Ikki ainda deve alinhar a incorporação e
+o versionamento do recorte, e Saylon deve concluir a revisão backend antes
+da implementação dos DTOs.
 
 ## Interface proposta
 
@@ -59,27 +65,38 @@ dia e tabela são obrigatórios na criação. Descrição é opcional, com retor
 padronizado como string vazia quando o banco guarda null. O dia da URL de
 eventos e `diaId` precisam pertencer ao mesmo evento.
 
-No banco, nome tem no máximo 100 caracteres e descrição 255. A proposta
-normaliza espaços externos, recusa nome em branco, números fracionários,
-campos desconhecidos e null. Pontos são inteiros não negativos; não há
-peso nem critério de avaliação no payload.
+No banco, nome tem no máximo 100 caracteres e descrição 255. Na criação e
+no PATCH, se nome for informado, o backend remove espaços externos com
+`trim()`, exige que o valor normalizado tenha de 1 a 100 caracteres e persiste
+esse valor. `"   "`, `"\t\n"` e outros nomes que ficam vazios após `trim()`
+retornam 400 mesmo que a tela já valide o campo. No OpenAPI, `minLength: 1`
+é combinado com `pattern: '\S'` nos dois schemas de entrada: exige pelo
+menos um caractere não branco. No PATCH, nome ausente preserva o existente
+e null continua inválido. Números fracionários e campos desconhecidos são
+recusados. Pontos são inteiros não negativos; não há peso nem critério de
+avaliação no payload.
 
 ## Decisões para aprovação
 
 1. **PATCH parcial.** A tela envia o formulário completo, mas o mock reutiliza
    um schema sem obrigatoriedade explícita. A proposta separa criação e PATCH:
    campo ausente preserva valor, descrição vazia limpa o texto e null é recusado.
-   Ao informar a tabela, ela é substituída inteira em uma transação.
+   Se a tabela mudar, ela é substituída inteira em uma transação; reenviar
+   o mesmo conteúdo não exige substituir os registros.
 2. **Tabela de pontos.** Exigir um grupo ou mais e uma linha por grupo,
    colocações únicas e contíguas de 1 a N, sem impor ordem aos valores dos
    pontos. Array vazio e tipos inválidos dão 400; quantidade incompatível com
    grupos e colocações repetidas/com lacunas dão 422. Se o total de grupos
    mudar antes dos lançamentos, a próxima edição revalida a tabela resultante.
-3. **Alteração após resultados.** Proposta conservadora: recusar mudança de
-   dia ou de tabela com 409 quando já houver resultado; permitir nome e
-   descrição. Se for necessário alterar pontuação depois de lançar resultados,
-   precisamos definir o histórico e o recálculo com a auditoria compartilhada.
-   Essa escolha ainda não consta do contrato oficial e não foi implementada.
+3. **Alteração após resultados.** Recusar com 409 somente mudança efetiva
+   de dia ou do conteúdo da tabela quando já houver resultado; permitir nome
+   e descrição. Comparar `diaId` com o ID persistido e a tabela pelos pares
+   `(colocacao, pontos)`, ignorando a ordem do array. A simples presença de
+   `diaId` ou `pontosColocacao` no corpo não caracteriza alteração. Reenviar os
+   valores já gravados é permitido, inclusive junto de nome/descrição novos.
+   Se for necessário alterar pontuação depois de lançar resultados, precisamos
+   definir o histórico e o recálculo com a auditoria compartilhada. A condição
+   de reenvio vem do aceite do frontend; a implementação ainda está pendente.
 4. **Exclusão com vínculos.** Critério de desempate já exige 409 pelo ADR.
    A proposta também recusa exclusão com resultado, preservando o histórico.
    Desafio sem vínculos impeditivos remove apenas seus pontos e o próprio
@@ -87,6 +104,30 @@ peso nem critério de avaliação no payload.
 5. **Normalização e ordenação.** Confirmar descrição sempre textual, limites
    reais do banco, ordenação dos desafios por número do dia/ID e dos pontos
    por colocação. Nome repetido no mesmo dia/evento retorna 409 conforme V4.
+
+Exemplos para a implementação, considerando um desafio com `diaId: 2`,
+resultado lançado e tabela `[{ colocacao: 1, pontos: 100 }, { colocacao: 2, pontos: 80 }]`:
+
+| PATCH recebido | Resultado esperado |
+| --- | --- |
+| `{ "nome": "Hackathon final", "diaId": 2 }` | 200; nome atualizado, dia preservado. |
+| `{ "descricao": "Nova descrição", "pontosColocacao": [{ "colocacao": 2, "pontos": 80 }, { "colocacao": 1, "pontos": 100 }] }` | 200; descrição atualizada, mesmo conteúdo da tabela. |
+| `{ "diaId": 3 }` (outro dia válido do mesmo evento) | 409; mudança efetiva de dia. |
+| `{ "pontosColocacao": [{ "colocacao": 1, "pontos": 101 }, { "colocacao": 2, "pontos": 80 }] }` | 409; mudança efetiva de pontos. |
+| `{ "nome": "   " }` | 400; nome vazio após normalização. |
+
+## Validação desta revisão
+
+- OpenAPI e referências ao contrato existente aprovados em
+  `swagger-cli@4 validate`.
+- 18 verificações com Ajv nos dois schemas de entrada: nomes vazios,
+  espaços, tabulações, quebras de linha, espaços Unicode, null, limites
+  de comprimento e nomes válidos com espaços externos.
+- Quatro exemplos de resposta do mock continuam válidos em `DesafioDto`.
+- PATCH documentado com reenvio de valores iguais e comparação da tabela
+  por conteúdo, e não pela presença dos campos. Os exemplos de comportamento
+  acima ficam como casos de aceite para a futura implementação #246/#248;
+  não representam testes executados de endpoints ainda inexistentes.
 
 ## O que cada task entrega
 

@@ -94,12 +94,17 @@ paths:
       summary: Atualizar desafio parcialmente
       description: |
         Campos ausentes são preservados; null não é aceito. descricao vazia
-        limpa a descrição. Quando pontosColocacao é informado, substitui a
+        limpa a descrição. Quando pontosColocacao muda de valor, substitui a
         tabela inteira na mesma transação da atualização do desafio.
         A tabela resultante precisa atender a regra 1..N dos grupos atuais.
-        PROPOSTA A CONFIRMAR: após resultados, alterações de dia ou tabela
-        de pontos retornam 409 para evitar recálculo sem histórico; nome e
-        descrição continuam editáveis. Ver as decisões no documento da T245.
+        Após resultados, o 409 só ocorre se diaId mudar de valor ou se o
+        conteúdo da tabela (colocacao e pontos) mudar. A comparação da tabela
+        considera os pares por colocacao, independentemente da ordem do array.
+        Reenviar diaId ou pontosColocacao com os valores já gravados é permitido
+        e não exige substituir a tabela. A presença desses campos no corpo
+        não caracteriza mudança. Nome e descrição continuam editáveis,
+        inclusive quando acompanhados do mesmo dia e da mesma tabela.
+        Condição registrada no aceite do frontend no PR #31.
       requestBody:
         required: true
         content:
@@ -169,6 +174,8 @@ components:
       description: |
         Nome duplicado no mesmo dia e evento; dependência impeditiva de
         exclusão ou alteração estrutural conforme as decisões da proposta.
+        No PATCH após resultados, a alteração estrutural exige mudança efetiva
+        do dia ou dos pares colocacao/pontos; reenvio de valores iguais é permitido.
       content:
         application/json:
           schema:
@@ -196,7 +203,16 @@ components:
       additionalProperties: false
       required: [nome, diaId, pontosColocacao]
       properties:
-        nome: { type: string, minLength: 1, maxLength: 100, example: Hackathon }
+        nome:
+          type: string
+          minLength: 1
+          maxLength: 100
+          pattern: '\S'
+          description: |
+            Deve conter pelo menos um caractere não branco. No backend,
+            remover espaços externos com trim() e rejeitar com 400 se o nome
+            normalizado ficar vazio; persistir o valor normalizado.
+          example: Hackathon
         descricao:
           type: string
           maxLength: 255
@@ -214,13 +230,27 @@ components:
       additionalProperties: false
       description: Os mesmos campos da criação, todos opcionais; null é inválido.
       properties:
-        nome: { type: string, minLength: 1, maxLength: 100, example: Hackathon }
+        nome:
+          type: string
+          minLength: 1
+          maxLength: 100
+          pattern: '\S'
+          description: |
+            Quando informado, remover espaços externos com trim() no backend
+            e rejeitar com 400 se o nome normalizado ficar vazio. O pattern
+            exige pelo menos um caractere não branco no valor recebido.
+            Campo ausente preserva o nome; null é inválido.
+          example: Hackathon
         descricao: { type: string, maxLength: 255, example: '' }
         diaId: { type: integer, minimum: 1, maximum: 2147483647, example: 2 }
         pontosColocacao:
           type: array
           minItems: 1
-          description: Quando presente, substitui a tabela inteira; não é um patch de itens.
+          description: |
+            Quando o conteúdo mudar, substitui a tabela inteira; não é um
+            patch de itens. Comparar pares colocacao/pontos ignorando a ordem
+            do array. Valores iguais aos gravados são aceitos após resultados;
+            só a presença do campo não dispara o bloqueio 409.
           items:
             $ref: '#/components/schemas/PontoColocacaoDto'
     DesafioDto:
