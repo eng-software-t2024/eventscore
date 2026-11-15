@@ -19,6 +19,10 @@ import type { PreviaRelatorioFinalQueryDto } from '../dto/previa-relatorio-final
 const MENSAGEM_EMPATE =
   'A classificação tem empate pendente; registre o desempate antes do relatório final.';
 
+function arredondarPontoExtra(valor: number): number {
+  return Math.round((valor + Number.EPSILON) * 100) / 100;
+}
+
 export interface PresencaRelatorioFinal {
   numeroDia: number;
   presente: boolean;
@@ -93,7 +97,7 @@ export class RelatorioFinalService {
         const colocacao = classificacao.get(participante.grupoId);
         const pontoExtraGrupo = conversaoPorColocacao.get(colocacao ?? -1) ?? 0;
         const fator = fatores.get(participante.id) ?? 0;
-        const pontoExtra = Number((pontoExtraGrupo * fator).toFixed(2));
+        const pontoExtra = arredondarPontoExtra(pontoExtraGrupo * fator);
         const presencas = dias.map((dia) => ({
           numeroDia: dia.numeroDia,
           presente:

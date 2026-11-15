@@ -149,6 +149,19 @@ describe('RelatorioFinalService', () => {
     expect(previa[0].participantes[0].pontoExtra).toBe(0.4);
   });
 
+  it('reproduz o arredondamento decimal do PostgreSQL em meio centavo', async () => {
+    prisma.$queryRaw.mockResolvedValueOnce([
+      { participanteId: 1, fator: 0.35 },
+      { participanteId: 2, fator: 1 },
+    ]);
+    prisma.conversaoPontoExtra.findMany.mockResolvedValueOnce([
+      { colocacao: 1, pontoExtra: 0.3 },
+      { colocacao: 2, pontoExtra: 0.8 },
+    ]);
+    const previa = await service.gerarPrevia(1, { busca: 'Ana' });
+    expect(previa[0].participantes[0].pontoExtra).toBe(0.11);
+  });
+
   it('usa exportadores compartilhados e retorna metadados de download', async () => {
     await expect(
       service.gerarRelatorioFinal(1, FormatoRelatorio.PDF),
