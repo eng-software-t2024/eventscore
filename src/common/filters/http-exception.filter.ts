@@ -33,6 +33,7 @@ interface CorpoErroPadrao {
   statusCode: number;
   message: string | string[];
   error: string;
+  [chave: string]: unknown;
 }
 
 interface ErroPrismaConhecido {
@@ -140,6 +141,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         statusCode,
         message,
         error,
+        ...this.camposExtras(objeto),
       };
     }
 
@@ -275,6 +277,17 @@ export class HttpExceptionFilter implements ExceptionFilter {
     }
 
     return partes.join(' ');
+  }
+
+  private camposExtras(
+    objeto: Record<string, unknown>,
+  ): Record<string, unknown> {
+    return Object.fromEntries(
+      Object.entries(objeto).filter(
+        ([chave]) =>
+          chave !== 'statusCode' && chave !== 'message' && chave !== 'error',
+      ),
+    );
   }
 
   private formatarNomeExcecao(nome: string): string {
