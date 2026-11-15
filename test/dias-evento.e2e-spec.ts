@@ -7,6 +7,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types.js';
 import { AppModule } from './../src/app.module.js';
+import { HttpExceptionFilter } from './../src/common/filters/http-exception.filter.js';
 import { PrismaService } from './../src/prisma/prisma.service.js';
 
 type EventoFixture = { id: number };
@@ -15,6 +16,8 @@ describe('DiasEventoController (e2e)', () => {
   let app: INestApplication<App>;
   let prisma: PrismaService;
   let dependencyTablesAvailable = false;
+  let token = '';
+  const createdEventIds = new Set<number>();
   const schemaMode = process.env.US6_E2E_SCHEMA;
   let sequence = 0;
 
@@ -34,8 +37,19 @@ describe('DiasEventoController (e2e)', () => {
         transform: true,
       }),
     );
+    app.useGlobalFilters(new HttpExceptionFilter());
     await app.init();
     prisma = app.get(PrismaService);
+
+    const login = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({
+        email: process.env.E2E_ADMIN_EMAIL,
+        senha: process.env.E2E_ADMIN_SENHA,
+      })
+      .expect(200);
+    token = login.body.token;
+    expect(typeof token).toBe('string');
 
     const tables = await prisma.$queryRaw<{ table_name: string }[]>`
       SELECT table_name
@@ -60,6 +74,14 @@ describe('DiasEventoController (e2e)', () => {
   });
 
   afterAll(async () => {
+    for (const eventoId of createdEventIds) {
+      await prisma.presenca.deleteMany({ where: { eventoId } });
+      await prisma.desafio.deleteMany({ where: { eventoId } });
+      await prisma.participante.deleteMany({ where: { eventoId } });
+      await prisma.diaEvento.deleteMany({ where: { eventoId } });
+      await prisma.grupo.deleteMany({ where: { eventoId } });
+      await prisma.evento.delete({ where: { id: eventoId } });
+    }
     await app.close();
   });
 
@@ -69,7 +91,7 @@ describe('DiasEventoController (e2e)', () => {
 
   async function event(): Promise<EventoFixture> {
     sequence += 1;
-    return prisma.evento.create({
+    const created = await prisma.evento.create({
       data: {
         nome: `Evento e2e ${Date.now()}-${sequence}`,
         ano: 2026,
@@ -80,13 +102,26 @@ describe('DiasEventoController (e2e)', () => {
       },
       select: { id: true },
     });
+    createdEventIds.add(created.id);
+    return created;
   }
 
   function createDay(eventId: number, numeroDia: number, day: number) {
     return request(app.getHttpServer())
       .post(`/api/v1/eventos/${eventId}/dias`)
+      .set('Authorization', `Bearer ${token}`)
       .send({ numeroDia, data: `2026-11-${String(day).padStart(2, '0')}` });
   }
+
+  it('rejeita ausência e token inválido antes de acessar as rotas de dias', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/eventos/999999/dias')
+      .expect(401);
+    await request(app.getHttpServer())
+      .get('/api/v1/eventos/999999/dias')
+      .set('Authorization', 'Bearer token-invalido')
+      .expect(401);
+  });
 
   it('cria, lista em ordem, atualiza e exclui um dia sem dependências', async () => {
     const fixture = await event();
@@ -95,6 +130,7 @@ describe('DiasEventoController (e2e)', () => {
 
     await request(app.getHttpServer())
       .get(`/api/v1/eventos/${fixture.id}/dias`)
+      .set('Authorization', `Bearer ${token}`)
       .expect(200)
       .expect(({ body }) => {
         expect(body.map((item: { id: number }) => item.id)).toEqual([
@@ -105,13 +141,14 @@ describe('DiasEventoController (e2e)', () => {
 
     await request(app.getHttpServer())
       .patch(`/api/v1/eventos/${fixture.id}/dias/${second.body.id}`)
+      .set('Authorization', `Bearer ${token}`)
       .send({ data: '2026-11-22' })
       .expect(200)
       .expect(({ body }) => expect(body.data).toBe('2026-11-22'));
 
-    const deletion = request(app.getHttpServer()).delete(
-      `/api/v1/eventos/${fixture.id}/dias/${second.body.id}`,
-    );
+    const deletion = request(app.getHttpServer())
+      .delete(`/api/v1/eventos/${fixture.id}/dias/${second.body.id}`)
+      .set('Authorization', `Bearer ${token}`);
     if (dependencyTablesAvailable) {
       await deletion.expect(204);
     } else {
@@ -126,6 +163,7 @@ describe('DiasEventoController (e2e)', () => {
 
     await request(app.getHttpServer())
       .get(`/api/v1/eventos/${fixture.id}/dias`)
+      .set('Authorization', `Bearer ${token}`)
       .expect(200)
       .expect(({ body }) => {
         expect(body.map((item: { id: number }) => item.id)).toEqual([
@@ -142,10 +180,12 @@ describe('DiasEventoController (e2e)', () => {
 
     await request(app.getHttpServer())
       .get('/api/v1/eventos/999999/dias')
+      .set('Authorization', `Bearer ${token}`)
       .expect(404);
 
     await request(app.getHttpServer())
       .patch(`/api/v1/eventos/${secondEvent.id}/dias/${day.body.id}`)
+      .set('Authorization', `Bearer ${token}`)
       .send({ data: '2026-11-21' })
       .expect(404);
   });
@@ -160,10 +200,12 @@ describe('DiasEventoController (e2e)', () => {
     const another = await createDay(fixture.id, 3, 22).expect(201);
     await request(app.getHttpServer())
       .patch(`/api/v1/eventos/${fixture.id}/dias/${another.body.id}`)
+      .set('Authorization', `Bearer ${token}`)
       .send({ numeroDia: 1 })
       .expect(409);
     await request(app.getHttpServer())
       .patch(`/api/v1/eventos/${fixture.id}/dias/${another.body.id}`)
+      .set('Authorization', `Bearer ${token}`)
       .send({ data: '2026-11-20' })
       .expect(409);
   });
@@ -174,6 +216,7 @@ describe('DiasEventoController (e2e)', () => {
 
     await request(app.getHttpServer())
       .post(`/api/v1/eventos/${fixture.id}/dias`)
+      .set('Authorization', `Bearer ${token}`)
       .send({ numeroDia: 1, data: '20/11/2026' })
       .expect(400);
 
@@ -182,6 +225,7 @@ describe('DiasEventoController (e2e)', () => {
 
     await request(app.getHttpServer())
       .patch(`/api/v1/eventos/${fixture.id}/dias/${day.body.id}`)
+      .set('Authorization', `Bearer ${token}`)
       .send({ data: '20/11/2026' })
       .expect(400);
   });
@@ -193,9 +237,11 @@ describe('DiasEventoController (e2e)', () => {
 
     await request(app.getHttpServer())
       .delete(`/api/v1/eventos/999999/dias/${day.body.id}`)
+      .set('Authorization', `Bearer ${token}`)
       .expect(404);
     await request(app.getHttpServer())
       .delete(`/api/v1/eventos/${secondEvent.id}/dias/${day.body.id}`)
+      .set('Authorization', `Bearer ${token}`)
       .expect(404);
   });
 
@@ -207,6 +253,7 @@ describe('DiasEventoController (e2e)', () => {
     if (!dependencyTablesAvailable) {
       await request(app.getHttpServer())
         .delete(`/api/v1/eventos/${fixture.id}/dias/${presenceDay.body.id}`)
+        .set('Authorization', `Bearer ${token}`)
         .expect(503)
         .expect(({ body }) => {
           expect(body.message).toBe(
@@ -239,9 +286,11 @@ describe('DiasEventoController (e2e)', () => {
 
     await request(app.getHttpServer())
       .delete(`/api/v1/eventos/${fixture.id}/dias/${presenceDay.body.id}`)
+      .set('Authorization', `Bearer ${token}`)
       .expect(409);
     await request(app.getHttpServer())
       .delete(`/api/v1/eventos/${fixture.id}/dias/${challengeDay.body.id}`)
+      .set('Authorization', `Bearer ${token}`)
       .expect(409);
   });
 });
