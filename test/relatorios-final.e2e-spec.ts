@@ -185,7 +185,6 @@ describe('Relatório Final por Participante E2E (#229)', () => {
       await prisma.diaEvento.deleteMany({ where: { eventoId } });
       await prisma.grupo.deleteMany({ where: { eventoId } });
       await prisma.evento.delete({ where: { id: eventoId } });
-      await prisma.usuario.delete({ where: { id: adminId } });
     }
     await app?.close();
   });
@@ -228,6 +227,260 @@ describe('Relatório Final por Participante E2E (#229)', () => {
         'relatorio-final-arena-final-t229',
       );
       expect(Buffer.from(resposta.body).length).toBeGreaterThan(0);
+    }
+  });
+
+  it('bloqueia empate pendente e libera as três rotas após desempate vigente', async () => {
+    const eventoEmpate = await prisma.evento.create({
+      data: {
+        nome: 'Arena Empate T229',
+        ano: 2095,
+        dataInicio: new Date('2095-11-20T00:00:00.000Z'),
+        dataFim: new Date('2095-11-21T00:00:00.000Z'),
+        quantidadeDias: 2,
+        ativo: false,
+      },
+    });
+    const [dia1, dia2] = await Promise.all([
+      prisma.diaEvento.create({
+        data: {
+          eventoId: eventoEmpate.id,
+          numeroDia: 1,
+          data: new Date('2095-11-20T00:00:00.000Z'),
+        },
+      }),
+      prisma.diaEvento.create({
+        data: {
+          eventoId: eventoEmpate.id,
+          numeroDia: 2,
+          data: new Date('2095-11-21T00:00:00.000Z'),
+        },
+      }),
+    ]);
+    const [grupoAlfa, grupoBeta] = await Promise.all([
+      prisma.grupo.create({
+        data: {
+          eventoId: eventoEmpate.id,
+          nome: 'Alfa Empate',
+          cor: '#AA1122',
+        },
+      }),
+      prisma.grupo.create({
+        data: {
+          eventoId: eventoEmpate.id,
+          nome: 'Beta Empate',
+          cor: '#BB2233',
+        },
+      }),
+    ]);
+    const [participanteAlfa, participanteBeta] = await Promise.all([
+      prisma.participante.create({
+        data: {
+          eventoId: eventoEmpate.id,
+          grupoId: grupoAlfa.id,
+          nome: 'Alfa Aluno',
+          matricula: 'EMP-A',
+          turma: 'A',
+        },
+      }),
+      prisma.participante.create({
+        data: {
+          eventoId: eventoEmpate.id,
+          grupoId: grupoBeta.id,
+          nome: 'Beta Aluno',
+          matricula: 'EMP-B',
+          turma: 'B',
+        },
+      }),
+    ]);
+    const desafio1 = await prisma.desafio.create({
+      data: {
+        eventoId: eventoEmpate.id,
+        diaId: dia1.id,
+        nome: 'Empate 1',
+        pontosColocacao: {
+          create: [
+            { colocacao: 1, pontos: 100 },
+            { colocacao: 2, pontos: 80 },
+          ],
+        },
+      },
+    });
+    const desafio2 = await prisma.desafio.create({
+      data: {
+        eventoId: eventoEmpate.id,
+        diaId: dia2.id,
+        nome: 'Empate 2',
+        pontosColocacao: {
+          create: [
+            { colocacao: 1, pontos: 100 },
+            { colocacao: 2, pontos: 80 },
+          ],
+        },
+      },
+    });
+    await prisma.resultadoDesafio.createMany({
+      data: [
+        {
+          eventoId: eventoEmpate.id,
+          desafioId: desafio1.id,
+          grupoId: grupoAlfa.id,
+          colocacao: 1,
+          ausente: false,
+        },
+        {
+          eventoId: eventoEmpate.id,
+          desafioId: desafio1.id,
+          grupoId: grupoBeta.id,
+          colocacao: 2,
+          ausente: false,
+        },
+        {
+          eventoId: eventoEmpate.id,
+          desafioId: desafio2.id,
+          grupoId: grupoAlfa.id,
+          colocacao: 2,
+          ausente: false,
+        },
+        {
+          eventoId: eventoEmpate.id,
+          desafioId: desafio2.id,
+          grupoId: grupoBeta.id,
+          colocacao: 1,
+          ausente: false,
+        },
+      ],
+    });
+    await prisma.fatorPresenca.createMany({
+      data: [
+        { eventoId: eventoEmpate.id, diasPresentes: 0, fator: 0 },
+        { eventoId: eventoEmpate.id, diasPresentes: 1, fator: 0.5 },
+        { eventoId: eventoEmpate.id, diasPresentes: 2, fator: 1 },
+      ],
+    });
+    await prisma.conversaoPontoExtra.createMany({
+      data: [
+        { eventoId: eventoEmpate.id, colocacao: 1, pontoExtra: 1 },
+        { eventoId: eventoEmpate.id, colocacao: 2, pontoExtra: 0.2 },
+      ],
+    });
+    await prisma.presenca.createMany({
+      data: [
+        {
+          eventoId: eventoEmpate.id,
+          diaId: dia1.id,
+          participanteId: participanteAlfa.id,
+          presente: true,
+        },
+        {
+          eventoId: eventoEmpate.id,
+          diaId: dia2.id,
+          participanteId: participanteAlfa.id,
+          presente: true,
+        },
+        {
+          eventoId: eventoEmpate.id,
+          diaId: dia1.id,
+          participanteId: participanteBeta.id,
+          presente: true,
+        },
+      ],
+    });
+
+    try {
+      const rotas = [
+        `/api/v1/eventos/${eventoEmpate.id}/relatorios/final/previa`,
+        `/api/v1/eventos/${eventoEmpate.id}/relatorios/final?formato=PDF`,
+        `/api/v1/eventos/${eventoEmpate.id}/relatorios/final?formato=XLSX`,
+      ];
+      for (const rota of rotas) {
+        await request(app.getHttpServer())
+          .get(rota)
+          .auth(token, { type: 'bearer' })
+          .expect(409);
+      }
+
+      const apuracao = await prisma.apuracao.create({
+        data: {
+          eventoId: eventoEmpate.id,
+          versao: 1,
+          usuarioId: adminId,
+          operacaoId: randomUUID(),
+          status: 'PROVISORIA',
+        },
+      });
+      await prisma.classificacaoGrupo.createMany({
+        data: [
+          {
+            apuracaoId: apuracao.id,
+            grupoId: grupoAlfa.id,
+            eventoId: eventoEmpate.id,
+            posicao: 2,
+            pontosDesafios: 180,
+            pontosTotal: 180,
+          },
+          {
+            apuracaoId: apuracao.id,
+            grupoId: grupoBeta.id,
+            eventoId: eventoEmpate.id,
+            posicao: 1,
+            pontosDesafios: 180,
+            pontosTotal: 180,
+          },
+        ],
+      });
+      await prisma.desempateManual.createMany({
+        data: [
+          {
+            eventoId: eventoEmpate.id,
+            grupoId: grupoAlfa.id,
+            apuracaoId: apuracao.id,
+            operacaoId: randomUUID(),
+            posicao: 2,
+            justificativa: 'Desempate manual T229',
+            usuarioId: adminId,
+          },
+          {
+            eventoId: eventoEmpate.id,
+            grupoId: grupoBeta.id,
+            apuracaoId: apuracao.id,
+            operacaoId: randomUUID(),
+            posicao: 1,
+            justificativa: 'Desempate manual T229',
+            usuarioId: adminId,
+          },
+        ],
+      });
+
+      const previa = await request(app.getHttpServer())
+        .get(`/api/v1/eventos/${eventoEmpate.id}/relatorios/final/previa`)
+        .auth(token, { type: 'bearer' })
+        .expect(200);
+      expect(previa.body[0].participantes[0]).toMatchObject({
+        pontoExtra: 0.2,
+      });
+      expect(previa.body[1].participantes[0]).toMatchObject({
+        pontoExtra: 0.5,
+      });
+      expect(previa.body[0].participantes[0].presencas).toEqual([
+        { numeroDia: 1, presente: true },
+        { numeroDia: 2, presente: true },
+      ]);
+      expect(previa.body[1].participantes[0].presencas).toEqual([
+        { numeroDia: 1, presente: true },
+        { numeroDia: 2, presente: false },
+      ]);
+
+      for (const rota of rotas.slice(1)) {
+        await request(app.getHttpServer())
+          .get(rota)
+          .auth(token, { type: 'bearer' })
+          .buffer(true)
+          .parse(binaryParser)
+          .expect(200);
+      }
+    } finally {
+      // V11 torna desempate_manual append-only; o banco inteiro desta execução é descartável.
     }
   });
 });
