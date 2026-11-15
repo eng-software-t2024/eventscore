@@ -9,6 +9,7 @@ import {
   Post,
   Query,
   UploadedFile,
+  UseFilters,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -30,8 +31,9 @@ import {
   ImportacaoPrevistaDto,
 } from './dto/importacao.dto.js';
 import { ListarParticipantesQueryDto } from './dto/listar-participantes-query.dto.js';
-import { ParticipanteResumoDto } from './dto/participante-resumo.dto.js';
+import { ParticipantesListagemDto } from './dto/participantes-listagem.dto.js';
 import { ParticipantesService } from './participantes.service.js';
+import { UploadLimitFilter } from './upload-limit.filter.js';
 
 const TAMANHO_MAXIMO_ARQUIVO = 5 * 1024 * 1024;
 
@@ -59,7 +61,7 @@ export class ParticipantesController {
 
   @Get()
   @ApiOperation({ summary: 'Listar participantes do evento' })
-  @ApiOkResponse({ type: ParticipanteResumoDto, isArray: true })
+  @ApiOkResponse({ type: ParticipantesListagemDto })
   @ApiNotFoundResponse({ type: ErroPadraoDto })
   list(
     @Param('eventoId', ParseIntPipe) eventId: number,
@@ -75,6 +77,7 @@ export class ParticipantesController {
       limits: { fileSize: TAMANHO_MAXIMO_ARQUIVO },
     }),
   )
+  @UseFilters(UploadLimitFilter)
   @ApiOperation({ summary: 'Pré-visualizar importação de participantes' })
   @ApiConsumes('multipart/form-data')
   @ApiOkResponse({ type: ImportacaoPrevistaDto })
@@ -92,6 +95,7 @@ export class ParticipantesController {
       limits: { fileSize: TAMANHO_MAXIMO_ARQUIVO },
     }),
   )
+  @UseFilters(UploadLimitFilter)
   @ApiOperation({ summary: 'Importar participantes (grava após validação)' })
   @ApiConsumes('multipart/form-data')
   @ApiCreatedResponse({ type: ImportacaoConfirmadaDto })

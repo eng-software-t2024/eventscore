@@ -15,6 +15,7 @@ import {
   ImportacaoPrevistaDto,
 } from '../modules/participantes/dto/importacao.dto.js';
 import { ParticipanteResumoDto } from '../modules/participantes/dto/participante-resumo.dto.js';
+import { ParticipantesListagemDto } from '../modules/participantes/dto/participantes-listagem.dto.js';
 
 export function configurarSwagger(app: INestApplication): void {
   const swaggerConfig = new DocumentBuilder()
@@ -42,6 +43,7 @@ export function configurarSwagger(app: INestApplication): void {
       AtualizarGrupoDto,
       GrupoResumoDto,
       ParticipanteResumoDto,
+      ParticipantesListagemDto,
       ImportacaoPrevistaDto,
       ImportacaoLinhaDto,
       ImportacaoConfirmadaDto,

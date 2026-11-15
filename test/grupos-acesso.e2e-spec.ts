@@ -68,6 +68,9 @@ describe('Acesso aos endpoints de grupos (T23 + T15)', () => {
     try {
       if (eventoId !== undefined) {
         await prisma.participante.deleteMany({ where: { eventoId } });
+        await prisma.resultadoDesafio.deleteMany({ where: { eventoId } });
+        await prisma.desafio.deleteMany({ where: { eventoId } });
+        await prisma.diaEvento.deleteMany({ where: { eventoId } });
         await prisma.grupo.deleteMany({ where: { eventoId } });
         await prisma.evento.deleteMany({ where: { id: eventoId } });
       }
@@ -179,5 +182,61 @@ describe('Acesso aos endpoints de grupos (T23 + T15)', () => {
       .auth(token, { type: 'bearer' })
       .send(payload)
       .expect(409);
+  });
+
+  it('bloqueia POST, PATCH e DELETE após resultado lançado (RF03)', async () => {
+    const grupo = await prisma.grupo.create({
+      data: {
+        eventoId: eventoId as number,
+        nome: `RF03 ${identificador}`,
+        cor: '#123456',
+      },
+    });
+    const dia = await prisma.diaEvento.create({
+      data: {
+        eventoId: eventoId as number,
+        numeroDia: 1,
+        data: new Date('2098-05-10T00:00:00.000Z'),
+      },
+    });
+    const desafio = await prisma.desafio.create({
+      data: {
+        eventoId: eventoId as number,
+        diaId: dia.id,
+        nome: `RF03 ${identificador}`,
+      },
+    });
+    await prisma.resultadoDesafio.create({
+      data: {
+        eventoId: eventoId as number,
+        desafioId: desafio.id,
+        grupoId: grupo.id,
+        colocacao: 1,
+        ausente: false,
+      },
+    });
+
+    const mensagem =
+      'os grupos não podem mais ser alterados porque já há resultado lançado';
+
+    const post = await request(app.getHttpServer())
+      .post(`/api/v1/eventos/${eventoId}/grupos`)
+      .auth(token, { type: 'bearer' })
+      .send({ nome: `Novo ${identificador}`, cor: '#654321' })
+      .expect(409);
+    expect(post.body.message).toBe(mensagem);
+
+    const patch = await request(app.getHttpServer())
+      .patch(`/api/v1/eventos/${eventoId}/grupos/${grupo.id}`)
+      .auth(token, { type: 'bearer' })
+      .send({ nome: `Alterado ${identificador}` })
+      .expect(409);
+    expect(patch.body.message).toBe(mensagem);
+
+    const remove = await request(app.getHttpServer())
+      .delete(`/api/v1/eventos/${eventoId}/grupos/${grupo.id}`)
+      .auth(token, { type: 'bearer' })
+      .expect(409);
+    expect(remove.body.message).toBe(mensagem);
   });
 });

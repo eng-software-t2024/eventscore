@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
@@ -151,10 +152,14 @@ export class ParticipantesService {
   }
 
   private async parseFile(file: ImportFile): Promise<Row[]> {
-    if (this.isXlsx(file)) {
-      return this.parseXlsx(file.buffer);
+    try {
+      if (this.isXlsx(file)) {
+        return await this.parseXlsx(file.buffer);
+      }
+      return this.parseCsv(file.buffer);
+    } catch {
+      throw new BadRequestException('Arquivo CSV ou XLSX inválido');
     }
-    return this.parseCsv(file.buffer);
   }
 
   private isXlsx(file: ImportFile): boolean {

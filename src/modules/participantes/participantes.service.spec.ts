@@ -1,7 +1,9 @@
 import {
+  BadRequestException,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
+import { Workbook } from 'exceljs';
 import { ParticipantesService } from './participantes.service.js';
 
 const EVENT_ID = 1;
@@ -189,6 +191,48 @@ describe('ParticipantesService', () => {
     expect(result.linhas[0].motivoErro).toBe(
       "matricula '123' já cadastrada neste evento",
     );
+  });
+
+  it('lê XLSX com matrícula numérica', async () => {
+    const { service, prisma } = setup();
+    prisma.evento.findUnique.mockResolvedValue({ id: EVENT_ID });
+    prisma.grupo.findMany.mockResolvedValue([{ id: 1, nome: 'Alfa' }]);
+    prisma.participante.findMany.mockResolvedValue([]);
+
+    const workbook = new Workbook();
+    const worksheet = workbook.addWorksheet('Participantes');
+    worksheet.addRow(['nome', 'matricula', 'turma', 'grupo']);
+    worksheet.addRow(['João', 2023001, 'A1', 'Alfa']);
+    const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+
+    const result = await service.previewImport(EVENT_ID, {
+      buffer,
+      mimetype:
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      originalname: 'participantes.xlsx',
+    });
+
+    expect(result.linhasValidas).toBe(1);
+    expect(result.linhas[0]).toMatchObject({
+      nome: 'João',
+      matricula: '2023001',
+      grupo: 'Alfa',
+      status: 'VALIDO',
+      motivoErro: null,
+    });
+  });
+
+  it('retorna 400 para arquivo CSV inválido', async () => {
+    const { service, prisma } = setup();
+    prisma.evento.findUnique.mockResolvedValue({ id: EVENT_ID });
+
+    await expect(
+      service.previewImport(EVENT_ID, {
+        buffer: Buffer.from('nome,matricula\n"linha quebrada'),
+        mimetype: 'text/csv',
+        originalname: 'participantes.csv',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('confirma importação sem erros e persiste todas as linhas', async () => {

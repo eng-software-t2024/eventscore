@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { type INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { Workbook } from 'exceljs';
 import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
 import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter.js';
@@ -176,6 +177,62 @@ describe('Acesso aos endpoints de participantes (#203 + T15)', () => {
       .post(`/api/v1/eventos/${eventoId}/participantes/importacao/previa`)
       .auth(token, { type: 'bearer' })
       .expect(400);
+  });
+
+  it('retorna 400 ao enviar arquivo acima de 5 MB', async () => {
+    const arquivoGrande = Buffer.alloc(5 * 1024 * 1024 + 1, 'a');
+
+    const resposta = await request(app.getHttpServer())
+      .post(`/api/v1/eventos/${eventoId}/participantes/importacao/previa`)
+      .auth(token, { type: 'bearer' })
+      .attach('arquivo', arquivoGrande, 'participantes.csv')
+      .expect(400);
+
+    expect(resposta.body).toEqual({
+      statusCode: 400,
+      message: 'O arquivo excede o limite de 5 MB',
+      error: 'Bad Request',
+    });
+  });
+
+  it('pré-visualiza e confirma importação XLSX com matrícula numérica', async () => {
+    const workbook = new Workbook();
+    const worksheet = workbook.addWorksheet('Participantes');
+    worksheet.addRow(['nome', 'matricula', 'turma', 'grupo']);
+    worksheet.addRow(['Xlsx João', 2023099, 'A1', 'Alfa']);
+    const arquivo = Buffer.from(await workbook.xlsx.writeBuffer());
+    const mimetype =
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+    const preview = await request(app.getHttpServer())
+      .post(`/api/v1/eventos/${eventoId}/participantes/importacao/previa`)
+      .auth(token, { type: 'bearer' })
+      .attach('arquivo', arquivo, {
+        filename: 'participantes.xlsx',
+        contentType: mimetype,
+      })
+      .expect(200);
+
+    expect(preview.body).toMatchObject({
+      totalLinhas: 1,
+      linhasValidas: 1,
+      linhasComErro: 0,
+    });
+
+    const confirm = await request(app.getHttpServer())
+      .post(`/api/v1/eventos/${eventoId}/participantes/importacao`)
+      .auth(token, { type: 'bearer' })
+      .attach('arquivo', arquivo, {
+        filename: 'participantes.xlsx',
+        contentType: mimetype,
+      })
+      .expect(201);
+
+    expect(confirm.body.participantes[0]).toMatchObject({
+      nome: 'Xlsx João',
+      matricula: '2023099',
+      grupo: 'Alfa',
+    });
   });
 
   it('retorna 404 para evento inexistente', async () => {
