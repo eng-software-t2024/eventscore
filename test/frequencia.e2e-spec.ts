@@ -262,6 +262,54 @@ describe('Frequência individual por participante e dia (e2e)', () => {
       dados: [],
       resumo: { total: 0, presentes: 0, ausentes: 0 },
     });
+
+    await prisma.presenca.upsert({
+      where: {
+        diaId_participanteId: { diaId: dia1Id, participanteId },
+      },
+      create: {
+        eventoId,
+        diaId: dia1Id,
+        participanteId,
+        presente: true,
+      },
+      update: { presente: true },
+    });
+    await prisma.presenca.upsert({
+      where: {
+        diaId_participanteId: {
+          diaId: outroDiaId,
+          participanteId: outroParticipanteId,
+        },
+      },
+      create: {
+        eventoId: outroEventoId,
+        diaId: outroDiaId,
+        participanteId: outroParticipanteId,
+        presente: false,
+      },
+      update: { presente: false },
+    });
+    const presencaEvento = await prisma.presenca.findUnique({
+      where: {
+        diaId_participanteId: { diaId: dia1Id, participanteId },
+      },
+    });
+    const presencaOutroEvento = await prisma.presenca.findUnique({
+      where: {
+        diaId_participanteId: {
+          diaId: outroDiaId,
+          participanteId: outroParticipanteId,
+        },
+      },
+    });
+    const quantidadeEventoAntes = await prisma.presenca.count({
+      where: { eventoId },
+    });
+    const quantidadeOutroEventoAntes = await prisma.presenca.count({
+      where: { eventoId: outroEventoId },
+    });
+
     await request(app.getHttpServer())
       .put(
         `/api/v1/eventos/${eventoId}/dias/${dia1Id}/presencas/${outroParticipanteId}`,
@@ -283,5 +331,29 @@ describe('Frequência individual por participante e dia (e2e)', () => {
       .auth(token, { type: 'bearer' })
       .send({ presente: true })
       .expect(404);
+
+    expect(
+      await prisma.presenca.findUnique({
+        where: {
+          diaId_participanteId: { diaId: dia1Id, participanteId },
+        },
+      }),
+    ).toEqual(presencaEvento);
+    expect(
+      await prisma.presenca.findUnique({
+        where: {
+          diaId_participanteId: {
+            diaId: outroDiaId,
+            participanteId: outroParticipanteId,
+          },
+        },
+      }),
+    ).toEqual(presencaOutroEvento);
+    await expect(prisma.presenca.count({ where: { eventoId } })).resolves.toBe(
+      quantidadeEventoAntes,
+    );
+    await expect(
+      prisma.presenca.count({ where: { eventoId: outroEventoId } }),
+    ).resolves.toBe(quantidadeOutroEventoAntes);
   });
 });
