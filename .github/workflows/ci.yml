@@ -40,6 +40,8 @@ jobs:
       DATABASE_URL: postgresql://eventscore:eventscore@localhost:5432/eventscore_test
       US6_E2E_SCHEMA: official
       TEST_DATABASE_URL: postgresql://eventscore:eventscore@localhost:5432/eventscore_test
+      E2E_ADMIN_EMAIL: admin@eventscore.local
+      E2E_ADMIN_SENHA: senha-apenas-para-ci
 
     steps:
       - uses: actions/checkout@v7
@@ -76,8 +78,8 @@ jobs:
         run: npm run db:seed
         env:
           ADMIN_NOME: Administrador CI
-          ADMIN_EMAIL: admin@eventscore.local
-          ADMIN_SENHA: senha-apenas-para-ci
+          ADMIN_EMAIL: ${{ env.E2E_ADMIN_EMAIL }}
+          ADMIN_SENHA: ${{ env.E2E_ADMIN_SENHA }}
 
       - name: Testes e2e
         run: npm run test:e2e
