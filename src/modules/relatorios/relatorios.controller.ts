@@ -9,6 +9,7 @@ import {
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiConflictResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -22,6 +23,8 @@ import { ErroValidacaoDto } from '../../common/dto/erro-validacao.dto.js';
 import { EventoIdParamsDto } from '../eventos/dto/evento-id-params.dto.js';
 import { FormatoRelatorioQueryDto } from './dto/formato-relatorio-query.dto.js';
 import { RelatorioParcialService } from './parcial/relatorio-parcial.service.js';
+import { PreviaRelatorioFinalQueryDto } from './dto/previa-relatorio-final-query.dto.js';
+import { RelatorioFinalService } from './final/relatorio-final.service.js';
 
 @ApiTags('Relatórios')
 @ApiBearerAuth()
@@ -29,6 +32,7 @@ import { RelatorioParcialService } from './parcial/relatorio-parcial.service.js'
 export class RelatoriosController {
   constructor(
     private readonly relatorioParcialService: RelatorioParcialService,
+    private readonly relatorioFinalService: RelatorioFinalService,
   ) {}
 
   @Get('parcial')
@@ -87,6 +91,53 @@ export class RelatoriosController {
     res.setHeader('Content-Type', arquivo.contentType);
     res.setHeader('Content-Disposition', arquivo.contentDisposition);
 
+    return new StreamableFile(arquivo.buffer);
+  }
+
+  @Get('final/previa')
+  @ApiOperation({
+    summary: 'Consultar a prévia do relatório final por participante',
+  })
+  @ApiOkResponse({ description: 'Prévia agrupada por turma em array puro.' })
+  @ApiBadRequestResponse({ type: ErroValidacaoDto })
+  @ApiUnauthorizedResponse({ type: ErroPadraoDto })
+  @ApiNotFoundResponse({ type: ErroPadraoDto })
+  @ApiConflictResponse({
+    description: 'Existe empate pendente na classificação.',
+  })
+  previa(
+    @Param() params: EventoIdParamsDto,
+    @Query() query: PreviaRelatorioFinalQueryDto,
+  ) {
+    return this.relatorioFinalService.gerarPrevia(params.eventoId, query);
+  }
+
+  @Get('final')
+  @ApiOperation({
+    summary: 'Exportar o relatório final por participante em PDF ou XLSX',
+  })
+  @ApiProduces(
+    'application/pdf',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  )
+  @ApiOkResponse({ description: 'Arquivo binário do relatório final.' })
+  @ApiBadRequestResponse({ type: ErroValidacaoDto })
+  @ApiUnauthorizedResponse({ type: ErroPadraoDto })
+  @ApiNotFoundResponse({ type: ErroPadraoDto })
+  @ApiConflictResponse({
+    description: 'Existe empate pendente na classificação.',
+  })
+  async exportarFinal(
+    @Param() params: EventoIdParamsDto,
+    @Query() query: FormatoRelatorioQueryDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const arquivo = await this.relatorioFinalService.gerarRelatorioFinal(
+      params.eventoId,
+      query.formato,
+    );
+    res.setHeader('Content-Type', arquivo.contentType);
+    res.setHeader('Content-Disposition', arquivo.contentDisposition);
     return new StreamableFile(arquivo.buffer);
   }
 }

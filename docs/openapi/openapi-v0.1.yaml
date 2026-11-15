@@ -707,6 +707,61 @@ paths:
         '404':
           $ref: '#/components/responses/NaoEncontrado'
 
+  /eventos/{eventoId}/relatorios/final/previa:
+    parameters:
+      - $ref: '#/components/parameters/EventoIdParam'
+      - name: busca
+        in: query
+        required: false
+        description: "Busca por nome, matrícula ou turma."
+        schema:
+          type: string
+    get:
+      tags:
+        - Relatórios
+      summary: "Consultar prévia do relatório final por participante"
+      description: "Retorna um array puro agrupado por turma, incluindo todos os dias do evento e ausências."
+      operationId: "consultarPreviaRelatorioFinal"
+      responses:
+        '200':
+          description: "Prévia do relatório final."
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TurmaRelatorioFinalDto'
+        '400':
+          $ref: '#/components/responses/RequisicaoInvalida'
+        '401':
+          $ref: '#/components/responses/NaoAutorizado'
+        '404':
+          $ref: '#/components/responses/NaoEncontrado'
+        '409':
+          $ref: '#/components/responses/Conflito'
+
+  /eventos/{eventoId}/relatorios/final:
+    parameters:
+      - $ref: '#/components/parameters/EventoIdParam'
+      - $ref: '#/components/parameters/FormatoRelatorioParam'
+    get:
+      tags:
+        - Relatórios
+      summary: "Exportar relatório final por participante em PDF ou XLSX"
+      description: "Gera o relatório final com presença de todos os dias, ausências e ponto extra individual."
+      operationId: "exportarRelatorioFinal"
+      responses:
+        '200':
+          $ref: '#/components/responses/ArquivoRelatorio'
+        '400':
+          $ref: '#/components/responses/RequisicaoInvalida'
+        '401':
+          $ref: '#/components/responses/NaoAutorizado'
+        '404':
+          $ref: '#/components/responses/NaoEncontrado'
+        '409':
+          $ref: '#/components/responses/Conflito'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1257,6 +1312,56 @@ components:
         - PDF
         - XLSX
       example: PDF
+
+    TurmaRelatorioFinalDto:
+      type: object
+      required: [turma, totalParticipantes, participantes]
+      properties:
+        turma:
+          type: string
+          example: "ES 2026.2"
+        totalParticipantes:
+          type: integer
+          minimum: 0
+          example: 2
+        participantes:
+          type: array
+          items:
+            $ref: '#/components/schemas/ParticipanteRelatorioFinalDto'
+
+    ParticipanteRelatorioFinalDto:
+      type: object
+      required: [matricula, nome, grupo, presencas, pontoExtra]
+      properties:
+        matricula:
+          type: string
+          example: "2026-101"
+        nome:
+          type: string
+          example: "Lucas Vitorino"
+        grupo:
+          type: string
+          example: "Alfa"
+        presencas:
+          type: array
+          items:
+            $ref: '#/components/schemas/PresencaRelatorioFinalDto'
+        pontoExtra:
+          type: number
+          format: double
+          example: 0.8
+
+    PresencaRelatorioFinalDto:
+      type: object
+      required: [numeroDia, presente]
+      properties:
+        numeroDia:
+          type: integer
+          minimum: 1
+          example: 1
+        presente:
+          type: boolean
+          example: false
 
     # ----------------------------------------------------
     # Erros Padrão NestJS
