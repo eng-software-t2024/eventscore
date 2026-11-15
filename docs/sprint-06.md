@@ -156,7 +156,10 @@ front x API v0.3.
 | `participantes.service.spec.ts` | unitário | listagem/filtros, prévia, validações, confirmação/422 |
 | `participantes.module.spec.ts` | unitário | wiring sem banco |
 | `test/participantes-persistencia.e2e-spec.ts` | integração | listar/importar, duplicidade, grupo inexistente, 422 |
-| `test/participantes-acesso.e2e-spec.ts` | e2e HTTP | 401, upload multipart, 422, 400, 404, filtros |
+| `test/participantes-acesso.e2e-spec.ts` | e2e HTTP | 401, upload multipart, XLSX, limite de 5 MB, 422, 400, 404, filtros |
+| `test/grupos-acesso.e2e-spec.ts` | e2e HTTP | trigger RF03 real no PostgreSQL para POST/PATCH/DELETE |
+
+Cobertura local após a revisão: 226 testes unitários e 46 testes e2e aprovados.
 
 ---
 
