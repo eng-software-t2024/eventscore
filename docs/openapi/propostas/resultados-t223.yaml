@@ -1,0 +1,201 @@
+openapi: 3.0.3
+info:
+  title: EventScore — proposta de contrato de colocações (Taiga 223)
+  version: 0.2.0-draft.t223
+  description: |
+    Recorte da parte 1 da US #206 para revisão de RF08/RF09 e RF18.
+    Proposta pendente de aprovação explícita do frontend e revisão backend.
+    Não publica o OpenAPI oficial, não implementa endpoints e não inclui
+    bônus, penalidades, classificação, apuração ou GET /auditoria.
+servers:
+  - url: http://localhost:3000/api/v1
+tags:
+  - name: Resultados de desafios
+security:
+  - bearerAuth: []
+x-status: proposta-pendente-de-aprovacao
+paths:
+  /eventos/{eventoId}/desafios/{desafioId}/resultados:
+    parameters:
+      - $ref: '#/components/parameters/EventoId'
+      - $ref: '#/components/parameters/DesafioId'
+    get:
+      tags: [Resultados de desafios]
+      operationId: listarResultadosDoDesafio
+      summary: Consultar as colocações dos grupos no desafio
+      description: |
+        Valida evento e desafio no mesmo contexto. Retorna uma linha por
+        grupo do evento, ordenada por grupoId crescente, sem gravar dados.
+        Sem lançamento, a linha tem id null, colocacao null, ausente false
+        e pontos 0. Essa linha representa um preenchimento pendente, não
+        uma ausência. Uma ausência gravada tem id, colocacao null, ausente
+        true e pontos 0. Para presentes, pontos vem da tabela do desafio.
+        Evento existente com desafio válido e sem grupos retorna [].
+      responses:
+        '200':
+          description: Array de resultados e linhas ainda não lançadas.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultadosDto'
+              examples:
+                antesDoPrimeiroLancamento:
+                  value:
+                    - { id: null, grupoId: 1, colocacao: null, ausente: false, pontos: 0 }
+                    - { id: null, grupoId: 2, colocacao: null, ausente: false, pontos: 0 }
+                comAusencia:
+                  value:
+                    - { id: 11, grupoId: 1, colocacao: 1, ausente: false, pontos: 100 }
+                    - { id: 12, grupoId: 2, colocacao: null, ausente: true, pontos: 0 }
+        '400':
+          $ref: '../openapi-v0.1.yaml#/components/responses/RequisicaoInvalida'
+        '401':
+          $ref: '../openapi-v0.1.yaml#/components/responses/NaoAutorizado'
+        '404':
+          $ref: '../openapi-v0.1.yaml#/components/responses/NaoEncontrado'
+    put:
+      tags: [Resultados de desafios]
+      operationId: salvarResultadosDoDesafio
+      summary: Salvar todas as colocações do desafio de forma idempotente
+      description: |
+        Recebe um array completo, com exatamente uma linha para cada grupo
+        do evento. Não é um PATCH e não cria grupo ou desafio. A ordem do
+        array não altera o resultado. Campos ausentes, desconhecidos ou
+        tipos inválidos dão 400; grupo inexistente ou de outro evento dá 404.
+        Repetição/omissão de grupos, ausência incompatível com colocacao,
+        colocações repetidas/com lacunas ou sem pontos configurados dão 422.
+        Com P grupos presentes, suas colocações devem formar 1..P.
+        Ausente exige colocacao null e recebe 0 ponto. Todos ausentes é
+        permitido; não existe estado pendente após um PUT bem-sucedido.
+        Grava o conjunto e a auditoria na mesma transação, sem alteração
+        parcial em caso de erro. Preserva o id de cada resultado existente,
+        inclusive ao trocar colocações ou alternar presença e ausência.
+        Reenviar os mesmos valores, mesmo em outra ordem, não cria resultado
+        nem auditoria adicional. Uma correção audita só as linhas alteradas.
+        usuarioId vem do JWT; operacaoId é gerado pelo servidor e compartilhado
+        pelas anotações da requisição. O cliente não envia esses campos.
+        Não promete recálculo da apuração ou consulta de histórico: essas
+        integrações estão identificadas como pendentes no documento da proposta.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SalvarResultadosDto'
+            examples:
+              todosPresentes:
+                value:
+                  - { grupoId: 1, colocacao: 1, ausente: false }
+                  - { grupoId: 2, colocacao: 2, ausente: false }
+              comAusencia:
+                value:
+                  - { grupoId: 1, colocacao: 1, ausente: false }
+                  - { grupoId: 2, colocacao: null, ausente: true }
+              todosAusentes:
+                value:
+                  - { grupoId: 1, colocacao: null, ausente: true }
+                  - { grupoId: 2, colocacao: null, ausente: true }
+      responses:
+        '200':
+          description: |
+            Conjunto salvo, ordenado por grupoId crescente, com os IDs
+            preservados e a pontuação calculada da tabela do desafio.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultadosDto'
+              examples:
+                colocacoesSalvas:
+                  value:
+                    - { id: 11, grupoId: 1, colocacao: 1, ausente: false, pontos: 100 }
+                    - { id: 12, grupoId: 2, colocacao: 2, ausente: false, pontos: 80 }
+        '400':
+          $ref: '../openapi-v0.1.yaml#/components/responses/RequisicaoInvalida'
+        '401':
+          $ref: '../openapi-v0.1.yaml#/components/responses/NaoAutorizado'
+        '404':
+          $ref: '../openapi-v0.1.yaml#/components/responses/NaoEncontrado'
+        '422':
+          description: |
+            Conjunto incompleto, grupo repetido, ausência inconsistente,
+            colocação repetida/com lacunas ou sem pontuação configurada.
+            Nada é gravado, incluindo a auditoria.
+          content:
+            application/json:
+              schema:
+                $ref: '../openapi-v0.1.yaml#/components/schemas/ErroPadraoDto'
+              example:
+                statusCode: 422
+                message: Dois grupos não podem ter a mesma colocação.
+                error: Unprocessable Entity
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    EventoId:
+      name: eventoId
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1, maximum: 2147483647 }
+      example: 1
+    DesafioId:
+      name: desafioId
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1, maximum: 2147483647 }
+      example: 3
+  schemas:
+    SalvarResultadosDto:
+      type: array
+      minItems: 1
+      description: |
+        Uma linha por grupo atual do evento. Cobertura completa e unicidade
+        por grupoId são regras de domínio validadas no serviço, com 422.
+      items:
+        $ref: '#/components/schemas/SalvarResultadoDto'
+    SalvarResultadoDto:
+      type: object
+      additionalProperties: false
+      required: [grupoId, colocacao, ausente]
+      properties:
+        grupoId: { type: integer, minimum: 1, maximum: 2147483647 }
+        colocacao:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 2147483647
+          description: |
+            null apenas para ausente true. Inteiro positivo para presente.
+            A combinação incompatível retorna 422, não é normalizada em silêncio.
+        ausente: { type: boolean }
+    ResultadosDto:
+      type: array
+      items:
+        $ref: '#/components/schemas/ResultadoDto'
+    ResultadoDto:
+      type: object
+      additionalProperties: false
+      required: [id, grupoId, colocacao, ausente, pontos]
+      description: |
+        Com id null, colocacao é null, ausente false e pontos 0 (pendente).
+        Com id preenchido e ausente true, colocacao é null e pontos 0.
+        Com id preenchido e ausente false, colocacao é inteira positiva e
+        pontos vem da tabela do desafio. Após PUT todos os IDs estão preenchidos.
+      properties:
+        id:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 2147483647
+          description: null somente quando ainda não existe resultado persistido.
+        grupoId: { type: integer, minimum: 1, maximum: 2147483647 }
+        colocacao: { type: integer, nullable: true, minimum: 1, maximum: 2147483647 }
+        ausente: { type: boolean }
+        pontos:
+          type: integer
+          minimum: 0
+          maximum: 2147483647
+          description: Pontos da colocação no desafio; zero para ausência ou pendência.
