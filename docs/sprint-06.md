@@ -163,10 +163,43 @@ Cobertura local após a revisão: 226 testes unitários e 46 testes e2e aprovado
 
 ---
 
+## Onda 4 — #206 parte 2: bônus e penalidades
+
+Módulo `src/modules/bonificacoes-penalidades/` para lançamento de bônus por grupo
+e penalidades, usando as tabelas e triggers da migração V9.
+
+### Rotas
+
+| Método | Rota | Descrição |
+|---|---|---|
+| `GET` | `/eventos/{eventoId}/bonificacoes` | lista bônus lançados |
+| `PUT` | `/eventos/{eventoId}/bonificacoes/{grupoId}` | substitui bônus do grupo de forma idempotente |
+| `GET` | `/eventos/{eventoId}/penalidades` | lista penalidades |
+| `POST` | `/eventos/{eventoId}/penalidades` | cria penalidade |
+| `PATCH` | `/eventos/{eventoId}/penalidades/{penalidadeId}` | atualiza penalidade |
+| `DELETE` | `/eventos/{eventoId}/penalidades/{penalidadeId}` | exclui penalidade (204) |
+
+- Bônus validado contra o teto do `item_bonificacao` e contra o evento do grupo.
+- Penalidade exige justificativa e respeita `penalidadeMin`/`penalidadeMax` do evento.
+- Faixa de penalidade ainda é validada no backend, conforme ADR 0003; não foi criada
+  migração nova.
+- Os itens de bonificação e seus tetos continuam pertencendo à configuração do evento
+  (#199); a #206 apenas lança os valores por grupo.
+
+### Testes da Onda 4
+
+- Unitários para teto, faixa, evento/grupo e CRUD.
+- E2E com PostgreSQL real para JWT, bônus, penalidades e respostas `422`/`204`.
+- Cobertura atual: 234 testes unitários e 49 testes e2e.
+
+---
+
 ## Pendências
 
 - **#201 Grupos** — história do Taiga que fecha a US05 com o front-end (revisão do
   contrato e integração da tela).
 - **#203 Participantes** — contrato OpenAPI v0.2 ainda não publicado (rotas alinhadas
   ao contrato front v0.3, registrado acima).
+- **#206** — contrato OpenAPI v0.2 ainda não publicado; rotas acima seguem o plano
+  de entregas e precisam ser conferidas com o front-end.
 - **Revisão e merge** — abrir PR para a `main` e aprovação do revisor (Ikki).
