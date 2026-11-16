@@ -1,4 +1,5 @@
 import { ConflictException } from '@nestjs/common';
+import { Prisma } from '../../../generated/prisma/client.js';
 import type { PrismaService } from '../../../prisma/prisma.service.js';
 import { FormatoRelatorio } from '../enums/formato-relatorio.enum.js';
 import { RelatorioParcialService } from '../parcial/relatorio-parcial.service.js';
@@ -59,12 +60,12 @@ describe('RelatorioFinalService', () => {
       },
     ]);
     prisma.$queryRaw.mockResolvedValue([
-      { participanteId: 1, fator: 0.5 },
-      { participanteId: 2, fator: 1 },
+      { participanteId: 1, fator: new Prisma.Decimal('0.5') },
+      { participanteId: 2, fator: new Prisma.Decimal('1') },
     ]);
     prisma.conversaoPontoExtra.findMany.mockResolvedValue([
-      { colocacao: 1, pontoExtra: 1 },
-      { colocacao: 2, pontoExtra: 0.8 },
+      { colocacao: 1, pontoExtra: new Prisma.Decimal('1') },
+      { colocacao: 2, pontoExtra: new Prisma.Decimal('0.8') },
     ]);
     pdf.gerarBuffer.mockResolvedValue(Buffer.from('pdf'));
     xlsx.gerarBuffer.mockResolvedValue(Buffer.from('xlsx'));
@@ -151,15 +152,48 @@ describe('RelatorioFinalService', () => {
 
   it('reproduz o arredondamento decimal do PostgreSQL em meio centavo', async () => {
     prisma.$queryRaw.mockResolvedValueOnce([
-      { participanteId: 1, fator: 0.35 },
-      { participanteId: 2, fator: 1 },
+      { participanteId: 1, fator: new Prisma.Decimal('0.35') },
+      { participanteId: 2, fator: new Prisma.Decimal('1') },
     ]);
     prisma.conversaoPontoExtra.findMany.mockResolvedValueOnce([
-      { colocacao: 1, pontoExtra: 0.3 },
-      { colocacao: 2, pontoExtra: 0.8 },
+      { colocacao: 1, pontoExtra: new Prisma.Decimal('0.3') },
+      { colocacao: 2, pontoExtra: new Prisma.Decimal('0.8') },
     ]);
     const previa = await service.gerarPrevia(1, { busca: 'Ana' });
     expect(previa[0].participantes[0].pontoExtra).toBe(0.11);
+  });
+
+  it('respeita limites e metade da segunda casa no domínio decimal do schema', async () => {
+    prisma.$queryRaw
+      .mockResolvedValueOnce([
+        { participanteId: 1, fator: new Prisma.Decimal('0.05') },
+      ])
+      .mockResolvedValueOnce([
+        { participanteId: 1, fator: new Prisma.Decimal('0') },
+      ])
+      .mockResolvedValueOnce([
+        { participanteId: 1, fator: new Prisma.Decimal('1') },
+      ]);
+    prisma.conversaoPontoExtra.findMany
+      .mockResolvedValueOnce([
+        { colocacao: 1, pontoExtra: new Prisma.Decimal('0.1') },
+      ])
+      .mockResolvedValueOnce([
+        { colocacao: 1, pontoExtra: new Prisma.Decimal('1') },
+      ])
+      .mockResolvedValueOnce([
+        { colocacao: 1, pontoExtra: new Prisma.Decimal('1') },
+      ]);
+
+    await expect(
+      service.gerarPrevia(1, { busca: 'Ana' }),
+    ).resolves.toMatchObject([{ participantes: [{ pontoExtra: 0.01 }] }]);
+    await expect(
+      service.gerarPrevia(1, { busca: 'Ana' }),
+    ).resolves.toMatchObject([{ participantes: [{ pontoExtra: 0 }] }]);
+    await expect(
+      service.gerarPrevia(1, { busca: 'Ana' }),
+    ).resolves.toMatchObject([{ participantes: [{ pontoExtra: 1 }] }]);
   });
 
   it('usa exportadores compartilhados e retorna metadados de download', async () => {

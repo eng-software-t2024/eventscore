@@ -19,8 +19,15 @@ import type { PreviaRelatorioFinalQueryDto } from '../dto/previa-relatorio-final
 const MENSAGEM_EMPATE =
   'A classificação tem empate pendente; registre o desempate antes do relatório final.';
 
-function arredondarPontoExtra(valor: number): number {
-  return Math.round((valor + Number.EPSILON) * 100) / 100;
+function arredondarPontoExtra(
+  pontoExtraGrupo: Prisma.Decimal,
+  fator: Prisma.Decimal,
+): number {
+  const valorArredondado = pontoExtraGrupo
+    .mul(fator)
+    .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+
+  return Number(valorArredondado.toString());
 }
 
 export interface PresencaRelatorioFinal {
@@ -45,7 +52,7 @@ export interface TurmaRelatorioFinal {
 
 interface FatorParticipante {
   participanteId: number;
-  fator: number | null;
+  fator: Prisma.Decimal | null;
 }
 
 @Injectable()
@@ -82,7 +89,7 @@ export class RelatorioFinalService {
       select: { colocacao: true, pontoExtra: true },
     });
     const conversaoPorColocacao = new Map(
-      conversoes.map((item) => [item.colocacao, Number(item.pontoExtra)]),
+      conversoes.map((item) => [item.colocacao, item.pontoExtra]),
     );
     const busca = query.busca?.trim().toLocaleLowerCase('pt-BR');
     const linhas = participantes
@@ -95,9 +102,10 @@ export class RelatorioFinalService {
       })
       .map((participante) => {
         const colocacao = classificacao.get(participante.grupoId);
-        const pontoExtraGrupo = conversaoPorColocacao.get(colocacao ?? -1) ?? 0;
-        const fator = fatores.get(participante.id) ?? 0;
-        const pontoExtra = arredondarPontoExtra(pontoExtraGrupo * fator);
+        const pontoExtraGrupo =
+          conversaoPorColocacao.get(colocacao ?? -1) ?? new Prisma.Decimal(0);
+        const fator = fatores.get(participante.id) ?? new Prisma.Decimal(0);
+        const pontoExtra = arredondarPontoExtra(pontoExtraGrupo, fator);
         const presencas = dias.map((dia) => ({
           numeroDia: dia.numeroDia,
           presente:
@@ -225,7 +233,9 @@ export class RelatorioFinalService {
     };
   }
 
-  private async obterFatores(eventoId: number): Promise<Map<number, number>> {
+  private async obterFatores(
+    eventoId: number,
+  ): Promise<Map<number, Prisma.Decimal>> {
     const fatores = await this.prisma.$queryRaw<FatorParticipante[]>(Prisma.sql`
       SELECT id_participante AS "participanteId", fator
       FROM vw_participante_fator
@@ -234,7 +244,7 @@ export class RelatorioFinalService {
     return new Map(
       fatores.map((item) => [
         item.participanteId,
-        item.fator === null ? 0 : Number(item.fator),
+        item.fator === null ? new Prisma.Decimal(0) : item.fator,
       ]),
     );
   }
