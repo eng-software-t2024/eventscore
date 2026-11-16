@@ -4,21 +4,26 @@ Este diretório contém as especificações formais **OpenAPI 3.0.3** da API RES
 
 ---
 
-## 1. Versão Atual do Contrato: `v0.1.0` (Baseline Sprint 01)
+## 1. Versão Atual do Contrato: `v0.2.0` (Contrato Completo — Sprints 01 e 02)
 
-A versão **`v0.1.0`** documenta o escopo fechado e aprovado da **Sprint 01 (S1)**, formalizado no documento [docs/contrato-api-t06.md](../contrato-api-t06.md) e alinhado com a versão **v0.3** do contrato do Frontend (aprovada formalmente em 29/10/2026 por **Luiz Meneses** — Frontend Lead).
+A versão **`v0.1.0`** documentou o escopo fechado e aprovado da **Sprint 01 (S1)**, formalizado no documento [docs/contrato-api-t06.md](../contrato-api-t06.md) e alinhado com a versão **v0.3** do contrato do Frontend (aprovada formalmente em 29/10/2026 por **Luiz Meneses** — Frontend Lead).
+
+A versão **`v0.2.0`** consolida **100% da API RESTful do EventScore** (**44 operações em 30 rotas** distribuídas em 12 módulos/tags), incorporando as decisões do [ADR 0003](../adr/0003-divergencias-banco-contrato.md) (migração V12 sem `MAIOR_PRESENCA`), do [ADR 0004](../adr/0004-auditoria-lancamentos.md) (auditoria), o contrato aprovado de **Desafios** (**US #202 / #245**, [PR #31](https://github.com/hanrrysantos/event-score/pull/31)) e todos os endpoints de **Configuração (`#199`)**, **Participantes (`#203`)**, **Frequência (`#205`)**, **Resultados e Lançamentos (`#223` / `#206`)**, **Auditoria (`RF18`)**, **Classificação e Desempates (`#206 pt 3`)**, **Apuração Individual (`#204`)** e **Relatórios (`#207` / `#228` / `#229`)**.
+
+> **Compatibilidade de Referências (`$ref`) e Scripts:** A especificação oficial `v0.2.0` é publicada em [`docs/openapi/openapi-v0.2.yaml`](./openapi-v0.2.yaml) e mantida **100% idêntica e sincronizada** em [`docs/openapi/openapi-v0.1.yaml`](./openapi-v0.1.yaml), garantindo compatibilidade imediata com os scripts do Frontend (`web/package.json` `api:tipos`), o mock (`web/mock/openapi-mock.yaml`) e os recortes de proposta em `docs/openapi/propostas/`.
 
 ### Links de Consumo para o Frontend:
 - **Swagger UI Local (Runtime NestJS):** `http://localhost:3000/api/docs` (especificação JSON em `http://localhost:3000/api/docs-json`)
-- **OpenAPI Spec Estática:** [`docs/openapi/openapi-v0.1.yaml`](./openapi-v0.1.yaml)
-- **Mock Local via Prism:** `npx @stoplight/prism-cli mock docs/openapi/openapi-v0.1.yaml -p 4010`
+- **OpenAPI Spec Estática (`v0.2.0`):** [`docs/openapi/openapi-v0.2.yaml`](./openapi-v0.2.yaml) (sincronizada em [`docs/openapi/openapi-v0.1.yaml`](./openapi-v0.1.yaml))
+- **Mock Local via Prism:** `npx @stoplight/prism-cli mock docs/openapi/openapi-v0.2.yaml -p 4010`
 
-### Registro de Aprovação do Baseline:
-- **Versão:** `v0.1.0` (Sprint 01 Baseline / Contrato Frontend v0.3)
-- **Aprovador Frontend:** **Luiz Meneses** (Frontend Lead)
-- **Status:** Publicado e Aprovado
+### Registro de Aprovação e Histórico de Versões:
+| Versão | Escopo | Aprovações / Alinhamentos | Status |
+|---|---|---|---|
+| `v0.1.0` | Baseline Sprint 01 (17 operações: Auth, Eventos, Dias e Grupos) | **Luiz Meneses** (Frontend Lead) | Publicado e Aprovado |
+| `v0.2.0` | Contrato completo Sprints 01 + 02 (44 operações em 12 módulos), ADR 0003 (V12 sem `MAIOR_PRESENCA`), Participantes (PR #29) e Desafios `#245` (PR #31) | **Luiz Meneses** (Frontend Lead), **Saylon** (Revisor Backend PR #31) e **ADR 0003** | Publicado e Consolidado |
 
-### Escopo de Endpoints da Sprint 01 (17 operações):
+### Escopo Completo de Endpoints (`v0.2.0` — 44 operações):
 | Módulo | Método | Rota | Descrição |
 |---|---|---|---|
 | **Auth** | `POST` | `/api/v1/auth/login` | Autenticação com e-mail/senha, retornando JWT e `expiraEm` UTC |
@@ -37,7 +42,34 @@ A versão **`v0.1.0`** documenta o escopo fechado e aprovado da **Sprint 01 (S1)
 | **Grupos** | `GET` | `/api/v1/eventos/{eventoId}/grupos/{grupoId}` | Consulta individual de um grupo |
 | **Grupos** | `POST` | `/api/v1/eventos/{eventoId}/grupos` | Criação de grupo com nome e cor `#RRGGBB` (inicia com 0 participantes) |
 | **Grupos** | `PATCH` | `/api/v1/eventos/{eventoId}/grupos/{grupoId}` | Atualização de grupo (bloqueado por RF03 se houver resultados) |
-| **Grupos** | `DELETE` | `/api/v1/eventos/{eventoId}/grupos/{grupoId}` | Exclusão de grupo (bloqueado por RF03 se houver resultados) |
+| **Grupos** | `DELETE` | `/api/v1/eventos/{eventoId}/grupos/{grupoId}` | Exclusão de grupo (`409` por RF03 se houver resultados ou ADR 0003 se houver participantes) |
+| **Configuração** | `GET` | `/api/v1/eventos/{eventoId}/configuracao` | Consulta da configuração completa de pontuação e desempate do evento (`#199`) |
+| **Configuração** | `PUT` | `/api/v1/eventos/{eventoId}/configuracao` | Substituição idempotente da configuração do evento (`422` se violar regras de faixa/critérios) |
+| **Participantes** | `GET` | `/api/v1/eventos/{eventoId}/participantes` | Listagem paginada de participantes com filtros `grupoId`, `turma` e `busca` (`#203`) |
+| **Participantes** | `POST` | `/api/v1/eventos/{eventoId}/participantes/importacao/previa` | Validação prévia de planilha `.csv` (`,` ou `;`) ou `.xlsx` até 5 MB sem gravar (RF04) |
+| **Participantes** | `POST` | `/api/v1/eventos/{eventoId}/participantes/importacao` | Importação transacional de participantes (`201` se 100% válido; `422` com linhas se houver erro) |
+| **Frequência** | `GET` | `/api/v1/eventos/{eventoId}/dias/{diaId}/presencas` | Grade de presença dos participantes no dia com resumo de presentes/ausentes (`#205`) |
+| **Frequência** | `PUT` | `/api/v1/eventos/{eventoId}/dias/{diaId}/presencas/{participanteId}` | Registro idempotente de presença individual no dia (RF07) |
+| **Desafios** | `GET` | `/api/v1/eventos/{eventoId}/desafios` | Listagem dos desafios do evento com tabela de pontuação ordenada (`#245` / PR #31) |
+| **Desafios** | `POST` | `/api/v1/eventos/{eventoId}/desafios` | Criação de desafio e tabela de pontos `1..N` por grupo na mesma transação |
+| **Desafios** | `GET` | `/api/v1/eventos/{eventoId}/desafios/{desafioId}` | Consulta individual de desafio no contexto do evento |
+| **Desafios** | `PATCH` | `/api/v1/eventos/{eventoId}/desafios/{desafioId}` | Atualização parcial; `409` apenas se `diaId` ou conteúdo de `pontosColocacao` mudarem após resultados |
+| **Desafios** | `DELETE` | `/api/v1/eventos/{eventoId}/desafios/{desafioId}` | Exclusão de desafio sem vínculos impeditivos (`409` se houver critério de desempate ou resultado) |
+| **Resultados** | `GET` | `/api/v1/eventos/{eventoId}/desafios/{desafioId}/resultados` | Consulta das colocações/ausências dos grupos no desafio (`id: null` se pendente, `#223`) |
+| **Resultados** | `PUT` | `/api/v1/eventos/{eventoId}/desafios/{desafioId}/resultados` | Gravação idempotente de todas as colocações do desafio preservando `id` e gerando auditoria |
+| **Auditoria** | `GET` | `/api/v1/auditoria` | Histórico cronológico de alterações de um registro (`?entidade=&registroId=`, RF18) |
+| **Bonificações** | `GET` | `/api/v1/eventos/{eventoId}/bonificacoes` | Consulta de bonificações atribuídas a cada grupo por item (RF10) |
+| **Bonificações** | `PUT` | `/api/v1/eventos/{eventoId}/bonificacoes/{grupoId}` | Registro idempotente de bonificações do grupo (`422` se exceder teto do item) |
+| **Penalidades** | `GET` | `/api/v1/eventos/{eventoId}/penalidades` | Listagem de penalidades disciplinares aplicadas no evento (RF11) |
+| **Penalidades** | `POST` | `/api/v1/eventos/{eventoId}/penalidades` | Aplicação de penalidade validando a faixa `[penalidadeMin, penalidadeMax]` (`422` fora da faixa) |
+| **Penalidades** | `PATCH` | `/api/v1/eventos/{eventoId}/penalidades/{penalidadeId}` | Correção de penalidade lançada com registro em auditoria |
+| **Penalidades** | `DELETE` | `/api/v1/eventos/{eventoId}/penalidades/{penalidadeId}` | Exclusão de penalidade lançada (`204`) |
+| **Classificação** | `GET` | `/api/v1/eventos/{eventoId}/classificacao` | Classificação geral calculada em tempo real com critérios V12 e empates pendentes (`#206 pt 3`) |
+| **Desempates** | `POST` | `/api/v1/eventos/{eventoId}/desempates` | Registro de decisão manual de desempate com justificativa e snapshot de apuração (RF14) |
+| **Apuração** | `GET` | `/api/v1/eventos/{eventoId}/apuracao` | Apuração individual de ponto extra paginada (`409` se houver empate pendente, `#204`) |
+| **Relatórios** | `GET` | `/api/v1/eventos/{eventoId}/relatorios/parcial` | Download binário (`PDF`/`XLSX`) do relatório parcial por grupo (`#228`, sem bloqueio `409`) |
+| **Relatórios** | `GET` | `/api/v1/eventos/{eventoId}/relatorios/final` | Download binário (`PDF`/`XLSX`) do relatório final por participante (`#229`, `409` se empate) |
+| **Relatórios** | `GET` | `/api/v1/eventos/{eventoId}/relatorios/final/previa` | Prévia JSON do relatório final agrupada por turma (`#229`, `409` se empate) |
 
 ---
 
