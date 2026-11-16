@@ -42,7 +42,7 @@ Cada commit deve representar uma mudança lógica. Evite tanto um commit por arq
 
 ### Módulos
 
-Módulos de domínio ficam em `src/modules/<nome>/`. Infraestrutura compartilhada fica fora: `src/config`, `src/prisma`, `src/health` e, futuramente, `src/common`.
+Módulos de domínio ficam em `src/modules/<nome>/`. Infraestrutura compartilhada fica fora: `src/config`, `src/prisma`, `src/health` e `src/common`.
 
 Para criar um módulo:
 
@@ -90,6 +90,40 @@ export class EventosService {
   }
 }
 ```
+
+### Auditoria (RF18)
+
+Todo lançamento (colocação, bônus, penalidade, desempate e recálculo) grava
+histórico pelo `AuditoriaService`, que é global. Chame `record` dentro da
+mesma transação da alteração, informando os campos antes e depois; o serviço
+grava só o que mudou e ignora o reenvio dos mesmos valores. O usuário vem do
+decorator `@CurrentUserId()`. A decisão está no
+[ADR 0004](docs/adr/0004-auditoria-lancamentos.md).
+
+```ts
+@Put(':grupoId')
+save(@CurrentUserId() userId: number, @Body() dto: SalvarResultadoDto) { ... }
+
+// no service
+await this.prisma.$transaction(async (tx) => {
+  const operationId = randomUUID(); // um por requisição
+  const before = await tx.resultadoDesafio.findUnique({ where });
+  const after = await tx.resultadoDesafio.upsert({ where, create, update });
+  await this.audit.record(tx, {
+    usuarioId: userId,
+    eventoId: eventId,
+    operacaoId: operationId,
+    entidade: 'RESULTADO_DESAFIO',
+    registroId: after.id,
+    operacao: before ? 'UPDATE' : 'INSERT',
+    before: before && { colocacao: before.colocacao, ausente: before.ausente },
+    after: { colocacao: after.colocacao, ausente: after.ausente },
+  });
+});
+```
+
+A auditoria é imutável e impede a exclusão do evento e do usuário ligados a
+ela. Testes e2e que gravam auditoria não devem apagar esses registros ao final.
 
 ### Configuração
 

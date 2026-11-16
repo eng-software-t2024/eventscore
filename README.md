@@ -145,6 +145,7 @@ TEST_DATABASE_URL=postgresql://eventscore:eventscore@localhost:5432/eventscore_t
 ├── src/
 │   ├── main.ts          # Ponto de entrada
 │   ├── app.module.ts    # Módulo raiz
+│   ├── common/          # DTOs, decorators e filtro de erros compartilhados
 │   ├── config/          # Validação das variáveis de ambiente
 │   ├── prisma/          # PrismaService (acesso ao banco)
 │   ├── health/          # GET /health

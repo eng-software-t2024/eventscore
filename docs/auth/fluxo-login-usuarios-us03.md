@@ -107,7 +107,7 @@ A equipe precisa definir quem executará o procedimento em cada ambiente e como 
 
 ## 5. Identidade, proteção de rotas e auditoria
 
-O JWT deve identificar o usuário autenticado por um identificador estável, para que o guard recupere e valide a conta conforme a política da US03. O identificador do administrador autenticado poderá ser usado pelos módulos que registram ações em tabelas de auditoria. Os detalhes do payload, da consulta após validação do token e da integração com essas tabelas serão definidos nas tasks T13 a T15.
+O JWT deve identificar o usuário autenticado por um identificador estável, para que o guard recupere e valide a conta conforme a política da US03. O identificador do administrador autenticado é usado pelos módulos que registram ações em tabelas de auditoria. O payload e a consulta após validação do token foram definidos nas tasks T13 a T15; a integração com a auditoria é feita pelo decorator `@CurrentUserId()`, que entrega o id do usuário ao `AuditoriaService` (ver [ADR 0004](../adr/0004-auditoria-lancamentos.md)).
 
 As rotas administrativas de eventos, dias e grupos deverão exigir autenticação conforme a T14. O login é público apenas no sentido de não exigir token prévio; ele não cria contas. A lista final de rotas protegidas deve ser conferida com os responsáveis por cada módulo e com o contrato da API.
 
