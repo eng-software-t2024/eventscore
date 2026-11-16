@@ -1,4 +1,5 @@
 import { Prisma } from '../../generated/prisma/client.js';
+import type { PrismaService } from '../../prisma/prisma.service.js';
 import { AuditoriaService, type AuditEntry } from './auditoria.service.js';
 
 describe('AuditoriaService', () => {
@@ -15,7 +16,7 @@ describe('AuditoriaService', () => {
       auditoria: { create: vi.fn().mockResolvedValue({ id: 99 }) },
       auditoriaDetalhe: { createMany: vi.fn().mockResolvedValue({ count: 0 }) },
     };
-    const service = new AuditoriaService();
+    const service = new AuditoriaService({} as PrismaService);
     const record = (entry: AuditEntry) =>
       service.record(tx as unknown as Prisma.TransactionClient, entry);
     return { tx, record };
@@ -195,5 +196,118 @@ describe('AuditoriaService', () => {
         valorNovo: 'false',
       },
     ]);
+  });
+
+  describe('list', () => {
+    function setupList(rows: unknown[]) {
+      const prisma = {
+        auditoria: { findMany: vi.fn().mockResolvedValue(rows) },
+      };
+      const service = new AuditoriaService(prisma as unknown as PrismaService);
+      return { prisma, service };
+    }
+
+    const usuario = { nome: 'Administrador Arena' };
+
+    it('consulta o registro em ordem cronológica com usuário e campos', async () => {
+      const { prisma, service } = setupList([]);
+
+      await service.list('RESULTADO_DESAFIO', 15);
+
+      expect(prisma.auditoria.findMany).toHaveBeenCalledWith({
+        where: { entidade: 'RESULTADO_DESAFIO', registroId: 15 },
+        orderBy: [{ dataHora: 'asc' }, { id: 'asc' }],
+        select: {
+          dataHora: true,
+          operacao: true,
+          usuario: { select: { nome: true } },
+          detalhes: {
+            select: { campo: true, valorAnterior: true, valorNovo: true },
+            orderBy: { campo: 'asc' },
+          },
+        },
+      });
+    });
+
+    it('devolve lista vazia quando o registro não tem histórico', async () => {
+      const { service } = setupList([]);
+
+      await expect(service.list('PENALIDADE', 3)).resolves.toEqual([]);
+    });
+
+    it('monta os itens no formato do front', async () => {
+      const { service } = setupList([
+        {
+          dataHora: new Date('2026-11-23T14:38:00.123Z'),
+          operacao: 'INSERT',
+          usuario,
+          detalhes: [
+            { campo: 'ausente', valorAnterior: null, valorNovo: 'false' },
+            { campo: 'colocacao', valorAnterior: null, valorNovo: '2' },
+          ],
+        },
+        {
+          dataHora: new Date('2026-11-23T15:02:00.000Z'),
+          operacao: 'UPDATE',
+          usuario,
+          detalhes: [
+            { campo: 'colocacao', valorAnterior: '2', valorNovo: '1' },
+          ],
+        },
+      ]);
+
+      await expect(service.list('RESULTADO_DESAFIO', 15)).resolves.toEqual([
+        {
+          dataHora: '2026-11-23T14:38:00Z',
+          usuario: 'Administrador Arena',
+          operacao: 'INSERT',
+          valorAnterior: null,
+          valorNovo: 'ausente=false; colocacao=2',
+        },
+        {
+          dataHora: '2026-11-23T15:02:00Z',
+          usuario: 'Administrador Arena',
+          operacao: 'UPDATE',
+          valorAnterior: 'colocacao=2',
+          valorNovo: 'colocacao=1',
+        },
+      ]);
+    });
+
+    it('omite campos sem valor e usa null quando um lado fica vazio', async () => {
+      const { service } = setupList([
+        {
+          dataHora: new Date('2026-11-23T16:00:00.000Z'),
+          operacao: 'UPDATE',
+          usuario,
+          detalhes: [
+            { campo: 'observacao', valorAnterior: null, valorNovo: 'atraso' },
+            { campo: 'pontos', valorAnterior: '5', valorNovo: '3' },
+          ],
+        },
+        {
+          dataHora: new Date('2026-11-23T17:00:00.000Z'),
+          operacao: 'DELETE',
+          usuario,
+          detalhes: [{ campo: 'pontos', valorAnterior: '3', valorNovo: null }],
+        },
+        {
+          dataHora: new Date('2026-11-23T18:00:00.000Z'),
+          operacao: 'RECALCULO',
+          usuario,
+          detalhes: [],
+        },
+      ]);
+
+      const items = await service.list('PENALIDADE', 4);
+
+      expect(
+        items.map(({ valorAnterior, valorNovo }) => [valorAnterior, valorNovo]),
+      ).toEqual([
+        ['pontos=5', 'observacao=atraso; pontos=3'],
+        ['pontos=3', null],
+        [null, null],
+      ]);
+    });
   });
 });
