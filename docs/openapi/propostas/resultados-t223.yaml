@@ -103,7 +103,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ResultadosDto'
+                $ref: '#/components/schemas/ResultadosSalvosDto'
               examples:
                 colocacoesSalvas:
                   value:
@@ -183,7 +183,8 @@ components:
         Com id null, colocacao é null, ausente false e pontos 0 (pendente).
         Com id preenchido e ausente true, colocacao é null e pontos 0.
         Com id preenchido e ausente false, colocacao é inteira positiva e
-        pontos vem da tabela do desafio. Após PUT todos os IDs estão preenchidos.
+        pontos vem da tabela do desafio. Este schema pertence à consulta GET;
+        o PUT usa ResultadoSalvoDto, cujo id não aceita null.
       properties:
         id:
           type: integer
@@ -199,3 +200,31 @@ components:
           minimum: 0
           maximum: 2147483647
           description: Pontos da colocação no desafio; zero para ausência ou pendência.
+    ResultadosSalvosDto:
+      type: array
+      description: Resultados persistidos retornados pelo PUT, todos com id preenchido.
+      items:
+        $ref: '#/components/schemas/ResultadoSalvoDto'
+    ResultadoSalvoDto:
+      type: object
+      additionalProperties: false
+      required: [id, grupoId, colocacao, ausente, pontos]
+      description: |
+        Resultado persistido; não representa uma linha pendente. O id é
+        obrigatório e não anulável, inclusive para grupo ausente. A colocacao
+        continua anulável para representar ausência, que vale zero ponto.
+      properties:
+        id:
+          type: integer
+          nullable: false
+          minimum: 1
+          maximum: 2147483647
+          description: Identificador persistido e preservado em correções.
+        grupoId: { type: integer, minimum: 1, maximum: 2147483647 }
+        colocacao: { type: integer, nullable: true, minimum: 1, maximum: 2147483647 }
+        ausente: { type: boolean }
+        pontos:
+          type: integer
+          minimum: 0
+          maximum: 2147483647
+          description: Pontos da colocação no desafio; zero para ausência.

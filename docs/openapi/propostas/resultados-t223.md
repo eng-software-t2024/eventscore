@@ -38,6 +38,11 @@ Prefixo `/api/v1`, autenticação Bearer JWT e erros no envelope NestJS.
 | GET `/eventos/{eventoId}/desafios/{desafioId}/resultados` | 200 | Array com uma linha por grupo do evento, em ordem de `grupoId`. |
 | PUT no mesmo caminho | 200 | Array completo salvo, com IDs e pontos, na mesma ordem estável. |
 
+As respostas têm schemas separados: GET usa `ResultadosDto`/`ResultadoDto`,
+com `id` anulável para representar pendências. PUT usa
+`ResultadosSalvosDto`/`ResultadoSalvoDto`, com `id` inteiro obrigatório e não
+anulável. `colocacao` continua anulável em ambos para representar ausência.
+
 Entrada do PUT para dois grupos presentes:
 
 ```json
@@ -121,8 +126,9 @@ Não há mudança de schema/migração prevista para este recorte.
 
 ## Decisões pendentes e limites da integração
 
-Estas escolhas ainda precisam de aceite explícito do frontend e revisão de
-Saylon, com alinhamento de Ikki para incorporação/versionamento do contrato:
+Estas escolhas ainda precisam de aceite explícito do frontend e alinhamento
+de Ikki para incorporação/versionamento do contrato. A revisão de Saylon e o
+ajuste solicitado estão registrados abaixo:
 
 - Confirmar o PUT completo, 200 com array, tratamento de ausências e sequência
   `1..P`. A tela hoje impede repetição, mas permite selecionar posições com
@@ -136,7 +142,7 @@ Saylon, com alinhamento de Ikki para incorporação/versionamento do contrato:
   `afetaResultado` não implementa sozinho o recálculo/invalidação. Esse ponto
   precisa ser resolvido antes de declarar o fluxo de correção completo.
 
-Não há aceite registrado para esta proposta. Não iniciar DTOs/controllers
+Não há aceite do frontend registrado para esta proposta. Não iniciar DTOs/controllers
 do novo contrato antes desse alinhamento, conforme a
 [governança](../README.md#31-regra-de-governança).
 
@@ -168,6 +174,16 @@ Use dois grupos no mesmo evento e tabela `1º = 100`, `2º = 80`, salvo indicaç
 | Duas gravações simultâneas do mesmo desafio | Conjunto final íntegro; sem mistura de requisições. |
 | Correção após classificação/apuração | Cobrir o acordo de recálculo/invalidação com a #225. |
 
+## Ajuste após a revisão do PR #35
+
+Saylon aprovou a proposta e
+[observou que o schema compartilhado permitia id null também no PUT](https://github.com/hanrrysantos/event-score/pull/35#pullrequestreview-5929396106).
+A resposta 200 do PUT agora referencia schemas próprios com `id` não
+anulável, para que os tipos gerados expressem a garantia de persistência.
+O GET mantém a representação de resultados pendentes. A validação reproduziu
+a aceitação indevida de `id: null` no PUT antes do ajuste e confirmou sua
+recusa após a separação dos schemas.
+
 ## Validação desta proposta
 
 - OpenAPI 3.0.3 e suas referências aprovados com `swagger-cli@4.0.4`:
@@ -176,10 +192,13 @@ Use dois grupos no mesmo evento e tabela `1º = 100`, `2º = 80`, salvo indicaç
   npx --yes @apidevtools/swagger-cli@4.0.4 validate docs/openapi/propostas/resultados-t223.yaml
   ```
 
-- 43 verificações com Ajv dos schemas e exemplos: entradas válidas, limites
+- 47 verificações com Ajv dos schemas e exemplos: entradas válidas, limites
   do tipo INT, campos ausentes/extras, tipos inválidos, null, arrays vazios,
   exemplos de resposta e erro, e compatibilidade com os dois retornos de
   resultados presentes no mock atual.
+- A resposta do PUT recusa `id` null, ausente ou zero e aceita ausência
+  persistida com `id` preenchido e `colocacao` null. A resposta do GET
+  continua aceitando as linhas pendentes do exemplo.
 - As combinações de ausência e posição que exigem 422 foram conferidas como
   responsabilidade do domínio, distinta da validação estrutural do schema.
 - Nenhum endpoint, transação, auditoria ou recálculo foi executado nesta
