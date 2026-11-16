@@ -207,3 +207,14 @@ Para garantir que futuras alterações no YAML não introduzam violações de si
 ```bash
 npx -y @stoplight/spectral-cli lint docs/openapi/openapi-v0.1.yaml
 ```
+
+## 5. Propostas de novos recortes
+
+Os arquivos abaixo servem para revisão e alinhamento. Sua presença no
+repositório não publica uma nova versão oficial nem comprova implementação
+dos endpoints. Aplicam-se as aprovações da seção 3.1.
+
+| Recorte | Documento | OpenAPI proposto |
+| --- | --- | --- |
+| Cadastro de desafios — #245 | [Decisões e dependências](propostas/desafios-t245.md) | [YAML](propostas/desafios-t245.yaml) |
+| Colocações nos desafios — #223 / US #206 | [Decisões e casos de aceite](propostas/resultados-t223.md) | [YAML](propostas/resultados-t223.yaml) |
