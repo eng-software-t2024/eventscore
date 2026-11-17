@@ -26,13 +26,43 @@ describe('Relatório Final por Participante E2E (#229)', () => {
   const createdEventIds = new Set<number>();
   const eventosPreservadosAteDescarte = new Set<number>();
   const fixtureRunId = randomUUID();
-  const fixtureKey = fixtureRunId.slice(0, 8);
   const nomeEventoRelatorio = `Arena Final T229 ${fixtureRunId}`;
   const nomeEventoEmpate = `Arena Empate T229 ${fixtureRunId}`;
-  const matriculaAna = `T229-A-${fixtureKey}`;
-  const matriculaBruna = `T229-B-${fixtureKey}`;
-  const matriculaEmpateAlfa = `EMP-A-${fixtureKey}`;
-  const matriculaEmpateBeta = `EMP-B-${fixtureKey}`;
+  const nomeAna = 'Ana Final';
+  const nomeBruna = 'Bruna Final';
+  const matriculaAna = 'T229-A';
+  const matriculaBruna = 'T229-B';
+  const matriculaEmpateAlfa = 'EMP-A';
+  const matriculaEmpateBeta = 'EMP-B';
+  const turmaAna = 'A';
+  const turmaBruna = 'X';
+  const termoBuscaNome = 'Ana';
+  const termoBuscaMatricula = matriculaAna;
+  const termoBuscaTurma = turmaBruna;
+  const termoBuscaSemResultado = 'sem-correspondencia';
+  const participantesPesquisaveis = [
+    { nome: nomeAna, matricula: matriculaAna, turma: turmaAna },
+    { nome: nomeBruna, matricula: matriculaBruna, turma: turmaBruna },
+  ];
+  const camposPesquisaveis = ['nome', 'matricula', 'turma'] as const;
+  const ocorrenciasDoTermo = (termo: string) =>
+    participantesPesquisaveis.flatMap((participante) =>
+      camposPesquisaveis
+        .filter((campo) =>
+          participante[campo]
+            .toLocaleLowerCase('pt-BR')
+            .includes(termo.toLocaleLowerCase('pt-BR')),
+        )
+        .map((campo) => ({ matricula: participante.matricula, campo })),
+    );
+  type GrupoPrevia = {
+    turma: string;
+    participantes: Array<{ matricula: string }>;
+  };
+  const matriculasRetornadas = (previa: GrupoPrevia[]) =>
+    previa.flatMap((grupo) => grupo.participantes.map((p) => p.matricula));
+  const turmasRetornadas = (previa: GrupoPrevia[]) =>
+    previa.map((grupo) => grupo.turma);
   const email = `t229-${fixtureRunId}@example.test`;
   const senha = 'senha-exclusiva-integracao-t229';
 
@@ -108,18 +138,18 @@ describe('Relatório Final por Participante E2E (#229)', () => {
         data: {
           eventoId,
           grupoId: alfa.id,
-          nome: 'Ana Final',
+          nome: nomeAna,
           matricula: matriculaAna,
-          turma: 'A',
+          turma: turmaAna,
         },
       }),
       prisma.participante.create({
         data: {
           eventoId,
           grupoId: beta.id,
-          nome: 'Bruna Final',
+          nome: nomeBruna,
           matricula: matriculaBruna,
-          turma: 'B',
+          turma: turmaBruna,
         },
       }),
     ]);
@@ -231,12 +261,14 @@ describe('Relatório Final por Participante E2E (#229)', () => {
       .get(`/api/v1/eventos/${eventoId}/relatorios/final/previa`)
       .expect(401);
     const resposta = await request(app.getHttpServer())
-      .get(`/api/v1/eventos/${eventoId}/relatorios/final/previa?busca=Ana`)
+      .get(
+        `/api/v1/eventos/${eventoId}/relatorios/final/previa?busca=${termoBuscaNome}`,
+      )
       .auth(token, { type: 'bearer' })
       .expect(200);
     expect(resposta.body).toEqual([
       {
-        turma: 'A',
+        turma: turmaAna,
         totalParticipantes: 1,
         participantes: [
           expect.objectContaining({
@@ -251,24 +283,40 @@ describe('Relatório Final por Participante E2E (#229)', () => {
       },
     ]);
 
+    expect(ocorrenciasDoTermo(termoBuscaNome)).toEqual([
+      { matricula: matriculaAna, campo: 'nome' },
+    ]);
+    expect(ocorrenciasDoTermo(termoBuscaMatricula)).toEqual([
+      { matricula: matriculaAna, campo: 'matricula' },
+    ]);
+    expect(ocorrenciasDoTermo(termoBuscaTurma)).toEqual([
+      { matricula: matriculaBruna, campo: 'turma' },
+    ]);
+    expect(ocorrenciasDoTermo(termoBuscaSemResultado)).toEqual([]);
+    expect(matriculasRetornadas(resposta.body)).toEqual([matriculaAna]);
+
     const porMatricula = await request(app.getHttpServer())
       .get(
-        `/api/v1/eventos/${eventoId}/relatorios/final/previa?busca=${matriculaAna}`,
+        `/api/v1/eventos/${eventoId}/relatorios/final/previa?busca=${termoBuscaMatricula}`,
       )
       .auth(token, { type: 'bearer' })
       .expect(200);
-    expect(porMatricula.body[0].participantes[0].matricula).toBe(matriculaAna);
+    expect(matriculasRetornadas(porMatricula.body)).toEqual([matriculaAna]);
+    expect(turmasRetornadas(porMatricula.body)).toEqual([turmaAna]);
 
     const porTurma = await request(app.getHttpServer())
-      .get(`/api/v1/eventos/${eventoId}/relatorios/final/previa?busca=B`)
+      .get(
+        `/api/v1/eventos/${eventoId}/relatorios/final/previa?busca=${termoBuscaTurma}`,
+      )
       .auth(token, { type: 'bearer' })
       .expect(200);
-    expect(porTurma.body[0].turma).toBe('B');
+    expect(turmasRetornadas(porTurma.body)).toEqual([turmaBruna]);
+    expect(matriculasRetornadas(porTurma.body)).toEqual([matriculaBruna]);
     expect(typeof resposta.body[0].participantes[0].pontoExtra).toBe('number');
 
     const semResultado = await request(app.getHttpServer())
       .get(
-        `/api/v1/eventos/${eventoId}/relatorios/final/previa?busca=nao-encontrado`,
+        `/api/v1/eventos/${eventoId}/relatorios/final/previa?busca=${termoBuscaSemResultado}`,
       )
       .auth(token, { type: 'bearer' })
       .expect(200);
@@ -346,18 +394,18 @@ describe('Relatório Final por Participante E2E (#229)', () => {
           'Ponto extra',
         ]);
         expect(valoresDaLinha(6)).toEqual([
-          'A',
+          turmaAna,
           matriculaAna,
-          'Ana Final',
+          nomeAna,
           'Alfa',
           'Presente',
           'Ausente',
           0.5,
         ]);
         expect(valoresDaLinha(7)).toEqual([
-          'B',
+          turmaBruna,
           matriculaBruna,
-          'Bruna Final',
+          nomeBruna,
           'Beta',
           'Ausente',
           'Ausente',
