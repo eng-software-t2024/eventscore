@@ -73,7 +73,7 @@ Basta rodar `npm run start:dev` de novo: migrações novas são aplicadas e o Pr
 | `npm test` | Testes unitários |
 | `npm run test:watch` | Testes unitários em modo observação |
 | `npm run test:cov` | Testes unitários com relatório de cobertura |
-| `npm run test:e2e` | Testes e2e (exigem o PostgreSQL rodando) |
+| `npm run test:e2e` | Testes e2e (usa `eventscore_test` local por padrão; `TEST_DATABASE_URL` pode sobrescrever) |
 | **Banco de dados** | |
 | `npm run db:migrate` | Cria uma migração a partir de mudanças no `schema.prisma` e aplica |
 | `npm run db:deploy` | Aplica migrações pendentes |
@@ -83,6 +83,11 @@ Basta rodar `npm run start:dev` de novo: migrações novas são aplicadas e o Pr
 ## Variáveis de ambiente
 
 Definidas no `.env` (copiado de `.env.example`, nunca versionado). A aplicação valida as variáveis ao iniciar e não sobe se alguma estiver inválida.
+
+A suíte e2e usa por padrão `postgresql://eventscore:eventscore@127.0.0.1:5432/eventscore_test`.
+Para apontar para outro banco exclusivamente de testes, defina `TEST_DATABASE_URL`; o
+nome do banco precisa conter `test`. A suíte gera um JWT de fixture local e não usa
+credenciais externas de administrador.
 
 | Variável | Usada por | Descrição |
 |---|---|---|
