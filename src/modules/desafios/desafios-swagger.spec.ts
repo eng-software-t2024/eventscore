@@ -100,4 +100,46 @@ describe('Swagger de desafios', () => {
       document.components?.schemas?.AtualizarDesafioDto,
     ).not.toHaveProperty('required');
   });
+
+  it.each([
+    ['/api/v1/eventos/{eventoId}/desafios', 'get', 'listarDesafios', '200'],
+    ['/api/v1/eventos/{eventoId}/desafios', 'post', 'criarDesafio', '201'],
+    [
+      '/api/v1/eventos/{eventoId}/desafios/{desafioId}',
+      'get',
+      'obterDesafioPorId',
+      '200',
+    ],
+    [
+      '/api/v1/eventos/{eventoId}/desafios/{desafioId}',
+      'patch',
+      'atualizarDesafio',
+      '200',
+    ],
+    [
+      '/api/v1/eventos/{eventoId}/desafios/{desafioId}',
+      'delete',
+      'excluirDesafio',
+      '204',
+    ],
+  ] as const)(
+    'documenta %s %s com status de sucesso e segurança Bearer',
+    (path, method, operationId, status) => {
+      const operation = document.paths[path]?.[method];
+      expect(operation).toMatchObject({
+        operationId,
+        security: [{ bearer: [] }],
+        responses: {
+          [status]: expect.any(Object),
+          '401': {
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErroPadraoDto' },
+              },
+            },
+          },
+        },
+      });
+    },
+  );
 });
