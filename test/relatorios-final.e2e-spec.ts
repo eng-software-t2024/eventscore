@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { type INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import ExcelJS from 'exceljs';
 import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
 import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter.js';
@@ -22,7 +23,17 @@ describe('Relatório Final por Participante E2E (#229)', () => {
   let eventoId: number;
   let adminId: number;
   let token: string;
-  const email = `t229-${randomUUID()}@example.test`;
+  const createdEventIds = new Set<number>();
+  const eventosPreservadosAteDescarte = new Set<number>();
+  const fixtureRunId = randomUUID();
+  const fixtureKey = fixtureRunId.slice(0, 8);
+  const nomeEventoRelatorio = `Arena Final T229 ${fixtureRunId}`;
+  const nomeEventoEmpate = `Arena Empate T229 ${fixtureRunId}`;
+  const matriculaAna = `T229-A-${fixtureKey}`;
+  const matriculaBruna = `T229-B-${fixtureKey}`;
+  const matriculaEmpateAlfa = `EMP-A-${fixtureKey}`;
+  const matriculaEmpateBeta = `EMP-B-${fixtureKey}`;
+  const email = `t229-${fixtureRunId}@example.test`;
   const senha = 'senha-exclusiva-integracao-t229';
 
   beforeAll(async () => {
@@ -62,7 +73,7 @@ describe('Relatório Final por Participante E2E (#229)', () => {
 
     const evento = await prisma.evento.create({
       data: {
-        nome: 'Arena Final T229',
+        nome: nomeEventoRelatorio,
         ano: 2096,
         dataInicio: new Date('2096-11-20T00:00:00.000Z'),
         dataFim: new Date('2096-11-21T00:00:00.000Z'),
@@ -71,6 +82,7 @@ describe('Relatório Final por Participante E2E (#229)', () => {
       },
     });
     eventoId = evento.id;
+    createdEventIds.add(evento.id);
     const [dia1, dia2] = await Promise.all([
       prisma.diaEvento.create({
         data: {
@@ -97,7 +109,7 @@ describe('Relatório Final por Participante E2E (#229)', () => {
           eventoId,
           grupoId: alfa.id,
           nome: 'Ana Final',
-          matricula: 'T229-A',
+          matricula: matriculaAna,
           turma: 'A',
         },
       }),
@@ -106,7 +118,7 @@ describe('Relatório Final por Participante E2E (#229)', () => {
           eventoId,
           grupoId: beta.id,
           nome: 'Bruna Final',
-          matricula: 'T229-B',
+          matricula: matriculaBruna,
           turma: 'B',
         },
       }),
@@ -168,25 +180,50 @@ describe('Relatório Final por Participante E2E (#229)', () => {
   });
 
   afterAll(async () => {
-    if (prisma && eventoId) {
-      const desafios = await prisma.desafio.findMany({
-        where: { eventoId },
-        select: { id: true },
-      });
-      await prisma.presenca.deleteMany({ where: { eventoId } });
-      await prisma.fatorPresenca.deleteMany({ where: { eventoId } });
-      await prisma.conversaoPontoExtra.deleteMany({ where: { eventoId } });
-      await prisma.resultadoDesafio.deleteMany({ where: { eventoId } });
-      await prisma.pontosColocacao.deleteMany({
-        where: { desafioId: { in: desafios.map((item) => item.id) } },
-      });
-      await prisma.desafio.deleteMany({ where: { eventoId } });
-      await prisma.participante.deleteMany({ where: { eventoId } });
-      await prisma.diaEvento.deleteMany({ where: { eventoId } });
-      await prisma.grupo.deleteMany({ where: { eventoId } });
-      await prisma.evento.delete({ where: { id: eventoId } });
+    try {
+      if (prisma) {
+        for (const eventoIdParaLimpar of createdEventIds) {
+          // V11 protege os desempates e referencia evento, grupo, apuração e usuário.
+          // A fixture de empate e o administrador ficam até descartar o banco.
+          if (eventosPreservadosAteDescarte.has(eventoIdParaLimpar)) continue;
+
+          const desafios = await prisma.desafio.findMany({
+            where: { eventoId: eventoIdParaLimpar },
+            select: { id: true },
+          });
+          await prisma.presenca.deleteMany({
+            where: { eventoId: eventoIdParaLimpar },
+          });
+          await prisma.fatorPresenca.deleteMany({
+            where: { eventoId: eventoIdParaLimpar },
+          });
+          await prisma.conversaoPontoExtra.deleteMany({
+            where: { eventoId: eventoIdParaLimpar },
+          });
+          await prisma.resultadoDesafio.deleteMany({
+            where: { eventoId: eventoIdParaLimpar },
+          });
+          await prisma.pontosColocacao.deleteMany({
+            where: { desafioId: { in: desafios.map((item) => item.id) } },
+          });
+          await prisma.desafio.deleteMany({
+            where: { eventoId: eventoIdParaLimpar },
+          });
+          await prisma.participante.deleteMany({
+            where: { eventoId: eventoIdParaLimpar },
+          });
+          await prisma.diaEvento.deleteMany({
+            where: { eventoId: eventoIdParaLimpar },
+          });
+          await prisma.grupo.deleteMany({
+            where: { eventoId: eventoIdParaLimpar },
+          });
+          await prisma.evento.delete({ where: { id: eventoIdParaLimpar } });
+        }
+      }
+    } finally {
+      await app?.close();
     }
-    await app?.close();
   });
 
   it('protege a prévia e retorna dias, ausências, busca e ponto extra', async () => {
@@ -203,7 +240,7 @@ describe('Relatório Final por Participante E2E (#229)', () => {
         totalParticipantes: 1,
         participantes: [
           expect.objectContaining({
-            matricula: 'T229-A',
+            matricula: matriculaAna,
             pontoExtra: 0.5,
             presencas: [
               { numeroDia: 1, presente: true },
@@ -213,6 +250,55 @@ describe('Relatório Final por Participante E2E (#229)', () => {
         ],
       },
     ]);
+
+    const porMatricula = await request(app.getHttpServer())
+      .get(
+        `/api/v1/eventos/${eventoId}/relatorios/final/previa?busca=${matriculaAna}`,
+      )
+      .auth(token, { type: 'bearer' })
+      .expect(200);
+    expect(porMatricula.body[0].participantes[0].matricula).toBe(matriculaAna);
+
+    const porTurma = await request(app.getHttpServer())
+      .get(`/api/v1/eventos/${eventoId}/relatorios/final/previa?busca=B`)
+      .auth(token, { type: 'bearer' })
+      .expect(200);
+    expect(porTurma.body[0].turma).toBe('B');
+    expect(typeof resposta.body[0].participantes[0].pontoExtra).toBe('number');
+
+    const semResultado = await request(app.getHttpServer())
+      .get(
+        `/api/v1/eventos/${eventoId}/relatorios/final/previa?busca=nao-encontrado`,
+      )
+      .auth(token, { type: 'bearer' })
+      .expect(200);
+    expect(semResultado.body).toEqual([]);
+  });
+
+  it('protege a exportação, valida o formato e retorna 404 para evento inexistente', async () => {
+    await request(app.getHttpServer())
+      .get(`/api/v1/eventos/${eventoId}/relatorios/final?formato=PDF`)
+      .expect(401);
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/eventos/${eventoId}/relatorios/final?formato=PDF`)
+      .set('Authorization', 'Bearer token-invalido')
+      .expect(401);
+
+    await request(app.getHttpServer())
+      .get('/api/v1/eventos/999999/relatorios/final/previa')
+      .auth(token, { type: 'bearer' })
+      .expect(404);
+
+    await request(app.getHttpServer())
+      .get('/api/v1/eventos/999999/relatorios/final?formato=PDF')
+      .auth(token, { type: 'bearer' })
+      .expect(404);
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/eventos/${eventoId}/relatorios/final?formato=CSV`)
+      .auth(token, { type: 'bearer' })
+      .expect(400);
   });
 
   it('exporta PDF e XLSX usando os exportadores compartilhados', async () => {
@@ -224,16 +310,67 @@ describe('Relatório Final por Participante E2E (#229)', () => {
         .parse(binaryParser)
         .expect(200);
       expect(resposta.headers['content-disposition']).toContain(
-        'relatorio-final-arena-final-t229',
+        `relatorio-final-arena-final-t229-${fixtureRunId}`,
       );
-      expect(Buffer.from(resposta.body).length).toBeGreaterThan(0);
+      expect(resposta.headers['content-type']).toMatch(
+        formato === 'PDF'
+          ? /^application\/pdf/
+          : /^application\/vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet/,
+      );
+      const buffer = Buffer.from(resposta.body);
+      expect(buffer.length).toBeGreaterThan(0);
+      expect(
+        formato === 'PDF'
+          ? buffer.subarray(0, 5).toString('ascii')
+          : buffer.subarray(0, 2).toString('ascii'),
+      ).toBe(formato === 'PDF' ? '%PDF-' : 'PK');
+
+      if (formato === 'XLSX') {
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(buffer as unknown as ExcelJS.Buffer);
+        expect(workbook.worksheets).toHaveLength(1);
+        const worksheet = workbook.worksheets[0];
+        const valoresDaLinha = (numero: number) =>
+          Array.from(
+            { length: 7 },
+            (_, indice) => worksheet.getRow(numero).getCell(indice + 1).value,
+          );
+        expect(worksheet.name).toBe('Relatório Final');
+        expect(valoresDaLinha(5)).toEqual([
+          'Turma',
+          'Matrícula',
+          'Nome',
+          'Grupo',
+          'Dia 1',
+          'Dia 2',
+          'Ponto extra',
+        ]);
+        expect(valoresDaLinha(6)).toEqual([
+          'A',
+          matriculaAna,
+          'Ana Final',
+          'Alfa',
+          'Presente',
+          'Ausente',
+          0.5,
+        ]);
+        expect(valoresDaLinha(7)).toEqual([
+          'B',
+          matriculaBruna,
+          'Bruna Final',
+          'Beta',
+          'Ausente',
+          'Ausente',
+          0,
+        ]);
+      }
     }
   });
 
   it('bloqueia empate pendente e libera as três rotas após desempate vigente', async () => {
     const eventoEmpate = await prisma.evento.create({
       data: {
-        nome: 'Arena Empate T229',
+        nome: nomeEventoEmpate,
         ano: 2095,
         dataInicio: new Date('2095-11-20T00:00:00.000Z'),
         dataFim: new Date('2095-11-21T00:00:00.000Z'),
@@ -241,6 +378,8 @@ describe('Relatório Final por Participante E2E (#229)', () => {
         ativo: false,
       },
     });
+    createdEventIds.add(eventoEmpate.id);
+    eventosPreservadosAteDescarte.add(eventoEmpate.id);
     const [dia1, dia2] = await Promise.all([
       prisma.diaEvento.create({
         data: {
@@ -279,7 +418,7 @@ describe('Relatório Final por Participante E2E (#229)', () => {
           eventoId: eventoEmpate.id,
           grupoId: grupoAlfa.id,
           nome: 'Alfa Aluno',
-          matricula: 'EMP-A',
+          matricula: matriculaEmpateAlfa,
           turma: 'A',
         },
       }),
@@ -288,7 +427,7 @@ describe('Relatório Final por Participante E2E (#229)', () => {
           eventoId: eventoEmpate.id,
           grupoId: grupoBeta.id,
           nome: 'Beta Aluno',
-          matricula: 'EMP-B',
+          matricula: matriculaEmpateBeta,
           turma: 'B',
         },
       }),
