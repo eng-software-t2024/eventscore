@@ -17,10 +17,6 @@ npm-debug.log*
 
 # Tests
 /coverage
-/frontend/node_modules
-/frontend/dist
-/frontend/coverage
-/frontend/.vite
 
 # IDEs and editors
 /.idea
