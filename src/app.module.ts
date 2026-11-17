@@ -11,6 +11,7 @@ import { GruposModule } from './modules/grupos/grupos.module.js';
 import { ParticipantesModule } from './modules/participantes/participantes.module.js';
 import { RelatoriosModule } from './modules/relatorios/relatorios.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
+import { DiasEventoModule } from './modules/dias-evento/dias-evento.module.js';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
     }),
     HealthModule,
     EventosModule,
+    DiasEventoModule,
     GruposModule,
     ParticipantesModule,
     RelatoriosModule,

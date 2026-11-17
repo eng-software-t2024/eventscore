@@ -21,7 +21,7 @@ A versão **`v0.2.0`** consolida **100% da API RESTful do EventScore** (**44 ope
 | Versão | Escopo | Aprovações / Alinhamentos | Status |
 |---|---|---|---|
 | `v0.1.0` | Baseline Sprint 01 (17 operações: Auth, Eventos, Dias e Grupos) | **Luiz Meneses** (Frontend Lead) | Publicado e Aprovado |
-| `v0.2.0` | Contrato completo Sprints 01 + 02 (44 operações em 12 módulos), ADR 0003 (V12 sem `MAIOR_PRESENCA`), Participantes (PR #29) e Desafios `#245` (PR #31) | **Luiz Meneses** (Frontend Lead), **Saylon** (Revisor Backend PR #31) e **ADR 0003** | Publicado e Consolidado |
+| `v0.2.0` | Contrato completo Sprints 01 + 02 (44 operações em 12 módulos), ADR 0003 (V12 sem `MAIOR_PRESENCA`), Participantes (PR #29), Desafios `#245` (PR #31) e Resultados `#223` (PR #35) | **Luiz Meneses** (Frontend Lead — T06, PR #31 e `#223`), **Saylon** (Revisor Backend — PR #31 e PR #35) e **ADR 0003** | Publicado e Consolidado |
 
 ### Escopo Completo de Endpoints (`v0.2.0` — 44 operações):
 | Módulo | Método | Rota | Descrição |

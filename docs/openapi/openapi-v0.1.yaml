@@ -421,7 +421,7 @@ paths:
                 $ref: '#/components/schemas/ErroPadraoDto'
               example:
                 statusCode: 409
-                message: "O número de dia 1 já está cadastrado para este evento"
+                message: "Já existe um dia com esse número neste evento."
                 error: "Conflict"
         '422':
           description: "Violação de regra de negócio (data fora do período do evento ou numeroDia maior que quantidadeDias)."
@@ -431,7 +431,7 @@ paths:
                 $ref: '#/components/schemas/ErroPadraoDto'
               example:
                 statusCode: 422
-                message: "A data informada (2026-11-25) está fora do período do evento (2026-11-20 a 2026-11-22)"
+                message: "O número do dia não pode exceder a quantidade de dias do evento."
                 error: "Unprocessable Entity"
 
   /eventos/{eventoId}/dias/{diaId}:
@@ -477,7 +477,7 @@ paths:
                 $ref: '#/components/schemas/ErroPadraoDto'
               example:
                 statusCode: 409
-                message: "Já existe outro dia cadastrado com o número 2 neste evento"
+                message: "Já existe um dia com esse número neste evento."
                 error: "Conflict"
         '422':
           description: "Violação de regra de negócio (data fora do período do evento ou numeroDia maior que quantidadeDias)."
@@ -487,7 +487,7 @@ paths:
                 $ref: '#/components/schemas/ErroPadraoDto'
               example:
                 statusCode: 422
-                message: "A data informada (2026-11-25) está fora do período do evento (2026-11-20 a 2026-11-22)"
+                message: "O número do dia não pode exceder a quantidade de dias do evento."
                 error: "Unprocessable Entity"
     delete:
       tags:
@@ -522,7 +522,7 @@ paths:
                 $ref: '#/components/schemas/ErroPadraoDto'
               example:
                 statusCode: 503
-                message: "Verificação de vínculos do dia temporariamente indisponível"
+                message: "Não foi possível verificar as dependências do dia. Tente novamente mais tarde."
                 error: "Service Unavailable"
 
   /eventos/{eventoId}/grupos:
@@ -1211,13 +1211,24 @@ paths:
                     ausente: true
       responses:
         '200':
-          description: "Colocações salvas com sucesso."
+          description: "Colocações salvas com sucesso (todos os resultados retornam com id preenchido)."
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/ResultadoDesafioDto'
+                  $ref: '#/components/schemas/ResultadoDesafioSalvoDto'
+              example:
+                - id: 11
+                  grupoId: 1
+                  colocacao: 1
+                  ausente: false
+                  pontos: 100
+                - id: 12
+                  grupoId: 2
+                  colocacao: 2
+                  ausente: false
+                  pontos: 80
         '400':
           $ref: '#/components/responses/RequisicaoInvalida'
         '401':
@@ -2854,6 +2865,10 @@ components:
     ResultadoDesafioDto:
       type: object
       additionalProperties: false
+      description: |
+        Item retornado na consulta GET de resultados por desafio.
+        Quando id é null, representa preenchimento pendente (colocacao null, ausente false, pontos 0).
+        O retorno do PUT utiliza ResultadoDesafioSalvoDto, cujo id não aceita null.
       required:
         - id
         - grupoId
@@ -2887,6 +2902,48 @@ components:
           minimum: 0
           maximum: 2147483647
           description: "Pontos obtidos pelo grupo no desafio; 0 para ausente ou pendente."
+          example: 100
+
+    ResultadoDesafioSalvoDto:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - grupoId
+        - colocacao
+        - ausente
+        - pontos
+      description: |
+        Resultado persistido retornado pelo PUT; não representa uma linha pendente.
+        O id é obrigatório e não anulável (nullable: false), inclusive para grupo ausente.
+        A colocacao continua anulável para representar ausência, que vale zero ponto.
+      properties:
+        id:
+          type: integer
+          nullable: false
+          minimum: 1
+          maximum: 2147483647
+          description: "Identificador persistido e preservado em correções."
+          example: 11
+        grupoId:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+          example: 1
+        colocacao:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 2147483647
+          example: 1
+        ausente:
+          type: boolean
+          example: false
+        pontos:
+          type: integer
+          minimum: 0
+          maximum: 2147483647
+          description: "Pontos da colocação no desafio; zero para ausência."
           example: 100
 
     SalvarResultadoDesafioDto:
