@@ -195,8 +195,11 @@ export class DiasEventoService {
       (table) => !existingTables.has(table),
     );
     if (missingTables.length > 0) {
+      this.logger.error(
+        `Estruturas de dependência ausentes para exclusão: ${missingTables.join(', ')}`,
+      );
       throw new ServiceUnavailableException(
-        'Não é possível excluir o dia enquanto o schema não possui as tabelas de dependências oficiais',
+        'Não foi possível verificar as dependências do dia. Tente novamente mais tarde.',
       );
     }
 
