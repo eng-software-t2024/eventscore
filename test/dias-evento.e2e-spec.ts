@@ -262,6 +262,29 @@ describe('DiasEventoController (e2e)', () => {
       .expect(400);
   });
 
+  it('rejeita tipos inválidos de numeroDia sem alterar o dia existente', async () => {
+    const fixture = await event();
+    const day = await createDay(fixture.id, 1, 20).expect(201);
+    const before = await prisma.diaEvento.findUnique({
+      where: { id: day.body.id },
+      select: { numeroDia: true, data: true },
+    });
+
+    for (const numeroDia of [null, 1.5, '2', true, { valor: 2 }, [2]]) {
+      await request(app.getHttpServer())
+        .patch(`/api/v1/eventos/${fixture.id}/dias/${day.body.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ numeroDia })
+        .expect(400);
+
+      const after = await prisma.diaEvento.findUnique({
+        where: { id: day.body.id },
+        select: { numeroDia: true, data: true },
+      });
+      expect(after).toEqual(before);
+    }
+  });
+
   it('retorna 404 ao excluir evento inexistente ou dia de outro evento', async () => {
     const firstEvent = await event();
     const secondEvent = await event();

@@ -18,8 +18,9 @@ Não há uma migration Prisma paralela da US6 neste branch. A migration mínima
 que existia na implementação inicial não foi aplicada nem incorporada à base
 oficial; ela foi removida do diff para evitar dois fluxos de criação do schema.
 
-O runtime usa apenas o client Prisma parcial necessário ao módulo de dias, mas
-ele opera sobre a base completa criada por V1–V12. Não executar `prisma db push`,
+O runtime usa o `PrismaService` e o Prisma Client compartilhado gerado pelo
+projeto, com os modelos necessários ao módulo de dias, sobre a base completa
+criada por V1–V12. Não executar `prisma db push`,
 `prisma migrate reset`, `prisma migrate dev` ou SQL destrutivo de
 `prisma migrate diff` contra uma base oficial ou compartilhada.
 
