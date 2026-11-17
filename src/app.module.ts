@@ -9,6 +9,7 @@ import { PrismaAuthUserRepository } from './modules/auth/prisma-auth-user.reposi
 import { EventosModule } from './modules/eventos/eventos.module.js';
 import { GruposModule } from './modules/grupos/grupos.module.js';
 import { ParticipantesModule } from './modules/participantes/participantes.module.js';
+import { RelatoriosModule } from './modules/relatorios/relatorios.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 
 @Module({
@@ -28,6 +29,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
     EventosModule,
     GruposModule,
     ParticipantesModule,
+    RelatoriosModule,
   ],
 })
 export class AppModule {}
