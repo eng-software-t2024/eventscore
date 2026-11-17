@@ -2,7 +2,9 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
+  ServiceUnavailableException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
@@ -20,6 +22,8 @@ type EventoPeriodo = {
 
 @Injectable()
 export class DiasEventoService {
+  private readonly logger = new Logger(DiasEventoService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   async create(
@@ -90,7 +94,7 @@ export class DiasEventoService {
     if (!dia) throw new NotFoundException('Dia do evento não encontrado');
     if (await this.hasDependentRecords(diaId, eventoId)) {
       throw new ConflictException(
-        'O dia não pode ser excluído porque possui presenças ou desafios associados',
+        'O dia não pode ser excluído porque possui registros associados.',
       );
     }
 
@@ -129,7 +133,7 @@ export class DiasEventoService {
     }
     if (numeroDia > evento.quantidadeDias) {
       throw new UnprocessableEntityException(
-        'numeroDia não pode exceder a quantidade de dias do evento',
+        'O número do dia excede a quantidade configurada para o evento.',
       );
     }
   }
@@ -149,7 +153,9 @@ export class DiasEventoService {
       this.prisma.diaEvento.findFirst({ where: { ...where, data } }),
     ]);
     if (sameNumber)
-      throw new ConflictException('numeroDia já existe neste evento');
+      throw new ConflictException(
+        'Já existe um dia com este número neste evento.',
+      );
     if (sameDate) throw new ConflictException('data já existe neste evento');
   }
 
@@ -163,7 +169,9 @@ export class DiasEventoService {
 
   private throwConflictForUnique(error: unknown): void {
     if (this.isPrismaCode(error, 'P2002')) {
-      throw new ConflictException('numeroDia ou data já existe neste evento');
+      throw new ConflictException(
+        'Já existe um dia com este número ou data neste evento.',
+      );
     }
   }
 
@@ -183,23 +191,60 @@ export class DiasEventoService {
   }
 
   private async hasDependentRecords(idDia: number, idEvento: number) {
-    const tables = await this.prisma.$queryRaw<{ table_name: string }[]>`
-      SELECT table_name
-      FROM information_schema.tables
-      WHERE table_schema = current_schema()
-        AND table_name IN ('presenca', 'desafio')
-    `;
+    let tables: { table_name: string }[];
+    try {
+      tables = await this.prisma.$queryRaw<{ table_name: string }[]>`
+        SELECT table_name
+        FROM information_schema.tables
+        WHERE table_schema = current_schema()
+          AND table_name IN ('presenca', 'desafio')
+      `;
+    } catch (error) {
+      this.logger.error(
+        'Não foi possível consultar as estruturas de dependência para exclusão',
+        error instanceof Error ? error.stack : String(error),
+      );
+      throw new ServiceUnavailableException(
+        'Não foi possível verificar as dependências do dia. Tente novamente mais tarde.',
+      );
+    }
+
+    const expectedTables = new Set(['presenca', 'desafio']);
+    const availableTables = new Set(tables.map(({ table_name }) => table_name));
+    const missingTables = [...expectedTables].filter(
+      (table) => !availableTables.has(table),
+    );
+    if (missingTables.length > 0) {
+      this.logger.error(
+        `Estruturas de dependência ausentes para exclusão: ${missingTables.join(', ')}`,
+      );
+      throw new ServiceUnavailableException(
+        'Não foi possível verificar as dependências do dia. Tente novamente mais tarde.',
+      );
+    }
+
     for (const { table_name: table } of tables) {
       // Os nomes são constantes, definidos pela V2/V4 oficiais; nenhum input
       // externo é interpolado como identificador.
-      const rows = await this.prisma.$queryRawUnsafe<{ exists: boolean }[]>(
-        `SELECT EXISTS (
-           SELECT 1 FROM ${table}
-           WHERE id_dia = $1 AND id_evento = $2
-         ) AS exists`,
-        idDia,
-        idEvento,
-      );
+      let rows: { exists: boolean }[];
+      try {
+        rows = await this.prisma.$queryRawUnsafe<{ exists: boolean }[]>(
+          `SELECT EXISTS (
+             SELECT 1 FROM ${table}
+             WHERE id_dia = $1 AND id_evento = $2
+           ) AS exists`,
+          idDia,
+          idEvento,
+        );
+      } catch (error) {
+        this.logger.error(
+          `Não foi possível consultar a dependência ${table} para exclusão`,
+          error instanceof Error ? error.stack : String(error),
+        );
+        throw new ServiceUnavailableException(
+          'Não foi possível verificar as dependências do dia. Tente novamente mais tarde.',
+        );
+      }
       if (rows[0]?.exists) return true;
     }
     return false;

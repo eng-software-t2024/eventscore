@@ -111,7 +111,13 @@ describe('DiasEventoController (e2e)', () => {
     if (dependencyTablesAvailable) {
       await deletion.expect(204);
     } else {
-      await deletion.expect(503);
+      await deletion
+        .expect(503)
+        .expect(({ body }) =>
+          expect(body.message).toBe(
+            'Não foi possível verificar as dependências do dia. Tente novamente mais tarde.',
+          ),
+        );
     }
   });
 
@@ -120,9 +126,21 @@ describe('DiasEventoController (e2e)', () => {
     const otherEventoId = await createEvent();
     const day = await createDay(eventoId, 1, '2026-11-20').expect(201);
 
-    await createDay(eventoId, 1, '2026-11-21').expect(409);
+    await createDay(eventoId, 1, '2026-11-21')
+      .expect(409)
+      .expect(({ body }) =>
+        expect(body.message).toBe(
+          'Já existe um dia com este número neste evento.',
+        ),
+      );
     await createDay(eventoId, 2, '2026-11-20').expect(409);
-    await createDay(eventoId, 4, '2026-11-23').expect(422);
+    await createDay(eventoId, 4, '2026-11-23')
+      .expect(422)
+      .expect(({ body }) =>
+        expect(body.message).toBe(
+          'O número do dia excede a quantidade configurada para o evento.',
+        ),
+      );
 
     await request(app.getHttpServer())
       .patch(`/api/v1/eventos/${otherEventoId}/dias/${day.body.id}`)

@@ -35,6 +35,15 @@ export class DiasEventoController {
   @Post()
   @ApiOperation({ summary: 'Cadastrar dia de um evento' })
   @ApiResponse({ status: 201, type: DiaEventoResponseDto })
+  @ApiResponse({
+    status: 409,
+    description: 'Já existe um dia com este número neste evento.',
+  })
+  @ApiResponse({
+    status: 422,
+    description:
+      'O número do dia excede a quantidade configurada para o evento.',
+  })
   @ApiNotFoundResponse({ description: 'Evento não encontrado' })
   create(
     @Param('eventoId', ParseIntPipe) eventoId: number,
@@ -53,6 +62,15 @@ export class DiasEventoController {
   @Patch(':diaId')
   @ApiOperation({ summary: 'Atualizar dia de um evento' })
   @ApiResponse({ status: 200, type: DiaEventoResponseDto })
+  @ApiResponse({
+    status: 409,
+    description: 'Já existe um dia com este número neste evento.',
+  })
+  @ApiResponse({
+    status: 422,
+    description:
+      'O número do dia excede a quantidade configurada para o evento.',
+  })
   update(
     @Param('eventoId', ParseIntPipe) eventoId: number,
     @Param('diaId', ParseIntPipe) diaId: number,
@@ -65,6 +83,15 @@ export class DiasEventoController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Excluir dia de um evento' })
   @ApiNoContentResponse({ description: 'Dia excluído' })
+  @ApiResponse({
+    status: 409,
+    description: 'O dia possui registros associados.',
+  })
+  @ApiResponse({
+    status: 503,
+    description:
+      'Não foi possível verificar as dependências do dia. Tente novamente mais tarde.',
+  })
   remove(
     @Param('eventoId', ParseIntPipe) eventoId: number,
     @Param('diaId', ParseIntPipe) diaId: number,
