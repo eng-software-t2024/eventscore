@@ -7,6 +7,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import * as argon2 from 'argon2';
 import request from 'supertest';
 import { App } from 'supertest/types.js';
+import { vi } from 'vitest';
 import { AppModule } from './../src/app.module.js';
 import { HttpExceptionFilter } from './../src/common/filters/http-exception.filter.js';
 import { PrismaService } from './../src/prisma/prisma.service.js';
@@ -323,5 +324,30 @@ describe('DiasEventoController (e2e)', () => {
       .delete(`/api/v1/eventos/${fixture.id}/dias/${challengeDay.body.id}`)
       .set('Authorization', `Bearer ${token}`)
       .expect(409);
+  });
+
+  it('retorna 503 via HTTP quando não consegue verificar dependências', async () => {
+    const fixture = await event();
+    const day = await createDay(fixture.id, 1, 20).expect(201);
+    const queryRaw = vi
+      .spyOn(prisma, '$queryRaw')
+      .mockResolvedValue([{ table_name: 'presenca' }] as never);
+
+    try {
+      await request(app.getHttpServer())
+        .delete(`/api/v1/eventos/${fixture.id}/dias/${day.body.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(503)
+        .expect(({ body }) => {
+          expect(body).toMatchObject({
+            statusCode: 503,
+            message:
+              'Não foi possível verificar as dependências do dia. Tente novamente mais tarde.',
+            error: 'Service Unavailable',
+          });
+        });
+    } finally {
+      queryRaw.mockRestore();
+    }
   });
 });
