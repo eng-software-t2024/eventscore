@@ -92,7 +92,7 @@ Basta rodar `npm run start:dev` de novo: migrações novas são aplicadas e o Pr
 | `npm test` | Testes unitários |
 | `npm run test:watch` | Testes unitários em modo observação |
 | `npm run test:cov` | Testes unitários com relatório de cobertura |
-| `npm run test:e2e` | Testes e2e (usa `eventscore_test` local por padrão; `TEST_DATABASE_URL` pode sobrescrever) |
+| `npm run test:e2e` | Testes e2e (exige `TEST_DATABASE_URL` apontando para banco exclusivo) |
 | **Banco de dados** | |
 | `npm run db:migrate` | Cria uma migração a partir de mudanças no `schema.prisma` e aplica |
 | `npm run db:deploy` | Aplica migrações pendentes |
@@ -105,9 +105,8 @@ Basta rodar `npm run start:dev` de novo: migrações novas são aplicadas e o Pr
 
 Definidas no `.env` (copiado de `.env.example`, nunca versionado). A aplicação valida as variáveis ao iniciar e não sobe se alguma estiver inválida.
 
-A suíte e2e usa por padrão `postgresql://eventscore:eventscore@127.0.0.1:5432/eventscore_test`.
-Para apontar para outro banco exclusivamente de testes, defina `TEST_DATABASE_URL`; o
-nome do banco precisa conter `test`. A suíte cria e remove um administrador temporário
+A suíte e2e exige `TEST_DATABASE_URL` apontando para um banco exclusivamente de
+testes; o nome do banco precisa conter `test`. A suíte cria e remove um administrador temporário
 no próprio banco de teste e não usa credenciais externas.
 
 | Variável | Usada por | Descrição |
@@ -128,9 +127,8 @@ no próprio banco de teste e não usa credenciais externas.
 
 `DATABASE_URL` deve usar o mesmo usuário, senha, porta e banco das variáveis `POSTGRES_*`.
 
-Os testes e2e usam um banco cujo nome contém o marcador `test`. Crie e migre um
-banco separado antes de executá-los; `TEST_DATABASE_URL` é opcional quando o
-banco padrão local estiver disponível:
+Crie e migre um banco separado antes de executar os testes e2e. `TEST_DATABASE_URL`
+é obrigatório, mesmo quando o banco estiver em `localhost`:
 
 ```bash
 createdb -h localhost -U eventscore eventscore_test

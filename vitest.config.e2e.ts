@@ -2,9 +2,13 @@ import 'dotenv/config';
 import { randomBytes } from 'node:crypto';
 import { defineConfig } from 'vitest/config';
 
-const testDatabaseUrl =
-  process.env.TEST_DATABASE_URL?.trim() ||
-  'postgresql://eventscore:eventscore@127.0.0.1:5432/eventscore_test';
+const testDatabaseUrl = process.env.TEST_DATABASE_URL?.trim();
+
+if (!testDatabaseUrl) {
+  throw new Error(
+    'TEST_DATABASE_URL é obrigatória para os testes e2e e deve apontar para um banco PostgreSQL exclusivo de testes',
+  );
+}
 
 let testDatabaseName: string;
 try {

@@ -201,8 +201,20 @@ describe('DiasEventoController (e2e)', () => {
     const fixture = await event();
     await createDay(fixture.id, 1, 20).expect(201);
 
-    await createDay(fixture.id, 1, 21).expect(409);
-    await createDay(fixture.id, 2, 20).expect(409);
+    await createDay(fixture.id, 1, 21)
+      .expect(409)
+      .expect(({ body }) =>
+        expect(body.message).toBe(
+          'Já existe um dia com esse número neste evento.',
+        ),
+      );
+    await createDay(fixture.id, 2, 20)
+      .expect(409)
+      .expect(({ body }) =>
+        expect(body.message).toBe(
+          'Já existe um dia cadastrado nesta data neste evento.',
+        ),
+      );
 
     const another = await createDay(fixture.id, 3, 22).expect(201);
     await request(app.getHttpServer())
@@ -227,8 +239,20 @@ describe('DiasEventoController (e2e)', () => {
       .send({ numeroDia: 1, data: '20/11/2026' })
       .expect(400);
 
-    await createDay(fixture.id, 1, 24).expect(422);
-    await createDay(fixture.id, 4, 23).expect(422);
+    await createDay(fixture.id, 1, 24)
+      .expect(422)
+      .expect(({ body }) =>
+        expect(body.message).toBe(
+          'A data deve estar dentro do período do evento',
+        ),
+      );
+    await createDay(fixture.id, 4, 23)
+      .expect(422)
+      .expect(({ body }) =>
+        expect(body.message).toBe(
+          'O número do dia não pode exceder a quantidade de dias do evento.',
+        ),
+      );
 
     await request(app.getHttpServer())
       .patch(`/api/v1/eventos/${fixture.id}/dias/${day.body.id}`)

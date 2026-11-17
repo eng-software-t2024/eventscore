@@ -133,7 +133,7 @@ export class DiasEventoService {
     }
     if (numeroDia > evento.quantidadeDias) {
       throw new UnprocessableEntityException(
-        'numeroDia não pode exceder a quantidade de dias do evento',
+        'O número do dia não pode exceder a quantidade de dias do evento.',
       );
     }
   }
@@ -153,8 +153,14 @@ export class DiasEventoService {
       this.prisma.diaEvento.findFirst({ where: { ...where, data } }),
     ]);
     if (sameNumber)
-      throw new ConflictException('numeroDia já existe neste evento');
-    if (sameDate) throw new ConflictException('data já existe neste evento');
+      throw new ConflictException(
+        'Já existe um dia com esse número neste evento.',
+      );
+    if (sameDate) {
+      throw new ConflictException(
+        'Já existe um dia cadastrado nesta data neste evento.',
+      );
+    }
   }
 
   private toResponse(dia: { id: number; numeroDia: number; data: Date }) {
@@ -167,7 +173,9 @@ export class DiasEventoService {
 
   private throwConflictForUnique(error: unknown): void {
     if (this.isPrismaCode(error, 'P2002')) {
-      throw new ConflictException('numeroDia ou data já existe neste evento');
+      throw new ConflictException(
+        'Já existe um dia com esse número ou data neste evento.',
+      );
     }
   }
 

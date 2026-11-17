@@ -91,7 +91,12 @@ describe('DiasEventoService', () => {
 
     await expect(
       service.create(1, { numeroDia: 4, data: '2026-11-22' }),
-    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    ).rejects.toMatchObject({
+      response: {
+        message:
+          'O número do dia não pode exceder a quantidade de dias do evento.',
+      },
+    });
   });
 
   it('rejeita número ou data duplicados no evento', async () => {
@@ -102,7 +107,9 @@ describe('DiasEventoService', () => {
 
     await expect(
       service.create(1, { numeroDia: 1, data: '2026-11-20' }),
-    ).rejects.toBeInstanceOf(ConflictException);
+    ).rejects.toMatchObject({
+      response: { message: 'Já existe um dia com esse número neste evento.' },
+    });
   });
 
   it('ordena a listagem por data e número do dia', async () => {

@@ -405,7 +405,7 @@ paths:
                 $ref: '#/components/schemas/ErroPadraoDto'
               example:
                 statusCode: 409
-                message: "O número de dia 1 já está cadastrado para este evento"
+                message: "Já existe um dia com esse número neste evento."
                 error: "Conflict"
         '422':
           description: "Violação de regra de negócio (data fora do período do evento ou numeroDia maior que quantidadeDias)."
@@ -415,7 +415,7 @@ paths:
                 $ref: '#/components/schemas/ErroPadraoDto'
               example:
                 statusCode: 422
-                message: "A data informada (2026-11-25) está fora do período do evento (2026-11-20 a 2026-11-22)"
+                message: "O número do dia não pode exceder a quantidade de dias do evento."
                 error: "Unprocessable Entity"
 
   /eventos/{eventoId}/dias/{diaId}:
@@ -461,7 +461,7 @@ paths:
                 $ref: '#/components/schemas/ErroPadraoDto'
               example:
                 statusCode: 409
-                message: "Já existe outro dia cadastrado com o número 2 neste evento"
+                message: "Já existe um dia com esse número neste evento."
                 error: "Conflict"
         '422':
           description: "Violação de regra de negócio (data fora do período do evento ou numeroDia maior que quantidadeDias)."
@@ -471,7 +471,7 @@ paths:
                 $ref: '#/components/schemas/ErroPadraoDto'
               example:
                 statusCode: 422
-                message: "A data informada (2026-11-25) está fora do período do evento (2026-11-20 a 2026-11-22)"
+                message: "O número do dia não pode exceder a quantidade de dias do evento."
                 error: "Unprocessable Entity"
     delete:
       tags:
@@ -506,7 +506,7 @@ paths:
                 $ref: '#/components/schemas/ErroPadraoDto'
               example:
                 statusCode: 503
-                message: "Verificação de vínculos do dia temporariamente indisponível"
+                message: "Não foi possível verificar as dependências do dia. Tente novamente mais tarde."
                 error: "Service Unavailable"
 
   /eventos/{eventoId}/grupos:

@@ -2,7 +2,7 @@
 
 A US6 usa o `PrismaService` e o client gerado para acessar `evento` e
 `dia_evento`. O schema Prisma da aplicação é o mapeamento das tabelas oficiais;
-as migrations SQL V1–V11 continuam sendo a fonte de verdade, incluindo CHECKs,
+as migrations SQL V1–V12 continuam sendo a fonte de verdade, incluindo CHECKs,
 triggers, funções, views e índices que não são expressos pelo Prisma.
 
 ## Fluxo de banco
@@ -19,24 +19,27 @@ que existia na implementação inicial não foi aplicada nem incorporada à base
 oficial; ela foi removida do diff para evitar dois fluxos de criação do schema.
 
 O runtime usa apenas o client Prisma parcial necessário ao módulo de dias, mas
-ele opera sobre a base completa criada por V1–V11. Não executar `prisma db push`,
+ele opera sobre a base completa criada por V1–V12. Não executar `prisma db push`,
 `prisma migrate reset`, `prisma migrate dev` ou SQL destrutivo de
 `prisma migrate diff` contra uma base oficial ou compartilhada.
 
 ## Reprodução do e2e
 
-O teste exige explicitamente o cenário oficial e falha se essa variável não for
-informada ou se as tabelas esperadas não existirem:
+O teste exige explicitamente `TEST_DATABASE_URL` e falha antes de conectar ao
+banco quando ela não é informada. A URL deve apontar para um banco PostgreSQL
+exclusivo de testes, criado fora do ambiente compartilhado:
 
 ```bash
-US6_E2E_SCHEMA=official \
-DATABASE_URL='postgresql://.../eventscore_test' \
+TEST_DATABASE_URL='postgresql://.../eventscore_test' \
 npm run test:e2e -- test/dias-evento.e2e-spec.ts
 ```
 
-Use um PostgreSQL descartável criado exclusivamente com V1–V11. Credenciais e
-URLs devem permanecer no ambiente local ou no gerenciador de segredos; não são
-versionadas.
+O teste cria um administrador temporário por persistência local e login HTTP,
+limpa os próprios dados ao final e não depende de credenciais externas. Use um
+PostgreSQL descartável criado exclusivamente com as migrations oficiais do
+repositório (V1–V12). Credenciais e URLs devem permanecer no ambiente local ou
+no gerenciador de segredos; não são versionadas. `DATABASE_URL` não substitui
+`TEST_DATABASE_URL` para executar essa suíte.
 
 ## Exclusão segura
 
@@ -47,6 +50,5 @@ em `503` e não têm seus detalhes expostos na resposta HTTP.
 
 ## Limitações e dependências
 
-As rotas ainda dependem da integração do guard JWT da US03/T09 para serem
-consideradas privadas. `@ApiBearerAuth()` documenta o contrato Swagger, mas não
-substitui um guard. Essa integração não faz parte da US6.
+As rotas usam o guard JWT integrado à aplicação. A suíte valida login HTTP com
+usuário temporário persistido e não cria credenciais de produção.
