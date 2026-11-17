@@ -17,7 +17,7 @@ describe('HealthController (e2e)', () => {
   });
 
   afterAll(async () => {
-    await app.close();
+    if (app) await app.close();
   });
 
   it('/health (GET) should report the database as up', () => {
