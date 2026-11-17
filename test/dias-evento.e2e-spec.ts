@@ -4,7 +4,7 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { SignJWT } from 'jose';
+import * as argon2 from 'argon2';
 import request from 'supertest';
 import { App } from 'supertest/types.js';
 import { AppModule } from './../src/app.module.js';
@@ -13,16 +13,12 @@ import { PrismaService } from './../src/prisma/prisma.service.js';
 
 type EventoFixture = { id: number };
 
-const testJwtSecret = new TextEncoder().encode(
-  'eventscore-e2e-only-secret-not-a-production-credential',
-);
-const testJwtIssuer = 'https://eventscore-e2e.invalid/auth/v1';
-
 describe('DiasEventoController (e2e)', () => {
   let app: INestApplication<App>;
   let prisma: PrismaService;
   let dependencyTablesAvailable = false;
   let token = '';
+  let adminUserId: number;
   const createdEventIds = new Set<number>();
   let sequence = 0;
 
@@ -54,10 +50,30 @@ describe('DiasEventoController (e2e)', () => {
     `;
     dependencyTablesAvailable = tables.length === 2;
 
-    token = await createTestAdminToken();
+    const email = `admin-e2e-${Date.now()}@test.invalid`;
+    const senha = `e2e-senha-${Date.now()}-segura`;
+    const admin = await prisma.usuario.create({
+      data: {
+        nome: 'Administrador e2e',
+        email,
+        senhaHash: await argon2.hash(senha),
+        perfil: 'ADMIN',
+        ativo: true,
+      },
+      select: { id: true },
+    });
+    adminUserId = admin.id;
+
+    const login = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ email, senha })
+      .expect(200);
+    token = login.body.token;
+    expect(typeof token).toBe('string');
   });
 
   afterAll(async () => {
+    if (!app || !prisma) return;
     for (const eventoId of createdEventIds) {
       if (dependencyTablesAvailable) {
         await prisma.presenca.deleteMany({ where: { eventoId } });
@@ -70,25 +86,14 @@ describe('DiasEventoController (e2e)', () => {
       }
       await prisma.evento.delete({ where: { id: eventoId } });
     }
+    if (adminUserId) {
+      await prisma.usuario.delete({ where: { id: adminUserId } });
+    }
     await app.close();
   });
 
   function date(day: number) {
     return new Date(Date.UTC(2026, 10, day));
-  }
-
-  async function createTestAdminToken() {
-    return new SignJWT({
-      role: 'authenticated',
-      email: 'admin-e2e@test.invalid',
-    })
-      .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
-      .setSubject(`admin-e2e-${Date.now()}`)
-      .setIssuer(testJwtIssuer)
-      .setAudience('authenticated')
-      .setIssuedAt()
-      .setExpirationTime('10m')
-      .sign(testJwtSecret);
   }
 
   async function event(): Promise<EventoFixture> {

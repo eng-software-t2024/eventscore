@@ -86,8 +86,8 @@ Definidas no `.env` (copiado de `.env.example`, nunca versionado). A aplicação
 
 A suíte e2e usa por padrão `postgresql://eventscore:eventscore@127.0.0.1:5432/eventscore_test`.
 Para apontar para outro banco exclusivamente de testes, defina `TEST_DATABASE_URL`; o
-nome do banco precisa conter `test`. A suíte gera um JWT de fixture local e não usa
-credenciais externas de administrador.
+nome do banco precisa conter `test`. A suíte cria e remove um administrador
+temporário no próprio banco de teste e não usa credenciais externas.
 
 | Variável | Usada por | Descrição |
 |---|---|---|

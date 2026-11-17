@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
   ServiceUnavailableException,
   UnprocessableEntityException,
@@ -21,6 +22,8 @@ type EventoPeriodo = {
 
 @Injectable()
 export class DiasEventoService {
+  private readonly logger = new Logger(DiasEventoService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   async create(
