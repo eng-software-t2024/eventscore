@@ -4,6 +4,7 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { SignJWT } from 'jose';
 import request from 'supertest';
 import { App } from 'supertest/types.js';
 import { AppModule } from './../src/app.module.js';
@@ -12,13 +13,17 @@ import { PrismaService } from './../src/prisma/prisma.service.js';
 
 type EventoFixture = { id: number };
 
+const testJwtSecret = new TextEncoder().encode(
+  'eventscore-e2e-only-secret-not-a-production-credential',
+);
+const testJwtIssuer = 'https://eventscore-e2e.invalid/auth/v1';
+
 describe('DiasEventoController (e2e)', () => {
   let app: INestApplication<App>;
   let prisma: PrismaService;
   let dependencyTablesAvailable = false;
   let token = '';
   const createdEventIds = new Set<number>();
-  const schemaMode = process.env.US6_E2E_SCHEMA;
   let sequence = 0;
 
   beforeAll(async () => {
@@ -41,16 +46,6 @@ describe('DiasEventoController (e2e)', () => {
     await app.init();
     prisma = app.get(PrismaService);
 
-    const login = await request(app.getHttpServer())
-      .post('/api/v1/auth/login')
-      .send({
-        email: process.env.E2E_ADMIN_EMAIL,
-        senha: process.env.E2E_ADMIN_SENHA,
-      })
-      .expect(200);
-    token = login.body.token;
-    expect(typeof token).toBe('string');
-
     const tables = await prisma.$queryRaw<{ table_name: string }[]>`
       SELECT table_name
       FROM information_schema.tables
@@ -59,27 +54,20 @@ describe('DiasEventoController (e2e)', () => {
     `;
     dependencyTablesAvailable = tables.length === 2;
 
-    if (schemaMode !== 'prisma-minimal' && schemaMode !== 'official') {
-      throw new Error(
-        'US6_E2E_SCHEMA deve ser explicitamente prisma-minimal ou official',
-      );
-    }
-    const expectedDependencyTables = schemaMode === 'official';
-    if (dependencyTablesAvailable !== expectedDependencyTables) {
-      throw new Error(
-        `Schema inesperado para US6_E2E_SCHEMA=${schemaMode}: ` +
-          `tabelas de dependência ${dependencyTablesAvailable ? 'presentes' : 'ausentes'}`,
-      );
-    }
+    token = await createTestAdminToken();
   });
 
   afterAll(async () => {
     for (const eventoId of createdEventIds) {
-      await prisma.presenca.deleteMany({ where: { eventoId } });
-      await prisma.desafio.deleteMany({ where: { eventoId } });
-      await prisma.participante.deleteMany({ where: { eventoId } });
+      if (dependencyTablesAvailable) {
+        await prisma.presenca.deleteMany({ where: { eventoId } });
+        await prisma.desafio.deleteMany({ where: { eventoId } });
+        await prisma.participante.deleteMany({ where: { eventoId } });
+      }
       await prisma.diaEvento.deleteMany({ where: { eventoId } });
-      await prisma.grupo.deleteMany({ where: { eventoId } });
+      if (dependencyTablesAvailable) {
+        await prisma.grupo.deleteMany({ where: { eventoId } });
+      }
       await prisma.evento.delete({ where: { id: eventoId } });
     }
     await app.close();
@@ -87,6 +75,20 @@ describe('DiasEventoController (e2e)', () => {
 
   function date(day: number) {
     return new Date(Date.UTC(2026, 10, day));
+  }
+
+  async function createTestAdminToken() {
+    return new SignJWT({
+      role: 'authenticated',
+      email: 'admin-e2e@test.invalid',
+    })
+      .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
+      .setSubject(`admin-e2e-${Date.now()}`)
+      .setIssuer(testJwtIssuer)
+      .setAudience('authenticated')
+      .setIssuedAt()
+      .setExpirationTime('10m')
+      .sign(testJwtSecret);
   }
 
   async function event(): Promise<EventoFixture> {
@@ -257,7 +259,7 @@ describe('DiasEventoController (e2e)', () => {
         .expect(503)
         .expect(({ body }) => {
           expect(body.message).toBe(
-            'Não é possível excluir o dia enquanto o schema não possui as tabelas de dependências oficiais',
+            'Não foi possível verificar as dependências do dia. Tente novamente mais tarde.',
           );
           expect(body.message).not.toContain('presenca');
           expect(body.message).not.toContain('desafio');
