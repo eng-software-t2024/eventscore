@@ -14,3 +14,8 @@ test('mensagem de erro no formato do NestJS', () => {
   assert.equal(mensagemDeErro(422, { message: 'Fora da faixa' }), 'Fora da faixa');
   assert.equal(mensagemDeErro(500, null), 'Erro 500 ao falar com o servidor.');
 });
+
+test('rota que ainda não existe no servidor vira mensagem clara', () => {
+  assert.equal(mensagemDeErro(404, { message: 'Cannot GET /api/v1/eventos/1/desafios', error: 'Not Found' }), 'Esta função ainda não está disponível no servidor.');
+  assert.equal(mensagemDeErro(404, { message: 'Evento não encontrado' }), 'Evento não encontrado');
+});

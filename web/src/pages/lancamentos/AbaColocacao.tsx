@@ -134,7 +134,7 @@ export default function AbaColocacao({ eventoId, grupos }: { eventoId: number; g
       )}
 
       <section className="cartao tabela-cartao" aria-busy={!dados}>
-        {!dados && <p className="dica">Carregando...</p>}
+        {!dados && !erro && <p className="dica">Carregando...</p>}
         {dados && (
           <div className="tabela-rolagem">
             <table className="tabela">

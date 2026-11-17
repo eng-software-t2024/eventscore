@@ -28,6 +28,10 @@ export class ApiError extends Error {
 // Erro no formato do NestJS: message é texto ou lista (ValidationPipe).
 export function mensagemDeErro(status: number, corpo: unknown): string {
   const message = (corpo as { message?: unknown } | null)?.message;
+  // Rota que o back-end ainda não publicou: o Nest responde "Cannot GET /api/v1/...", que não diz nada a quem usa a tela.
+  if (status === 404 && typeof message === 'string' && /^Cannot (GET|POST|PUT|PATCH|DELETE) \//.test(message)) {
+    return 'Esta função ainda não está disponível no servidor.';
+  }
   if (Array.isArray(message)) return message.join('\n');
   if (typeof message === 'string' && message) return message;
   return `Erro ${status} ao falar com o servidor.`;
