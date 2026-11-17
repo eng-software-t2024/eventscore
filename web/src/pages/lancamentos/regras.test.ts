@@ -87,3 +87,50 @@ test('dois empates (2º e 5º lugar) vão juntos no mesmo envio', () => {
     { grupoId: 6, posicao: 6 },
   ]);
 });
+
+test('presentes formam 1..P sem lacunas; ausente não ocupa posição', () => {
+  // Um presente em 2º e outro ausente: falta o 1º.
+  assert.match(
+    validarColocacoes(
+      [
+        { grupoId: 1, colocacao: 2, ausente: false },
+        { grupoId: 2, colocacao: null, ausente: true },
+      ],
+      nome,
+    )!,
+    /única equipe presente.*1º lugar/,
+  );
+  // 1º e 3º com três grupos e um ausente: falta o 2º.
+  assert.match(
+    validarColocacoes(
+      [
+        { grupoId: 1, colocacao: 1, ausente: false },
+        { grupoId: 2, colocacao: 3, ausente: false },
+        { grupoId: 3, colocacao: null, ausente: true },
+      ],
+      nome,
+    )!,
+    /Falta o 2º lugar/,
+  );
+  // Um presente em 1º e um ausente: válido. Todos ausentes: válido.
+  assert.equal(
+    validarColocacoes(
+      [
+        { grupoId: 1, colocacao: 1, ausente: false },
+        { grupoId: 2, colocacao: null, ausente: true },
+      ],
+      nome,
+    ),
+    null,
+  );
+  assert.equal(
+    validarColocacoes(
+      [
+        { grupoId: 1, colocacao: null, ausente: true },
+        { grupoId: 2, colocacao: null, ausente: true },
+      ],
+      nome,
+    ),
+    null,
+  );
+});
