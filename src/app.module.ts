@@ -10,6 +10,7 @@ import { EventosModule } from './modules/eventos/eventos.module.js';
 import { GruposModule } from './modules/grupos/grupos.module.js';
 import { ParticipantesModule } from './modules/participantes/participantes.module.js';
 import { RelatoriosModule } from './modules/relatorios/relatorios.module.js';
+import { ResultadosModule } from './modules/resultados/resultados.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { DiasEventoModule } from './modules/dias-evento/dias-evento.module.js';
 
@@ -32,6 +33,7 @@ import { DiasEventoModule } from './modules/dias-evento/dias-evento.module.js';
     GruposModule,
     ParticipantesModule,
     RelatoriosModule,
+    ResultadosModule,
   ],
 })
 export class AppModule {}
