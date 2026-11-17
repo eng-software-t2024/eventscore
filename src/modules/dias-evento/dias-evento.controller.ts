@@ -9,6 +9,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  UseGuards,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -22,10 +23,12 @@ import { AtualizarDiaEventoDto } from './dto/atualizar-dia-evento.dto.js';
 import { CriarDiaEventoDto } from './dto/criar-dia-evento.dto.js';
 import { DiaEventoResponseDto } from './dto/dia-evento-response.dto.js';
 import { DiasEventoService } from './dias-evento.service.js';
+import { JwtAuthGuard } from '../../auth/jwt-auth.guard.js';
 
 @ApiTags('Dias do evento')
 @ApiBearerAuth()
 @Controller('eventos/:eventoId/dias')
+@UseGuards(JwtAuthGuard)
 export class DiasEventoController {
   constructor(private readonly service: DiasEventoService) {}
 
