@@ -1,0 +1,21 @@
+name: eventscore-frontend
+
+services:
+  web:
+    container_name: eventscore-frontend
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:?defina VITE_SUPABASE_URL}
+        VITE_SUPABASE_PUBLISHABLE_KEY: ${VITE_SUPABASE_PUBLISHABLE_KEY:?defina VITE_SUPABASE_PUBLISHABLE_KEY}
+    ports:
+      - "127.0.0.1:13100:80"
+    restart: on-failure:5
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
