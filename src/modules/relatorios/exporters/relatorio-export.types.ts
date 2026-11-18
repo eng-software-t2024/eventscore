@@ -24,6 +24,7 @@ export interface TabelaRelatorioConfig {
   nomeEvento: string;
   tituloRelatorio: string;
   subtitulo?: string;
+  orientacaoPdf?: 'portrait' | 'landscape';
   geradoEm?: Date;
   secoes: SecaoRelatorio[];
 }

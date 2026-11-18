@@ -6,6 +6,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
 import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter.js';
 import { PasswordHashService } from '../src/modules/auth/password-hash.service.js';
+import { RelatorioParcialService } from '../src/modules/relatorios/parcial/relatorio-parcial.service.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 
 const binaryParser = (
@@ -347,6 +348,18 @@ describe('Relatório Final por Participante E2E (#229)', () => {
       .get(`/api/v1/eventos/${eventoId}/relatorios/final?formato=CSV`)
       .auth(token, { type: 'bearer' })
       .expect(400);
+
+    for (const rota of [
+      `/api/v1/eventos/${eventoId}/relatorios/final`,
+      `/api/v1/eventos/${eventoId}/relatorios/final?formato=pdf`,
+      '/api/v1/eventos/abc/relatorios/final?formato=PDF',
+      '/api/v1/eventos/abc/relatorios/final/previa',
+    ]) {
+      await request(app.getHttpServer())
+        .get(rota)
+        .auth(token, { type: 'bearer' })
+        .expect(400);
+    }
   });
 
   it('exporta PDF e XLSX usando os exportadores compartilhados', async () => {
@@ -413,6 +426,324 @@ describe('Relatório Final por Participante E2E (#229)', () => {
         ]);
       }
     }
+  });
+
+  // Caracterização do comportamento atual; não afirma conformidade com uma regra de completude.
+  it('caracteriza prévia e exportações com um de dois desafios lançado, sem empate', async () => {
+    const evento = await prisma.evento.create({
+      data: {
+        nome: `Arena RF17 Final ${fixtureRunId}`,
+        ano: 2094,
+        dataInicio: new Date('2094-11-20T00:00:00.000Z'),
+        dataFim: new Date('2094-11-24T00:00:00.000Z'),
+        quantidadeDias: 5,
+        ativo: false,
+      },
+    });
+    createdEventIds.add(evento.id);
+
+    const dias = await Promise.all(
+      Array.from({ length: 5 }, (_, indice) =>
+        prisma.diaEvento.create({
+          data: {
+            eventoId: evento.id,
+            numeroDia: indice + 1,
+            data: new Date(Date.UTC(2094, 10, 20 + indice)),
+          },
+        }),
+      ),
+    );
+    const [alfa, beta] = await Promise.all([
+      prisma.grupo.create({
+        data: { eventoId: evento.id, nome: 'Alfa', cor: '#112233' },
+      }),
+      prisma.grupo.create({
+        data: { eventoId: evento.id, nome: 'Beta', cor: '#445566' },
+      }),
+    ]);
+    const nomeZelia = `Zélia ${'de Ávila '.repeat(16)}`;
+    const matriculaLonga = 'T229-C-0000000000001';
+    expect(nomeZelia).toHaveLength(150);
+    expect(matriculaLonga).toHaveLength(20);
+    const [mateus, zelia] = await Promise.all([
+      prisma.participante.create({
+        data: {
+          eventoId: evento.id,
+          grupoId: alfa.id,
+          nome: 'Mateus Azevedo',
+          matricula: 'T229-A',
+          turma: 'A-26',
+        },
+      }),
+      prisma.participante.create({
+        data: {
+          eventoId: evento.id,
+          grupoId: beta.id,
+          nome: nomeZelia,
+          matricula: matriculaLonga,
+          turma: 'TURMA-2026',
+        },
+      }),
+      prisma.participante.create({
+        data: {
+          eventoId: evento.id,
+          grupoId: beta.id,
+          nome: 'Ágata do Ó',
+          matricula: 'T229-D',
+          turma: 'TURMA-2026',
+        },
+      }),
+    ]);
+    const [lancado, semResultado] = await Promise.all([
+      prisma.desafio.create({
+        data: {
+          eventoId: evento.id,
+          diaId: dias[0].id,
+          nome: 'Desafio lançado',
+          pontosColocacao: {
+            create: [
+              { colocacao: 1, pontos: 100 },
+              { colocacao: 2, pontos: 80 },
+            ],
+          },
+        },
+      }),
+      prisma.desafio.create({
+        data: {
+          eventoId: evento.id,
+          diaId: dias[1].id,
+          nome: 'Desafio sem resultado',
+          pontosColocacao: {
+            create: [
+              { colocacao: 1, pontos: 100 },
+              { colocacao: 2, pontos: 80 },
+            ],
+          },
+        },
+      }),
+    ]);
+    await prisma.resultadoDesafio.createMany({
+      data: [
+        {
+          eventoId: evento.id,
+          desafioId: lancado.id,
+          grupoId: alfa.id,
+          colocacao: 1,
+          ausente: false,
+        },
+        {
+          eventoId: evento.id,
+          desafioId: lancado.id,
+          grupoId: beta.id,
+          colocacao: 2,
+          ausente: false,
+        },
+      ],
+    });
+    await prisma.fatorPresenca.createMany({
+      data: [
+        { eventoId: evento.id, diasPresentes: 0, fator: 0 },
+        { eventoId: evento.id, diasPresentes: 1, fator: 0.2 },
+        { eventoId: evento.id, diasPresentes: 2, fator: 0.4 },
+        { eventoId: evento.id, diasPresentes: 3, fator: 0.6 },
+        { eventoId: evento.id, diasPresentes: 4, fator: 0.8 },
+        { eventoId: evento.id, diasPresentes: 5, fator: 1 },
+      ],
+    });
+    await prisma.conversaoPontoExtra.createMany({
+      data: [
+        { eventoId: evento.id, colocacao: 1, pontoExtra: 1 },
+        { eventoId: evento.id, colocacao: 2, pontoExtra: 0.8 },
+      ],
+    });
+    await prisma.presenca.createMany({
+      data: [
+        {
+          eventoId: evento.id,
+          diaId: dias[0].id,
+          participanteId: mateus.id,
+          presente: true,
+        },
+        {
+          eventoId: evento.id,
+          diaId: dias[2].id,
+          participanteId: mateus.id,
+          presente: true,
+        },
+        {
+          eventoId: evento.id,
+          diaId: dias[1].id,
+          participanteId: zelia.id,
+          presente: true,
+        },
+      ],
+    });
+
+    const classificacao = await app
+      .get(RelatorioParcialService)
+      .calcularClassificacaoParcial(evento.id);
+    expect(classificacao.resumo).toMatchObject({
+      desafiosLancados: 1,
+      desafiosTotais: 2,
+      empatesPendentes: [],
+    });
+    expect(
+      await prisma.resultadoDesafio.count({ where: { eventoId: evento.id } }),
+    ).toBe(2);
+    expect(await prisma.desafio.count({ where: { eventoId: evento.id } })).toBe(
+      2,
+    );
+
+    const previa = await request(app.getHttpServer())
+      .get(`/api/v1/eventos/${evento.id}/relatorios/final/previa`)
+      .auth(token, { type: 'bearer' })
+      .expect(200);
+    expect(Array.isArray(previa.body)).toBe(true);
+    expect(previa.body).toEqual([
+      {
+        turma: 'A-26',
+        totalParticipantes: 1,
+        participantes: [
+          {
+            turma: 'A-26',
+            matricula: 'T229-A',
+            nome: 'Mateus Azevedo',
+            grupo: 'Alfa',
+            presencas: [
+              { numeroDia: 1, presente: true },
+              { numeroDia: 2, presente: false },
+              { numeroDia: 3, presente: true },
+              { numeroDia: 4, presente: false },
+              { numeroDia: 5, presente: false },
+            ],
+            pontoExtra: 0.4,
+          },
+        ],
+      },
+      {
+        turma: 'TURMA-2026',
+        totalParticipantes: 2,
+        participantes: [
+          {
+            turma: 'TURMA-2026',
+            matricula: 'T229-D',
+            nome: 'Ágata do Ó',
+            grupo: 'Beta',
+            presencas: Array.from({ length: 5 }, (_, indice) => ({
+              numeroDia: indice + 1,
+              presente: false,
+            })),
+            pontoExtra: 0,
+          },
+          {
+            turma: 'TURMA-2026',
+            matricula: matriculaLonga,
+            nome: nomeZelia,
+            grupo: 'Beta',
+            presencas: [
+              { numeroDia: 1, presente: false },
+              { numeroDia: 2, presente: true },
+              { numeroDia: 3, presente: false },
+              { numeroDia: 4, presente: false },
+              { numeroDia: 5, presente: false },
+            ],
+            pontoExtra: 0.16,
+          },
+        ],
+      },
+    ]);
+
+    const buscaAcentuada = await request(app.getHttpServer())
+      .get(
+        `/api/v1/eventos/${evento.id}/relatorios/final/previa?busca=${encodeURIComponent('Ágata')}`,
+      )
+      .auth(token, { type: 'bearer' })
+      .expect(200);
+    expect(matriculasRetornadas(buscaAcentuada.body)).toEqual(['T229-D']);
+
+    const arquivos: Record<string, Buffer> = {};
+    for (const formato of ['PDF', 'XLSX'] as const) {
+      const resposta = await request(app.getHttpServer())
+        .get(`/api/v1/eventos/${evento.id}/relatorios/final?formato=${formato}`)
+        .auth(token, { type: 'bearer' })
+        .buffer(true)
+        .parse(binaryParser)
+        .expect(200);
+      const buffer = Buffer.from(resposta.body);
+      arquivos[formato] = buffer;
+      expect(buffer.length).toBeGreaterThan(0);
+      expect(resposta.headers['content-disposition']).toContain(
+        'relatorio-final-arena-rf17-final',
+      );
+      expect(resposta.headers['content-type']).toMatch(
+        formato === 'PDF'
+          ? /^application\/pdf/
+          : /^application\/vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet/,
+      );
+      expect(
+        formato === 'PDF'
+          ? buffer.subarray(0, 5).toString('ascii')
+          : buffer.subarray(0, 2).toString('ascii'),
+      ).toBe(formato === 'PDF' ? '%PDF-' : 'PK');
+    }
+
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(arquivos.XLSX as unknown as ExcelJS.Buffer);
+    const worksheet = workbook.worksheets[0];
+    const valoresDaLinha = (numero: number) =>
+      Array.from(
+        { length: 10 },
+        (_, indice) => worksheet.getRow(numero).getCell(indice + 1).value,
+      );
+    expect(valoresDaLinha(5)).toEqual([
+      'Turma',
+      'Matrícula',
+      'Nome',
+      'Grupo',
+      'Dia 1',
+      'Dia 2',
+      'Dia 3',
+      'Dia 4',
+      'Dia 5',
+      'Ponto extra',
+    ]);
+    expect(valoresDaLinha(6)).toEqual([
+      'A-26',
+      'T229-A',
+      'Mateus Azevedo',
+      'Alfa',
+      'Presente',
+      'Ausente',
+      'Presente',
+      'Ausente',
+      'Ausente',
+      0.4,
+    ]);
+    expect(valoresDaLinha(7)).toEqual([
+      'TURMA-2026',
+      'T229-D',
+      'Ágata do Ó',
+      'Beta',
+      'Ausente',
+      'Ausente',
+      'Ausente',
+      'Ausente',
+      'Ausente',
+      0,
+    ]);
+    expect(valoresDaLinha(8)).toEqual([
+      'TURMA-2026',
+      matriculaLonga,
+      nomeZelia,
+      'Beta',
+      'Ausente',
+      'Presente',
+      'Ausente',
+      'Ausente',
+      'Ausente',
+      0.16,
+    ]);
+    expect(semResultado.id).not.toBe(lancado.id);
   });
 
   it('bloqueia empate pendente e libera as três rotas após desempate vigente', async () => {

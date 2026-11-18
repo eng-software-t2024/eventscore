@@ -5,6 +5,7 @@ import { FormatoRelatorio } from '../enums/formato-relatorio.enum.js';
 import { RelatorioParcialService } from '../parcial/relatorio-parcial.service.js';
 import { PdfTabelaExporter } from '../exporters/pdf-tabela.exporter.js';
 import { XlsxPlanilhaExporter } from '../exporters/xlsx-planilha.exporter.js';
+import type { TabelaRelatorioConfig } from '../exporters/relatorio-export.types.js';
 import { EventosService } from '../../eventos/eventos.service.js';
 import { RelatorioFinalService } from './relatorio-final.service.js';
 
@@ -163,6 +164,26 @@ describe('RelatorioFinalService', () => {
     expect(previa[0].participantes[0].pontoExtra).toBe(0.11);
   });
 
+  it.each([
+    ['0.3499', 0.1],
+    ['0.35', 0.11],
+    ['0.3501', 0.11],
+  ])(
+    'arredonda fator %s vezes conversão 0.3 para o esperado independente %s',
+    async (fator, esperado) => {
+      prisma.$queryRaw.mockResolvedValueOnce([
+        { participanteId: 1, fator: new Prisma.Decimal(fator) },
+      ]);
+      prisma.conversaoPontoExtra.findMany.mockResolvedValueOnce([
+        { colocacao: 1, pontoExtra: new Prisma.Decimal('0.3') },
+      ]);
+
+      const previa = await service.gerarPrevia(1, { busca: 'Ana' });
+
+      expect(previa[0].participantes[0].pontoExtra).toBe(esperado);
+    },
+  );
+
   it('respeita limites e metade da segunda casa no domínio decimal do schema', async () => {
     prisma.$queryRaw
       .mockResolvedValueOnce([
@@ -209,5 +230,112 @@ describe('RelatorioFinalService', () => {
 
     await service.gerarRelatorioFinal(1, FormatoRelatorio.XLSX);
     expect(xlsx.gerarBuffer).toHaveBeenCalledOnce();
+  });
+
+  it('envia ao PDF turma, ordem e valores associados por participante', async () => {
+    const dias = Array.from({ length: 5 }, (_, indice) => ({
+      id: (indice + 1) * 100,
+      numeroDia: indice + 1,
+    }));
+    const nomeZelia = `Zélia ${'de Ávila '.repeat(16)}`;
+    const matriculaLonga = 'T229-C-0000000000001';
+    prisma.diaEvento.findMany.mockResolvedValueOnce(dias);
+    prisma.participante.findMany.mockResolvedValueOnce([
+      {
+        id: 2,
+        matricula: matriculaLonga,
+        nome: nomeZelia,
+        turma: 'TURMA-2026',
+        grupoId: 20,
+        grupo: { nome: 'Beta' },
+        presencas: [{ diaId: 200, presente: true }],
+      },
+      {
+        id: 1,
+        matricula: 'T229-A',
+        nome: 'Mateus Azevedo',
+        turma: 'A-26',
+        grupoId: 10,
+        grupo: { nome: 'Alfa' },
+        presencas: [
+          { diaId: 100, presente: true },
+          { diaId: 300, presente: true },
+        ],
+      },
+      {
+        id: 3,
+        matricula: 'T229-D',
+        nome: 'Ágata do Ó',
+        turma: 'TURMA-2026',
+        grupoId: 20,
+        grupo: { nome: 'Beta' },
+        presencas: [],
+      },
+    ]);
+    prisma.$queryRaw.mockResolvedValueOnce([
+      { participanteId: 1, fator: new Prisma.Decimal('0.4') },
+      { participanteId: 2, fator: new Prisma.Decimal('0.2') },
+      { participanteId: 3, fator: new Prisma.Decimal('0') },
+    ]);
+    prisma.conversaoPontoExtra.findMany.mockResolvedValueOnce([
+      { colocacao: 1, pontoExtra: new Prisma.Decimal('1') },
+      { colocacao: 2, pontoExtra: new Prisma.Decimal('0.8') },
+    ]);
+
+    await service.gerarRelatorioFinal(1, FormatoRelatorio.PDF);
+
+    const config = pdf.gerarBuffer.mock
+      .calls[0][0] as unknown as TabelaRelatorioConfig;
+    expect(config.orientacaoPdf).toBe('landscape');
+    expect(config.secoes[0].colunas.map((coluna) => coluna.titulo)).toEqual([
+      'Turma',
+      'Matrícula',
+      'Nome',
+      'Grupo',
+      'Dia 1',
+      'Dia 2',
+      'Dia 3',
+      'Dia 4',
+      'Dia 5',
+      'Ponto extra',
+    ]);
+    expect(config.secoes[0].linhas).toEqual([
+      {
+        turma: 'A-26',
+        matricula: 'T229-A',
+        nome: 'Mateus Azevedo',
+        grupo: 'Alfa',
+        dia1: 'Presente',
+        dia2: 'Ausente',
+        dia3: 'Presente',
+        dia4: 'Ausente',
+        dia5: 'Ausente',
+        pontoExtra: 0.4,
+      },
+      {
+        turma: 'TURMA-2026',
+        matricula: 'T229-D',
+        nome: 'Ágata do Ó',
+        grupo: 'Beta',
+        dia1: 'Ausente',
+        dia2: 'Ausente',
+        dia3: 'Ausente',
+        dia4: 'Ausente',
+        dia5: 'Ausente',
+        pontoExtra: 0,
+      },
+      {
+        turma: 'TURMA-2026',
+        matricula: matriculaLonga,
+        nome: nomeZelia,
+        grupo: 'Beta',
+        dia1: 'Ausente',
+        dia2: 'Presente',
+        dia3: 'Ausente',
+        dia4: 'Ausente',
+        dia5: 'Ausente',
+        pontoExtra: 0.16,
+      },
+    ]);
   });
 });

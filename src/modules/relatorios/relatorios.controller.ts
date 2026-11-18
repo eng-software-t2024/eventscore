@@ -10,12 +10,14 @@ import {
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiConflictResponse,
+  ApiExtraModels,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiProduces,
   ApiTags,
   ApiUnauthorizedResponse,
+  getSchemaPath,
 } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { ErroPadraoDto } from '../../common/dto/erro-padrao.dto.js';
@@ -24,10 +26,20 @@ import { EventoIdParamsDto } from '../eventos/dto/evento-id-params.dto.js';
 import { FormatoRelatorioQueryDto } from './dto/formato-relatorio-query.dto.js';
 import { RelatorioParcialService } from './parcial/relatorio-parcial.service.js';
 import { PreviaRelatorioFinalQueryDto } from './dto/previa-relatorio-final-query.dto.js';
+import {
+  ParticipanteRelatorioFinalDto,
+  PresencaRelatorioFinalDto,
+  TurmaRelatorioFinalDto,
+} from './dto/relatorio-final-response.dto.js';
 import { RelatorioFinalService } from './final/relatorio-final.service.js';
 
 @ApiTags('Relatórios')
 @ApiBearerAuth()
+@ApiExtraModels(
+  TurmaRelatorioFinalDto,
+  ParticipanteRelatorioFinalDto,
+  PresencaRelatorioFinalDto,
+)
 @Controller('eventos/:eventoId/relatorios')
 export class RelatoriosController {
   constructor(
@@ -98,7 +110,18 @@ export class RelatoriosController {
   @ApiOperation({
     summary: 'Consultar a prévia do relatório final por participante',
   })
-  @ApiOkResponse({ description: 'Prévia agrupada por turma em array puro.' })
+  @ApiOkResponse({
+    description:
+      'Prévia em array puro ordenado por turma e nome, incluindo os dias e ausências.',
+    content: {
+      'application/json': {
+        schema: {
+          type: 'array',
+          items: { $ref: getSchemaPath(TurmaRelatorioFinalDto) },
+        },
+      },
+    },
+  })
   @ApiBadRequestResponse({ type: ErroValidacaoDto })
   @ApiUnauthorizedResponse({ type: ErroPadraoDto })
   @ApiNotFoundResponse({ type: ErroPadraoDto })
@@ -120,7 +143,24 @@ export class RelatoriosController {
     'application/pdf',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   )
-  @ApiOkResponse({ description: 'Arquivo binário do relatório final.' })
+  @ApiOkResponse({
+    description: 'Arquivo binário do relatório final.',
+    headers: {
+      'Content-Disposition': {
+        description:
+          'Instrução de download com o nome sugerido para o arquivo.',
+        schema: { type: 'string' },
+      },
+    },
+    content: {
+      'application/pdf': {
+        schema: { type: 'string', format: 'binary' },
+      },
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': {
+        schema: { type: 'string', format: 'binary' },
+      },
+    },
+  })
   @ApiBadRequestResponse({ type: ErroValidacaoDto })
   @ApiUnauthorizedResponse({ type: ErroPadraoDto })
   @ApiNotFoundResponse({ type: ErroPadraoDto })

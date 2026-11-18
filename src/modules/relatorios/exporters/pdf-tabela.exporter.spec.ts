@@ -112,6 +112,28 @@ describe('PdfTabelaExporter e utilitários de exportação', () => {
       expect(Buffer.isBuffer(buffer)).toBe(true);
       expect(buffer.byteLength).toBeGreaterThan(500);
       expect(buffer.subarray(0, 5).toString('ascii')).toBe('%PDF-');
+      expect(buffer.toString('latin1')).toContain(
+        '/MediaBox [0 0 595.28 841.89]',
+      );
+    });
+
+    it('permite A4 paisagem sem alterar o padrão retrato dos outros relatórios', async () => {
+      const buffer = await exporter.gerarBuffer({
+        nomeEvento: 'Arena Comp 2026',
+        tituloRelatorio: 'Relatório final por participante',
+        orientacaoPdf: 'landscape',
+        secoes: [
+          {
+            colunas: [{ chave: 'turma', titulo: 'Turma' }],
+            linhas: [{ turma: 'TURMA-2026' }],
+          },
+        ],
+      });
+
+      expect(buffer.subarray(0, 5).toString('ascii')).toBe('%PDF-');
+      expect(buffer.toString('latin1')).toContain(
+        '/MediaBox [0 0 841.89 595.28]',
+      );
     });
 
     it('suporta múltiplas seções, seção vazia e quebra automática de página para muitas linhas', async () => {

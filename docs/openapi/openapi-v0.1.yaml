@@ -720,7 +720,7 @@ paths:
       tags:
         - Relatórios
       summary: "Consultar prévia do relatório final por participante"
-      description: "Retorna um array puro agrupado por turma, incluindo todos os dias do evento e ausências."
+      description: "Retorna um array puro ordenado por turma e nome, incluindo todos os dias do evento e ausências."
       operationId: "consultarPreviaRelatorioFinal"
       responses:
         '200':
@@ -748,11 +748,11 @@ paths:
       tags:
         - Relatórios
       summary: "Exportar relatório final por participante em PDF ou XLSX"
-      description: "Gera o relatório final com presença de todos os dias, ausências e ponto extra individual."
+      description: "Gera o relatório final agrupado por turma com presença de todos os dias, ausências e ponto extra individual."
       operationId: "exportarRelatorioFinal"
       responses:
         '200':
-          $ref: '#/components/responses/ArquivoRelatorio'
+          $ref: '#/components/responses/ArquivoRelatorioFinal'
         '400':
           $ref: '#/components/responses/RequisicaoInvalida'
         '401':
@@ -830,6 +830,25 @@ components:
             type: string
             format: binary
           example: "planilha binária .xlsx do relatório"
+    ArquivoRelatorioFinal:
+      description: "Arquivo binário do relatório final agrupado por turma com cabeçalho Content-Disposition."
+      headers:
+        Content-Disposition:
+          description: "Instrução de download com o nome sugerido para o arquivo."
+          schema:
+            type: string
+          example: 'attachment; filename="relatorio-final-arena-final.pdf"; filename*=UTF-8''relatorio-final-arena-final.pdf'
+      content:
+        application/pdf:
+          schema:
+            type: string
+            format: binary
+          example: "%PDF-1.4 relatório final do evento"
+        application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+          schema:
+            type: string
+            format: binary
+          example: "planilha binária .xlsx do relatório final"
     RequisicaoInvalida:
       description: "Erro de validação de sintaxe ou de campos do payload disparado pelo ValidationPipe."
       content:
@@ -1319,6 +1338,7 @@ components:
       properties:
         turma:
           type: string
+          maxLength: 10
           example: "ES 2026.2"
         totalParticipantes:
           type: integer
@@ -1331,16 +1351,19 @@ components:
 
     ParticipanteRelatorioFinalDto:
       type: object
-      required: [matricula, nome, grupo, presencas, pontoExtra]
+      required: [matricula, nome, grupo, presencas, pontoExtra, turma]
       properties:
         matricula:
           type: string
+          maxLength: 20
           example: "2026-101"
         nome:
           type: string
+          maxLength: 150
           example: "Lucas Vitorino"
         grupo:
           type: string
+          maxLength: 60
           example: "Alfa"
         presencas:
           type: array
@@ -1349,7 +1372,13 @@ components:
         pontoExtra:
           type: number
           format: double
+          minimum: 0
+          maximum: 1
           example: 0.8
+        turma:
+          type: string
+          maxLength: 10
+          example: "ES 2026.2"
 
     PresencaRelatorioFinalDto:
       type: object

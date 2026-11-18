@@ -159,21 +159,21 @@ export class RelatorioFinalService {
       ),
     ].sort((a, b) => a - b);
     const colunas: ColunaRelatorio[] = [
-      ...(formato === FormatoRelatorio.XLSX
-        ? [{ chave: 'turma', titulo: 'Turma' }]
-        : []),
-      { chave: 'matricula', titulo: 'Matrícula' },
-      { chave: 'nome', titulo: 'Nome' },
-      { chave: 'grupo', titulo: 'Grupo' },
+      { chave: 'turma', titulo: 'Turma', larguraPeso: 1.4 },
+      { chave: 'matricula', titulo: 'Matrícula', larguraPeso: 1.5 },
+      { chave: 'nome', titulo: 'Nome', larguraPeso: 2.2 },
+      { chave: 'grupo', titulo: 'Grupo', larguraPeso: 1.2 },
       ...dias.map((numeroDia) => ({
         chave: `dia${numeroDia}`,
         titulo: `Dia ${numeroDia}`,
         alinhamento: 'center' as const,
+        larguraPeso: 1.1,
       })),
       {
         chave: 'pontoExtra',
         titulo: 'Ponto extra',
         alinhamento: 'right' as const,
+        larguraPeso: 1.3,
       },
     ];
     const linhas = previa.flatMap((turma) =>
@@ -195,6 +195,7 @@ export class RelatorioFinalService {
       nomePlanilha: 'Relatório Final',
       nomeEvento: evento.nome,
       tituloRelatorio: 'Relatório final por participante',
+      orientacaoPdf: formato === FormatoRelatorio.PDF ? 'landscape' : undefined,
       geradoEm: new Date(),
       secoes: [
         { colunas, linhas, mensagemVazia: 'Nenhum participante encontrado.' },

@@ -19,6 +19,7 @@ export class PdfTabelaExporter {
     return new Promise<Buffer>((resolve, reject) => {
       const doc = new PDFDocument({
         size: 'A4',
+        layout: config.orientacaoPdf ?? 'portrait',
         margin: MARGEM_PAGINA,
         info: {
           Title: `${config.tituloRelatorio} - ${config.nomeEvento}`,
