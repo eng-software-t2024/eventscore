@@ -1257,9 +1257,15 @@ paths:
         - name: entidade
           in: query
           required: true
-          description: "Nome canônico da entidade auditada (ex.: RESULTADO_DESAFIO, BONIFICACAO_GRUPO, PENALIDADE, PRESENCA, DESEMPATE_MANUAL)."
+          description: "Nome canônico da entidade auditada (RESULTADO_DESAFIO, BONIFICACAO_GRUPO, PENALIDADE, DESEMPATE_MANUAL ou APURACAO)."
           schema:
             type: string
+            enum:
+              - RESULTADO_DESAFIO
+              - BONIFICACAO_GRUPO
+              - PENALIDADE
+              - DESEMPATE_MANUAL
+              - APURACAO
           example: "RESULTADO_DESAFIO"
         - name: registroId
           in: query
@@ -2992,6 +2998,7 @@ components:
             - INSERT
             - UPDATE
             - DELETE
+            - RECALCULO
           example: "UPDATE"
         valorAnterior:
           type: string
