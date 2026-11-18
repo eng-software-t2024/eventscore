@@ -241,6 +241,13 @@ describe('Swagger de eventos', () => {
             },
           },
         },
+        '409': {
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErroPadraoDto' },
+            },
+          },
+        },
       },
     });
 
@@ -335,6 +342,13 @@ describe('Swagger de eventos', () => {
               {
                 schema: { type: 'string', format: 'binary' },
               },
+          },
+        },
+        '409': {
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErroPadraoDto' },
+            },
           },
         },
       },

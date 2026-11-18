@@ -18,6 +18,12 @@ import type { PreviaRelatorioFinalQueryDto } from '../dto/previa-relatorio-final
 
 const MENSAGEM_EMPATE =
   'A classificação tem empate pendente; registre o desempate antes do relatório final.';
+const MENSAGEM_SEM_DESAFIOS =
+  'O relatório final não está disponível porque o evento não possui desafios.';
+const MENSAGEM_SEM_GRUPOS =
+  'O relatório final não está disponível porque o evento não possui grupos.';
+const MENSAGEM_RESULTADOS_PENDENTES =
+  'O relatório final não está disponível porque há resultados pendentes.';
 
 function arredondarPontoExtra(
   pontoExtraGrupo: Prisma.Decimal,
@@ -222,6 +228,35 @@ export class RelatorioFinalService {
     classificacao: Map<number, number>;
   }> {
     await this.eventosService.buscarPorId(eventoId);
+    const [grupos, desafios] = await Promise.all([
+      this.prisma.grupo.findMany({ where: { eventoId }, select: { id: true } }),
+      this.prisma.desafio.findMany({
+        where: { eventoId },
+        select: {
+          resultados: {
+            select: { grupoId: true, colocacao: true, ausente: true },
+          },
+        },
+      }),
+    ]);
+    if (grupos.length === 0) throw new ConflictException(MENSAGEM_SEM_GRUPOS);
+    if (desafios.length === 0)
+      throw new ConflictException(MENSAGEM_SEM_DESAFIOS);
+    const gruposExigiveis = new Set(grupos.map(({ id }) => id));
+    const resultadosCompletos = desafios.every((desafio) => {
+      const gruposLancados = new Set(
+        desafio.resultados
+          .filter(
+            (resultado) => resultado.ausente || resultado.colocacao !== null,
+          )
+          .map((resultado) => resultado.grupoId),
+      );
+      return [...gruposExigiveis].every((grupoId) =>
+        gruposLancados.has(grupoId),
+      );
+    });
+    if (!resultadosCompletos)
+      throw new ConflictException(MENSAGEM_RESULTADOS_PENDENTES);
     const calculada =
       await this.relatorioParcialService.calcularClassificacaoParcial(eventoId);
     if (calculada.resumo.empatesPendentes.length > 0) {

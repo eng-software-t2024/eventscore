@@ -11,6 +11,8 @@ import { RelatorioFinalService } from './relatorio-final.service.js';
 
 describe('RelatorioFinalService', () => {
   const prisma = {
+    grupo: { findMany: vi.fn() },
+    desafio: { findMany: vi.fn() },
     diaEvento: { findMany: vi.fn() },
     participante: { findMany: vi.fn() },
     conversaoPontoExtra: { findMany: vi.fn() },
@@ -36,6 +38,15 @@ describe('RelatorioFinalService', () => {
       ],
       resumo: { empatesPendentes: [], desafiosLancados: 2, desafiosTotais: 2 },
     });
+    prisma.grupo.findMany.mockResolvedValue([{ id: 10 }, { id: 20 }]);
+    prisma.desafio.findMany.mockResolvedValue([
+      {
+        resultados: [
+          { grupoId: 10, colocacao: 1, ausente: false },
+          { grupoId: 20, colocacao: 2, ausente: false },
+        ],
+      },
+    ]);
     prisma.diaEvento.findMany.mockResolvedValue([
       { id: 100, numeroDia: 1 },
       { id: 200, numeroDia: 2 },
@@ -137,6 +148,32 @@ describe('RelatorioFinalService', () => {
       ConflictException,
     );
     expect(prisma.participante.findMany).not.toHaveBeenCalled();
+  });
+
+  it('bloqueia quando falta lançamento de um grupo e não chama exportadores', async () => {
+    prisma.desafio.findMany.mockResolvedValue([
+      { resultados: [{ grupoId: 10, colocacao: 1, ausente: false }] },
+    ]);
+    await expect(service.gerarPrevia(1, {})).rejects.toMatchObject({
+      message:
+        'O relatório final não está disponível porque há resultados pendentes.',
+    });
+    await expect(
+      service.gerarRelatorioFinal(1, FormatoRelatorio.PDF),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(pdf.gerarBuffer).not.toHaveBeenCalled();
+    expect(xlsx.gerarBuffer).not.toHaveBeenCalled();
+  });
+
+  it('distingue evento sem desafios e sem grupos', async () => {
+    prisma.desafio.findMany.mockResolvedValueOnce([]);
+    await expect(service.gerarPrevia(1, {})).rejects.toMatchObject({
+      status: 409,
+    });
+    prisma.grupo.findMany.mockResolvedValueOnce([]);
+    await expect(service.gerarPrevia(1, {})).rejects.toMatchObject({
+      status: 409,
+    });
   });
 
   it('consome a colocação resultante do desempate manual vigente', async () => {

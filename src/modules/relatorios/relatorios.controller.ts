@@ -126,7 +126,14 @@ export class RelatoriosController {
   @ApiUnauthorizedResponse({ type: ErroPadraoDto })
   @ApiNotFoundResponse({ type: ErroPadraoDto })
   @ApiConflictResponse({
-    description: 'Existe empate pendente na classificação.',
+    type: ErroPadraoDto,
+    content: {
+      'application/json': {
+        schema: { $ref: getSchemaPath(ErroPadraoDto) },
+      },
+    },
+    description:
+      'Relatório final indisponível: evento sem grupos, sem desafios, com resultados pendentes ou empate pendente.',
   })
   previa(
     @Param() params: EventoIdParamsDto,
@@ -139,10 +146,6 @@ export class RelatoriosController {
   @ApiOperation({
     summary: 'Exportar o relatório final por participante em PDF ou XLSX',
   })
-  @ApiProduces(
-    'application/pdf',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  )
   @ApiOkResponse({
     description: 'Arquivo binário do relatório final.',
     headers: {
@@ -165,7 +168,14 @@ export class RelatoriosController {
   @ApiUnauthorizedResponse({ type: ErroPadraoDto })
   @ApiNotFoundResponse({ type: ErroPadraoDto })
   @ApiConflictResponse({
-    description: 'Existe empate pendente na classificação.',
+    type: ErroPadraoDto,
+    content: {
+      'application/json': {
+        schema: { $ref: getSchemaPath(ErroPadraoDto) },
+      },
+    },
+    description:
+      'Relatório final indisponível: evento sem grupos, sem desafios, com resultados pendentes ou empate pendente.',
   })
   async exportarFinal(
     @Param() params: EventoIdParamsDto,

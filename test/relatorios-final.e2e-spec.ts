@@ -167,6 +167,19 @@ describe('Relatório Final por Participante E2E (#229)', () => {
         },
       },
     });
+    const desafioZeroEAusencia = await prisma.desafio.create({
+      data: {
+        eventoId,
+        diaId: dia2.id,
+        nome: 'Desafio com pontuação zero e ausência',
+        pontosColocacao: {
+          create: [
+            { colocacao: 1, pontos: 0 },
+            { colocacao: 2, pontos: 0 },
+          ],
+        },
+      },
+    });
     await prisma.resultadoDesafio.createMany({
       data: [
         {
@@ -182,6 +195,20 @@ describe('Relatório Final por Participante E2E (#229)', () => {
           grupoId: beta.id,
           colocacao: 2,
           ausente: false,
+        },
+        {
+          eventoId,
+          desafioId: desafioZeroEAusencia.id,
+          grupoId: alfa.id,
+          colocacao: 1,
+          ausente: false,
+        },
+        {
+          eventoId,
+          desafioId: desafioZeroEAusencia.id,
+          grupoId: beta.id,
+          colocacao: null,
+          ausente: true,
         },
       ],
     });
@@ -428,8 +455,58 @@ describe('Relatório Final por Participante E2E (#229)', () => {
     }
   });
 
-  // Caracterização do comportamento atual; não afirma conformidade com uma regra de completude.
-  it('caracteriza prévia e exportações com um de dois desafios lançado, sem empate', async () => {
+  it('distingue evento sem desafios de evento com desafio e sem grupos nas três saídas', async () => {
+    for (const fixture of [
+      { nome: 'sem-desafios', ano: 2092, comGrupo: true, comDesafio: false },
+      { nome: 'sem-grupos', ano: 2093, comGrupo: false, comDesafio: true },
+    ]) {
+      const evento = await prisma.evento.create({
+        data: {
+          nome: `Disponibilidade ${fixture.nome} ${fixtureRunId}`,
+          ano: fixture.ano,
+          dataInicio: new Date(`${fixture.ano}-11-20T00:00:00.000Z`),
+          dataFim: new Date(`${fixture.ano}-11-20T00:00:00.000Z`),
+          quantidadeDias: 1,
+          ativo: false,
+        },
+      });
+      createdEventIds.add(evento.id);
+      const dia = await prisma.diaEvento.create({
+        data: {
+          eventoId: evento.id,
+          numeroDia: 1,
+          data: new Date(`${fixture.ano}-11-20T00:00:00.000Z`),
+        },
+      });
+      if (fixture.comGrupo) {
+        await prisma.grupo.create({
+          data: { eventoId: evento.id, nome: 'Grupo fixture', cor: '#112233' },
+        });
+      }
+      if (fixture.comDesafio) {
+        await prisma.desafio.create({
+          data: { eventoId: evento.id, diaId: dia.id, nome: 'Desafio fixture' },
+        });
+      }
+      const motivo = fixture.comGrupo
+        ? 'não possui desafios'
+        : 'não possui grupos';
+      for (const rota of [
+        `/api/v1/eventos/${evento.id}/relatorios/final/previa`,
+        `/api/v1/eventos/${evento.id}/relatorios/final?formato=PDF`,
+        `/api/v1/eventos/${evento.id}/relatorios/final?formato=XLSX`,
+      ]) {
+        const resposta = await request(app.getHttpServer())
+          .get(rota)
+          .auth(token, { type: 'bearer' })
+          .expect(409);
+        expect(resposta.body.message).toContain(motivo);
+      }
+    }
+  });
+
+  // Caracteriza o bloqueio: com um de dois desafios lançado, as três rotas finais respondem 409.
+  it('bloqueia as três rotas com um de dois desafios lançado, sem empate', async () => {
     const evento = await prisma.evento.create({
       data: {
         nome: `Arena RF17 Final ${fixtureRunId}`,
@@ -494,7 +571,7 @@ describe('Relatório Final por Participante E2E (#229)', () => {
         },
       }),
     ]);
-    const [lancado, semResultado] = await Promise.all([
+    const [lancado] = await Promise.all([
       prisma.desafio.create({
         data: {
           eventoId: evento.id,
@@ -593,157 +670,22 @@ describe('Relatório Final por Participante E2E (#229)', () => {
     expect(await prisma.desafio.count({ where: { eventoId: evento.id } })).toBe(
       2,
     );
-
-    const previa = await request(app.getHttpServer())
-      .get(`/api/v1/eventos/${evento.id}/relatorios/final/previa`)
+    await request(app.getHttpServer())
+      .get(`/api/v1/eventos/${evento.id}/relatorios/parcial?formato=PDF`)
       .auth(token, { type: 'bearer' })
       .expect(200);
-    expect(Array.isArray(previa.body)).toBe(true);
-    expect(previa.body).toEqual([
-      {
-        turma: 'A-26',
-        totalParticipantes: 1,
-        participantes: [
-          {
-            turma: 'A-26',
-            matricula: 'T229-A',
-            nome: 'Mateus Azevedo',
-            grupo: 'Alfa',
-            presencas: [
-              { numeroDia: 1, presente: true },
-              { numeroDia: 2, presente: false },
-              { numeroDia: 3, presente: true },
-              { numeroDia: 4, presente: false },
-              { numeroDia: 5, presente: false },
-            ],
-            pontoExtra: 0.4,
-          },
-        ],
-      },
-      {
-        turma: 'TURMA-2026',
-        totalParticipantes: 2,
-        participantes: [
-          {
-            turma: 'TURMA-2026',
-            matricula: 'T229-D',
-            nome: 'Ágata do Ó',
-            grupo: 'Beta',
-            presencas: Array.from({ length: 5 }, (_, indice) => ({
-              numeroDia: indice + 1,
-              presente: false,
-            })),
-            pontoExtra: 0,
-          },
-          {
-            turma: 'TURMA-2026',
-            matricula: matriculaLonga,
-            nome: nomeZelia,
-            grupo: 'Beta',
-            presencas: [
-              { numeroDia: 1, presente: false },
-              { numeroDia: 2, presente: true },
-              { numeroDia: 3, presente: false },
-              { numeroDia: 4, presente: false },
-              { numeroDia: 5, presente: false },
-            ],
-            pontoExtra: 0.16,
-          },
-        ],
-      },
-    ]);
 
-    const buscaAcentuada = await request(app.getHttpServer())
-      .get(
-        `/api/v1/eventos/${evento.id}/relatorios/final/previa?busca=${encodeURIComponent('Ágata')}`,
-      )
-      .auth(token, { type: 'bearer' })
-      .expect(200);
-    expect(matriculasRetornadas(buscaAcentuada.body)).toEqual(['T229-D']);
-
-    const arquivos: Record<string, Buffer> = {};
-    for (const formato of ['PDF', 'XLSX'] as const) {
+    for (const rota of [
+      `/api/v1/eventos/${evento.id}/relatorios/final/previa`,
+      `/api/v1/eventos/${evento.id}/relatorios/final?formato=PDF`,
+      `/api/v1/eventos/${evento.id}/relatorios/final?formato=XLSX`,
+    ]) {
       const resposta = await request(app.getHttpServer())
-        .get(`/api/v1/eventos/${evento.id}/relatorios/final?formato=${formato}`)
+        .get(rota)
         .auth(token, { type: 'bearer' })
-        .buffer(true)
-        .parse(binaryParser)
-        .expect(200);
-      const buffer = Buffer.from(resposta.body);
-      arquivos[formato] = buffer;
-      expect(buffer.length).toBeGreaterThan(0);
-      expect(resposta.headers['content-disposition']).toContain(
-        'relatorio-final-arena-rf17-final',
-      );
-      expect(resposta.headers['content-type']).toMatch(
-        formato === 'PDF'
-          ? /^application\/pdf/
-          : /^application\/vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet/,
-      );
-      expect(
-        formato === 'PDF'
-          ? buffer.subarray(0, 5).toString('ascii')
-          : buffer.subarray(0, 2).toString('ascii'),
-      ).toBe(formato === 'PDF' ? '%PDF-' : 'PK');
+        .expect(409);
+      expect(resposta.body.message).toContain('resultados pendentes');
     }
-
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(arquivos.XLSX as unknown as ExcelJS.Buffer);
-    const worksheet = workbook.worksheets[0];
-    const valoresDaLinha = (numero: number) =>
-      Array.from(
-        { length: 10 },
-        (_, indice) => worksheet.getRow(numero).getCell(indice + 1).value,
-      );
-    expect(valoresDaLinha(5)).toEqual([
-      'Turma',
-      'Matrícula',
-      'Nome',
-      'Grupo',
-      'Dia 1',
-      'Dia 2',
-      'Dia 3',
-      'Dia 4',
-      'Dia 5',
-      'Ponto extra',
-    ]);
-    expect(valoresDaLinha(6)).toEqual([
-      'A-26',
-      'T229-A',
-      'Mateus Azevedo',
-      'Alfa',
-      'Presente',
-      'Ausente',
-      'Presente',
-      'Ausente',
-      'Ausente',
-      0.4,
-    ]);
-    expect(valoresDaLinha(7)).toEqual([
-      'TURMA-2026',
-      'T229-D',
-      'Ágata do Ó',
-      'Beta',
-      'Ausente',
-      'Ausente',
-      'Ausente',
-      'Ausente',
-      'Ausente',
-      0,
-    ]);
-    expect(valoresDaLinha(8)).toEqual([
-      'TURMA-2026',
-      matriculaLonga,
-      nomeZelia,
-      'Beta',
-      'Ausente',
-      'Presente',
-      'Ausente',
-      'Ausente',
-      'Ausente',
-      0.16,
-    ]);
-    expect(semResultado.id).not.toBe(lancado.id);
   });
 
   it('bloqueia empate pendente e libera as três rotas após desempate vigente', async () => {
