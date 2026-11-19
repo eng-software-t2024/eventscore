@@ -163,10 +163,54 @@ Cobertura local após a revisão: 226 testes unitários e 46 testes e2e aprovado
 
 ---
 
+## Onda 4 — #206 parte 2: bônus e penalidades
+
+Módulo `src/modules/bonificacoes-penalidades/` para lançamento de bônus por grupo
+e penalidades, usando as tabelas e triggers da migração V9.
+
+### Rotas
+
+| Método | Rota | Descrição |
+|---|---|---|
+| `GET` | `/eventos/{eventoId}/bonificacoes` | lista bônus lançados |
+| `PUT` | `/eventos/{eventoId}/bonificacoes/{grupoId}` | substitui bônus do grupo de forma idempotente |
+| `GET` | `/eventos/{eventoId}/penalidades` | lista penalidades |
+| `POST` | `/eventos/{eventoId}/penalidades` | cria penalidade |
+| `PATCH` | `/eventos/{eventoId}/penalidades/{penalidadeId}` | atualiza penalidade |
+| `DELETE` | `/eventos/{eventoId}/penalidades/{penalidadeId}` | exclui penalidade (204) |
+
+- Bônus validado contra o teto do `item_bonificacao` e contra o evento do grupo.
+- Penalidade exige justificativa e respeita `penalidadeMin`/`penalidadeMax` do evento.
+- Faixa de penalidade ainda é validada no backend, conforme ADR 0003; não foi criada
+  migração nova.
+- Os itens de bonificação e seus tetos continuam pertencendo à configuração do evento
+  (#199); a #206 apenas lança os valores por grupo.
+
+### Testes da Onda 4
+
+- Unitários para teto, faixa, evento/grupo e CRUD.
+- E2E com PostgreSQL real para JWT, bônus, penalidades e respostas `422`/`204`.
+- Cobertura atual após a revisão da PR: 512 testes unitários e 114 testes e2e.
+
+### Ajustes após revisão da PR #45
+
+- `PUT /bonificacoes/{grupoId}` recebe **array JSON direto** de
+  `{ itemBonificacaoId, valor }`, validado por `ParseArrayPipe` (corrige `400` do
+  front e evita `500` com `valor` inválido).
+- Atualização de bônus ficou **idempotente** e auditada por diferença (INSERT/UPDATE/
+  DELETE só quando muda; reenvio igual não grava nem audita), preservando o
+  `id_bonificacao_grupo`.
+- `justificativa` (e `descricao`) das penalidades são normalizadas com `@Transform`,
+  barrando texto só com espaços com `400`.
+- e2e cobre auditoria e reenvio idempotente via `GET /api/v1/auditoria`.
+
+---
+
 ## Pendências
 
 - **#201 Grupos** — história do Taiga que fecha a US05 com o front-end (revisão do
   contrato e integração da tela).
-- **#203 Participantes** — contrato OpenAPI v0.2 ainda não publicado (rotas alinhadas
-  ao contrato front v0.3, registrado acima).
+- **#203 Participantes** — integração da tela com o front-end.
+- **#206** — integração da tela de lançamentos com o front-end e revisão do contrato
+  v0.2 já publicado.
 - **Revisão e merge** — abrir PR para a `main` e aprovação do revisor (Ikki).
