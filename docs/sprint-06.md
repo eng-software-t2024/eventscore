@@ -190,8 +190,19 @@ e penalidades, usando as tabelas e triggers da migração V9.
 
 - Unitários para teto, faixa, evento/grupo e CRUD.
 - E2E com PostgreSQL real para JWT, bônus, penalidades e respostas `422`/`204`.
-- Cobertura atual após integrar a base recente da `main`: 508 testes unitários e
-  111 testes e2e.
+- Cobertura atual após a revisão da PR: 512 testes unitários e 114 testes e2e.
+
+### Ajustes após revisão da PR #45
+
+- `PUT /bonificacoes/{grupoId}` recebe **array JSON direto** de
+  `{ itemBonificacaoId, valor }`, validado por `ParseArrayPipe` (corrige `400` do
+  front e evita `500` com `valor` inválido).
+- Atualização de bônus ficou **idempotente** e auditada por diferença (INSERT/UPDATE/
+  DELETE só quando muda; reenvio igual não grava nem audita), preservando o
+  `id_bonificacao_grupo`.
+- `justificativa` (e `descricao`) das penalidades são normalizadas com `@Transform`,
+  barrando texto só com espaços com `400`.
+- e2e cobre auditoria e reenvio idempotente via `GET /api/v1/auditoria`.
 
 ---
 
