@@ -10,6 +10,7 @@ import { ResultadosService } from './resultados.service.js';
 function createMocks() {
   const tx = {
     $queryRaw: vi.fn().mockResolvedValue([]),
+    $executeRaw: vi.fn().mockResolvedValue(1),
     evento: { findUnique: vi.fn() },
     desafio: { findUnique: vi.fn() },
     grupo: { findMany: vi.fn() },
@@ -157,7 +158,8 @@ describe('ResultadosService', () => {
       { id: 11, grupoId: 1, colocacao: 1, ausente: false, pontos: 100 },
       { id: 12, grupoId: 2, colocacao: null, ausente: true, pontos: 0 },
     ]);
-    expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
     expect(audit.record).toHaveBeenCalledTimes(2);
     const firstCall = audit.record.mock.calls[0]?.[1];
     const secondCall = audit.record.mock.calls[1]?.[1];
@@ -362,9 +364,12 @@ describe('ResultadosService', () => {
       colocacao: 1,
       ausente: false,
     });
-    tx.$queryRaw
-      .mockResolvedValueOnce([])
-      .mockRejectedValueOnce(new Error('SQL check_violation internal details'));
+    tx.$executeRaw.mockRejectedValueOnce(
+      Object.assign(new Error('SQL check_violation internal details'), {
+        code: 'P2010',
+        meta: { code: '23514' },
+      }),
+    );
 
     const service = new ResultadosService(
       prisma as unknown as PrismaService,
@@ -379,5 +384,10 @@ describe('ResultadosService', () => {
       ),
     );
     expect(audit.record).not.toHaveBeenCalled();
+
+    tx.$executeRaw.mockRejectedValueOnce(new Error('driver failure'));
+    await expect(
+      service.save(7, 1, 3, [{ grupoId: 1, colocacao: 1, ausente: false }]),
+    ).rejects.toThrow('driver failure');
   });
 });

@@ -342,12 +342,49 @@ export class ResultadosService {
     challengeId: number,
   ): Promise<void> {
     try {
-      await tx.$queryRaw`SELECT fn_validar_resultado_desafio(${challengeId}::int)`;
-    } catch {
-      throw new UnprocessableEntityException(
-        'Conjunto de colocações inválido para as regras do desafio.',
-      );
+      await tx.$executeRaw`
+        SELECT 1
+        FROM (SELECT fn_validar_resultado_desafio(${challengeId}::int)) AS validacao
+      `;
+    } catch (error) {
+      if (this.isDomainValidationError(error)) {
+        throw new UnprocessableEntityException(
+          'Conjunto de colocações inválido para as regras do desafio.',
+        );
+      }
+      throw error;
     }
+  }
+
+  private isDomainValidationError(error: unknown): boolean {
+    const serialized = this.extractErrorText(error).toLowerCase();
+    return (
+      serialized.includes('23514') ||
+      serialized.includes('23503') ||
+      serialized.includes('check_violation') ||
+      serialized.includes('foreign_key_violation') ||
+      serialized.includes('p2004') ||
+      serialized.includes('p2010')
+    );
+  }
+
+  private extractErrorText(error: unknown): string {
+    if (typeof error !== 'object' || error === null) {
+      return String(error ?? '');
+    }
+
+    const parts: string[] = [];
+    const record = error as Record<string, unknown>;
+    if (typeof record.code === 'string') parts.push(record.code);
+    if (typeof record.message === 'string') parts.push(record.message);
+    if (record.meta !== undefined) {
+      try {
+        parts.push(JSON.stringify(record.meta));
+      } catch {
+        // Ignora metadados não serializáveis
+      }
+    }
+    return parts.join(' ');
   }
 
   private buildPointsMap(
