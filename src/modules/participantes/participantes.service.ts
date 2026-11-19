@@ -5,7 +5,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { parse } from 'csv-parse/sync';
-import { Workbook } from 'exceljs';
+import ExcelJS from 'exceljs';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type {
@@ -188,7 +188,7 @@ export class ParticipantesService {
   }
 
   private async parseXlsx(buffer: Buffer): Promise<Row[]> {
-    const workbook = new Workbook();
+    const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(buffer as never);
 
     const worksheet = workbook.worksheets[0];
