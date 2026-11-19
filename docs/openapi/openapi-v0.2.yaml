@@ -1799,17 +1799,28 @@ components:
 
   responses:
     RequisicaoInvalida:
-      description: "Erro de validação de sintaxe ou de campos do payload disparado pelo ValidationPipe."
+      description: "Requisição inválida. A validação de campos do payload (ValidationPipe) devolve `message` como lista; JSON malformado, parâmetros de rota inválidos e validações feitas nos serviços devolvem `message` como texto."
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErroValidacaoDto'
-          example:
-            statusCode: 400
-            message:
-              - "email deve ser um endereço de e-mail válido"
-              - "senha deve ter pelo menos 6 caracteres"
-            error: "Bad Request"
+            oneOf:
+              - $ref: '#/components/schemas/ErroValidacaoDto'
+              - $ref: '#/components/schemas/ErroPadraoDto'
+          examples:
+            validacaoDeCampos:
+              summary: "Campos inválidos no payload"
+              value:
+                statusCode: 400
+                message:
+                  - "email deve ser um endereço de e-mail válido"
+                  - "senha deve ter pelo menos 6 caracteres"
+                error: "Bad Request"
+            jsonMalformado:
+              summary: "Corpo da requisição com JSON malformado"
+              value:
+                statusCode: 400
+                message: "Unexpected token '}', \"{\"nome\": }\" is not valid JSON"
+                error: "Bad Request"
 
     NaoAutorizado:
       description: "Token JWT ausente, expirado ou inválido."
