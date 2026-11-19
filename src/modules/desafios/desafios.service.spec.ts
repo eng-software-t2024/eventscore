@@ -8,6 +8,7 @@ import { DesafiosService } from './desafios.service.js';
 
 function createPrismaMock() {
   const tx = {
+    $queryRaw: vi.fn().mockResolvedValue([]),
     evento: { findUnique: vi.fn() },
     diaEvento: { findUnique: vi.fn() },
     grupo: { count: vi.fn() },
@@ -444,5 +445,48 @@ describe('DesafiosService', () => {
     tx.resultadoDesafio.count.mockResolvedValue(1);
     await expect(service.remove(1, 3)).rejects.toThrow(ConflictException);
     expect(tx.desafio.delete).not.toHaveBeenCalled();
+  });
+
+  it('adquire lock do desafio antes de ler desafio/resultados em update e remove', async () => {
+    const { prisma, tx } = createPrismaMock();
+    tx.desafio.findUnique.mockResolvedValue({
+      id: 3,
+      nome: 'Hackathon',
+      descricao: '',
+      diaId: 2,
+      pontosColocacao: [{ colocacao: 1, pontos: 100 }],
+    });
+    tx.resultadoDesafio.count.mockResolvedValue(0);
+    tx.grupo.count.mockResolvedValue(1);
+    tx.desafio.update.mockResolvedValue({
+      id: 3,
+      nome: 'Hackathon 2',
+      descricao: '',
+      diaId: 2,
+      pontosColocacao: [{ colocacao: 1, pontos: 100 }],
+    });
+    tx.criterioDesempate.count.mockResolvedValue(0);
+
+    const service = new DesafiosService(prisma as unknown as PrismaService);
+
+    await service.update(1, 3, { nome: 'Hackathon 2' });
+    const lockOrderUpdate = tx.$queryRaw.mock.invocationCallOrder[0];
+    const readOrderUpdate = tx.desafio.findUnique.mock.invocationCallOrder[0];
+    const countOrderUpdate =
+      tx.resultadoDesafio.count.mock.invocationCallOrder[0];
+    expect(lockOrderUpdate).toBeLessThan(readOrderUpdate);
+    expect(lockOrderUpdate).toBeLessThan(countOrderUpdate);
+
+    tx.$queryRaw.mockClear();
+    tx.desafio.findUnique.mockClear();
+    tx.resultadoDesafio.count.mockClear();
+
+    await service.remove(1, 3);
+    const lockOrderRemove = tx.$queryRaw.mock.invocationCallOrder[0];
+    const readOrderRemove = tx.desafio.findUnique.mock.invocationCallOrder[0];
+    const countOrderRemove =
+      tx.resultadoDesafio.count.mock.invocationCallOrder[0];
+    expect(lockOrderRemove).toBeLessThan(readOrderRemove);
+    expect(lockOrderRemove).toBeLessThan(countOrderRemove);
   });
 });

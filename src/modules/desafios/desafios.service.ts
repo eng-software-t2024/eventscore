@@ -96,6 +96,7 @@ export class DesafiosService {
         : undefined;
 
     return this.prisma.$transaction(async (tx) => {
+      await this.lockChallenge(tx, eventId, challengeId);
       const current = await this.findChallengeInEvent(tx, eventId, challengeId);
 
       const targetName = nextName ?? current.nome;
@@ -167,6 +168,7 @@ export class DesafiosService {
 
   async remove(eventId: number, challengeId: number): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
+      await this.lockChallenge(tx, eventId, challengeId);
       await this.findChallengeInEvent(tx, eventId, challengeId);
 
       const criteriaCount = await tx.criterioDesempate.count({
@@ -194,6 +196,22 @@ export class DesafiosService {
         where: { id_eventoId: { id: challengeId, eventoId: eventId } },
       });
     });
+  }
+
+  private async lockChallenge(
+    tx: Prisma.TransactionClient,
+    eventId: number,
+    challengeId: number,
+  ): Promise<void> {
+    // Coordena com ResultadosService.save() para impedir alteração ou exclusão
+    // enquanto um lançamento de resultado estiver em andamento no mesmo desafio.
+    await tx.$queryRaw`
+      SELECT id_desafio
+      FROM desafio
+      WHERE id_desafio = ${challengeId}::int
+        AND id_evento = ${eventId}::int
+      FOR UPDATE
+    `;
   }
 
   private async assertEventExists(
