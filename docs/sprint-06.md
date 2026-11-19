@@ -190,7 +190,8 @@ e penalidades, usando as tabelas e triggers da migração V9.
 
 - Unitários para teto, faixa, evento/grupo e CRUD.
 - E2E com PostgreSQL real para JWT, bônus, penalidades e respostas `422`/`204`.
-- Cobertura atual: 234 testes unitários e 49 testes e2e.
+- Cobertura atual após integrar a base recente da `main`: 508 testes unitários e
+  111 testes e2e.
 
 ---
 
@@ -198,8 +199,7 @@ e penalidades, usando as tabelas e triggers da migração V9.
 
 - **#201 Grupos** — história do Taiga que fecha a US05 com o front-end (revisão do
   contrato e integração da tela).
-- **#203 Participantes** — contrato OpenAPI v0.2 ainda não publicado (rotas alinhadas
-  ao contrato front v0.3, registrado acima).
-- **#206** — contrato OpenAPI v0.2 ainda não publicado; rotas acima seguem o plano
-  de entregas e precisam ser conferidas com o front-end.
+- **#203 Participantes** — integração da tela com o front-end.
+- **#206** — integração da tela de lançamentos com o front-end e revisão do contrato
+  v0.2 já publicado.
 - **Revisão e merge** — abrir PR para a `main` e aprovação do revisor (Ikki).
