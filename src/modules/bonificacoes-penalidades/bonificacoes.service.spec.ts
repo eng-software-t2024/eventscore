@@ -25,7 +25,11 @@ describe('BonificacoesService', () => {
         }),
       ),
     };
-    return { prisma, service: new BonificacoesService(prisma as never) };
+    const audit = { record: vi.fn() };
+    return {
+      prisma,
+      service: new BonificacoesService(prisma as never, audit as never),
+    };
   }
 
   it('lista bonificações do evento', async () => {
@@ -42,13 +46,9 @@ describe('BonificacoesService', () => {
 
     await expect(service.list(1)).resolves.toEqual([
       {
-        id: 1,
-        itemBonificacaoId: 3,
-        itemNome: 'Uniformização',
-        teto: 10,
         grupoId: 2,
-        grupo: 'Alfa',
-        valor: 8,
+        itens: [{ itemBonificacaoId: 3, valor: 8 }],
+        total: 8,
       },
     ]);
   });
@@ -60,9 +60,14 @@ describe('BonificacoesService', () => {
     prisma.itemBonificacao.findMany.mockResolvedValue([]);
 
     await expect(
-      service.replaceForGroup(1, 2, {
-        bonificacoes: [{ itemBonificacaoId: 3, valor: 1 }],
-      }),
+      service.replaceForGroup(
+        1,
+        2,
+        {
+          bonificacoes: [{ itemBonificacaoId: 3, valor: 1 }],
+        },
+        99,
+      ),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
@@ -75,9 +80,14 @@ describe('BonificacoesService', () => {
     ]);
 
     await expect(
-      service.replaceForGroup(1, 2, {
-        bonificacoes: [{ itemBonificacaoId: 3, valor: 11 }],
-      }),
+      service.replaceForGroup(
+        1,
+        2,
+        {
+          bonificacoes: [{ itemBonificacaoId: 3, valor: 11 }],
+        },
+        99,
+      ),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 
@@ -87,12 +97,17 @@ describe('BonificacoesService', () => {
     prisma.grupo.findUnique.mockResolvedValue({ id: 2 });
 
     await expect(
-      service.replaceForGroup(1, 2, {
-        bonificacoes: [
-          { itemBonificacaoId: 3, valor: 1 },
-          { itemBonificacaoId: 3, valor: 2 },
-        ],
-      }),
+      service.replaceForGroup(
+        1,
+        2,
+        {
+          bonificacoes: [
+            { itemBonificacaoId: 3, valor: 1 },
+            { itemBonificacaoId: 3, valor: 2 },
+          ],
+        },
+        99,
+      ),
     ).rejects.toBeInstanceOf(ConflictException);
   });
 });

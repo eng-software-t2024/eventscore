@@ -16,8 +16,27 @@ describe('PenalidadesService', () => {
         update: vi.fn(),
         delete: vi.fn(),
       },
+      $transaction: vi.fn(async (callback: (tx: unknown) => unknown) =>
+        callback({
+          penalidade: {
+            create: vi.fn().mockResolvedValue({
+              id: 4,
+              descricao: 'Atraso',
+              pontos: 20,
+              justificativa: 'Iniciou depois do horário',
+              grupo: { id: 2, nome: 'Alfa' },
+            }),
+            update: vi.fn(),
+            delete: vi.fn(),
+          },
+        }),
+      ),
     };
-    return { prisma, service: new PenalidadesService(prisma as never) };
+    const audit = { record: vi.fn() };
+    return {
+      prisma,
+      service: new PenalidadesService(prisma as never, audit as never),
+    };
   }
 
   it('cria penalidade dentro da faixa do evento', async () => {
@@ -28,22 +47,18 @@ describe('PenalidadesService', () => {
       penalidadeMax: 50,
     });
     prisma.grupo.findUnique.mockResolvedValue({ id: 2 });
-    prisma.penalidade.create.mockResolvedValue({
-      id: 4,
-      descricao: 'Atraso',
-      pontos: 20,
-      justificativa: 'Iniciou depois do horário',
-      grupo: { id: 2, nome: 'Alfa' },
-    });
-
     await expect(
-      service.create(1, {
-        grupoId: 2,
-        descricao: 'Atraso',
-        pontos: 20,
-        justificativa: 'Iniciou depois do horário',
-      }),
-    ).resolves.toMatchObject({ id: 4, grupo: 'Alfa', pontos: 20 });
+      service.create(
+        1,
+        {
+          grupoId: 2,
+          descricao: 'Atraso',
+          pontos: 20,
+          justificativa: 'Iniciou depois do horário',
+        },
+        99,
+      ),
+    ).resolves.toMatchObject({ id: 4, grupoId: 2, pontos: 20 });
   });
 
   it('recusa faixa não configurada ou pontos fora da faixa', async () => {
@@ -56,7 +71,11 @@ describe('PenalidadesService', () => {
     prisma.grupo.findUnique.mockResolvedValue({ id: 2 });
 
     await expect(
-      service.create(1, { grupoId: 2, pontos: 20, justificativa: 'Motivo' }),
+      service.create(
+        1,
+        { grupoId: 2, pontos: 20, justificativa: 'Motivo' },
+        99,
+      ),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
 
     prisma.evento.findUnique.mockResolvedValue({
@@ -66,7 +85,7 @@ describe('PenalidadesService', () => {
     });
     prisma.grupo.findUnique.mockResolvedValue({ id: 2 });
     await expect(
-      service.create(1, { grupoId: 2, pontos: 5, justificativa: 'Motivo' }),
+      service.create(1, { grupoId: 2, pontos: 5, justificativa: 'Motivo' }, 99),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 
@@ -84,7 +103,7 @@ describe('PenalidadesService', () => {
       grupo: { id: 2, eventoId: 9, nome: 'Outro' },
     });
 
-    await expect(service.remove(1, 4)).rejects.toBeInstanceOf(
+    await expect(service.remove(1, 4, 99)).rejects.toBeInstanceOf(
       NotFoundException,
     );
   });

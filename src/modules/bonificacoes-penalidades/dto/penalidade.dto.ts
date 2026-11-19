@@ -52,7 +52,4 @@ export class PenalidadeResumoDto {
 
   @ApiProperty({ type: 'integer', example: 1 })
   grupoId: number;
-
-  @ApiProperty({ example: 'Alfa' })
-  grupo: string;
 }

@@ -3,7 +3,9 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { AuditoriaService } from '../auditoria/auditoria.service.js';
 import type {
   AtualizarPenalidadeDto,
   CriarPenalidadeDto,
@@ -12,7 +14,10 @@ import type {
 
 @Injectable()
 export class PenalidadesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditoriaService,
+  ) {}
 
   async list(eventId: number): Promise<PenalidadeResumoDto[]> {
     await this.assertEventExists(eventId);
@@ -27,6 +32,7 @@ export class PenalidadesService {
   async create(
     eventId: number,
     dto: CriarPenalidadeDto,
+    userId: number,
   ): Promise<PenalidadeResumoDto> {
     const event = await this.getEvent(eventId);
     await this.assertGroupInEvent(eventId, dto.grupoId);
@@ -36,14 +42,28 @@ export class PenalidadesService {
       event.penalidadeMax,
     );
 
-    const entry = await this.prisma.penalidade.create({
-      data: {
-        grupoId: dto.grupoId,
-        descricao: dto.descricao,
-        pontos: dto.pontos,
-        justificativa: dto.justificativa.trim(),
-      },
-      include: { grupo: { select: { id: true, nome: true } } },
+    const entry = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.penalidade.create({
+        data: {
+          grupoId: dto.grupoId,
+          descricao: dto.descricao,
+          pontos: dto.pontos,
+          justificativa: dto.justificativa.trim(),
+        },
+        include: { grupo: { select: { id: true, nome: true } } },
+      });
+      await this.audit.record(tx, {
+        usuarioId: userId,
+        eventoId: eventId,
+        operacaoId: randomUUID(),
+        entidade: 'PENALIDADE',
+        registroId: created.id,
+        operacao: 'INSERT',
+        after: { pontos: created.pontos, justificativa: created.justificativa },
+        justificativa: created.justificativa,
+        afetaResultado: true,
+      });
+      return created;
     });
     return this.toSummary(entry);
   }
@@ -52,6 +72,7 @@ export class PenalidadesService {
     eventId: number,
     penaltyId: number,
     dto: AtualizarPenalidadeDto,
+    userId: number,
   ): Promise<PenalidadeResumoDto> {
     const event = await this.getEvent(eventId);
     const current = await this.getPenaltyInEvent(eventId, penaltyId);
@@ -60,22 +81,69 @@ export class PenalidadesService {
     await this.assertGroupInEvent(eventId, groupId);
     this.assertPenaltyRange(points, event.penalidadeMin, event.penalidadeMax);
 
-    const entry = await this.prisma.penalidade.update({
-      where: { id: penaltyId },
-      data: {
-        grupoId: dto.grupoId,
-        descricao: dto.descricao,
-        pontos: dto.pontos,
-        justificativa: dto.justificativa?.trim(),
-      },
-      include: { grupo: { select: { id: true, nome: true } } },
+    const entry = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.penalidade.update({
+        where: { id: penaltyId },
+        data: {
+          grupoId: dto.grupoId,
+          descricao: dto.descricao,
+          pontos: dto.pontos,
+          justificativa: dto.justificativa?.trim(),
+        },
+        include: { grupo: { select: { id: true, nome: true } } },
+      });
+      await this.audit.record(tx, {
+        usuarioId: userId,
+        eventoId: eventId,
+        operacaoId: randomUUID(),
+        entidade: 'PENALIDADE',
+        registroId: penaltyId,
+        operacao: 'UPDATE',
+        before: {
+          pontos: current.pontos,
+          justificativa: current.justificativa,
+          descricao: current.descricao,
+          grupoId: current.grupoId,
+        },
+        after: {
+          pontos: updated.pontos,
+          justificativa: updated.justificativa,
+          descricao: updated.descricao,
+          grupoId: updated.grupoId,
+        },
+        justificativa: updated.justificativa,
+        afetaResultado: true,
+      });
+      return updated;
     });
     return this.toSummary(entry);
   }
 
-  async remove(eventId: number, penaltyId: number): Promise<void> {
-    await this.getPenaltyInEvent(eventId, penaltyId);
-    await this.prisma.penalidade.delete({ where: { id: penaltyId } });
+  async remove(
+    eventId: number,
+    penaltyId: number,
+    userId: number,
+  ): Promise<void> {
+    const current = await this.getPenaltyInEvent(eventId, penaltyId);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.penalidade.delete({ where: { id: penaltyId } });
+      await this.audit.record(tx, {
+        usuarioId: userId,
+        eventoId: eventId,
+        operacaoId: randomUUID(),
+        entidade: 'PENALIDADE',
+        registroId: penaltyId,
+        operacao: 'DELETE',
+        before: {
+          pontos: current.pontos,
+          justificativa: current.justificativa,
+          descricao: current.descricao,
+          grupoId: current.grupoId,
+        },
+        justificativa: current.justificativa,
+        afetaResultado: true,
+      });
+    });
   }
 
   private toSummary(entry: any): PenalidadeResumoDto {
@@ -85,7 +153,6 @@ export class PenalidadesService {
       pontos: entry.pontos,
       justificativa: entry.justificativa,
       grupoId: entry.grupo.id,
-      grupo: entry.grupo.nome,
     };
   }
 

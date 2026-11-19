@@ -20,25 +20,13 @@ export class AtualizarBonificacoesDto {
   bonificacoes: BonificacaoEntradaDto[];
 }
 
-export class BonificacaoResumoDto {
-  @ApiProperty({ type: 'integer', example: 1 })
-  id: number;
-
-  @ApiProperty({ type: 'integer', example: 1 })
-  itemBonificacaoId: number;
-
-  @ApiProperty({ example: 'Uniformização' })
-  itemNome: string;
-
-  @ApiProperty({ type: 'integer', example: 10 })
-  teto: number;
-
+export class BonificacaoGrupoResumoDto {
   @ApiProperty({ type: 'integer', example: 1 })
   grupoId: number;
 
-  @ApiProperty({ example: 'Alfa' })
-  grupo: string;
+  @ApiProperty({ type: () => [BonificacaoEntradaDto] })
+  itens: BonificacaoEntradaDto[];
 
-  @ApiProperty({ type: 'integer', example: 8 })
-  valor: number;
+  @ApiProperty({ type: 'integer', example: 18 })
+  total: number;
 }

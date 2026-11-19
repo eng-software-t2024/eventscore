@@ -10,7 +10,6 @@ import { PrismaService } from '../src/prisma/prisma.service.js';
 describe('Acesso a bônus e penalidades (#206 parte 2)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
-  let adminId: number;
   let eventId: number;
   let groupId: number;
   let itemId: number;
@@ -38,7 +37,7 @@ describe('Acesso a bônus e penalidades (#206 parte 2)', () => {
     await app.init();
     prisma = app.get(PrismaService);
 
-    const admin = await prisma.usuario.create({
+    await prisma.usuario.create({
       data: {
         nome: 'Administrador de teste 206',
         email,
@@ -47,7 +46,6 @@ describe('Acesso a bônus e penalidades (#206 parte 2)', () => {
         ativo: true,
       },
     });
-    adminId = admin.id;
 
     const event = await prisma.evento.create({
       data: {
@@ -80,16 +78,10 @@ describe('Acesso a bônus e penalidades (#206 parte 2)', () => {
   });
 
   afterAll(async () => {
-    try {
-      await prisma.penalidade.deleteMany({ where: { grupoId: groupId } });
-      await prisma.bonificacaoGrupo.deleteMany({ where: { grupoId: groupId } });
-      await prisma.itemBonificacao.deleteMany({ where: { id: itemId } });
-      await prisma.grupo.deleteMany({ where: { id: groupId } });
-      await prisma.evento.deleteMany({ where: { id: eventId } });
-      await prisma.usuario.deleteMany({ where: { id: adminId } });
-    } finally {
-      await app?.close();
-    }
+    // Lançamentos geram auditoria, e a V8 bloqueia exclusão do evento/usuário
+    // referenciados (ADR 0004). Os fixtures ficam isolados por UUID no banco
+    // exclusivo de testes, então apenas fechamos a aplicação.
+    await app?.close();
   });
 
   it('protege as rotas sem token', async () => {
@@ -108,17 +100,17 @@ describe('Acesso a bônus e penalidades (#206 parte 2)', () => {
       .send({ bonificacoes: [{ itemBonificacaoId: itemId, valor: 8 }] })
       .expect(200);
 
-    expect(replace.body[0]).toMatchObject({
-      itemBonificacaoId: itemId,
+    expect(replace.body).toMatchObject({
       grupoId: groupId,
-      valor: 8,
+      itens: [{ itemBonificacaoId: itemId, valor: 8 }],
+      total: 8,
     });
 
     await request(app.getHttpServer())
       .get(`/api/v1/eventos/${eventId}/bonificacoes`)
       .auth(token, { type: 'bearer' })
       .expect(200)
-      .expect(({ body }) => expect(body[0].valor).toBe(8));
+      .expect(({ body }) => expect(body[0].total).toBe(8));
 
     await request(app.getHttpServer())
       .put(`/api/v1/eventos/${eventId}/bonificacoes/${groupId}`)

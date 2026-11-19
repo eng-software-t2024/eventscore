@@ -21,6 +21,7 @@ import {
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 import { ErroPadraoDto } from '../../common/dto/erro-padrao.dto.js';
+import { CurrentUserId } from '../../common/decorators/current-user-id.decorator.js';
 import {
   AtualizarPenalidadeDto,
   CriarPenalidadeDto,
@@ -49,8 +50,9 @@ export class PenalidadesController {
   create(
     @Param('eventoId', ParseIntPipe) eventId: number,
     @Body() dto: CriarPenalidadeDto,
+    @CurrentUserId() userId: number,
   ) {
-    return this.penalidades.create(eventId, dto);
+    return this.penalidades.create(eventId, dto, userId);
   }
 
   @Patch(':penalidadeId')
@@ -61,8 +63,9 @@ export class PenalidadesController {
     @Param('eventoId', ParseIntPipe) eventId: number,
     @Param('penalidadeId', ParseIntPipe) penaltyId: number,
     @Body() dto: AtualizarPenalidadeDto,
+    @CurrentUserId() userId: number,
   ) {
-    return this.penalidades.update(eventId, penaltyId, dto);
+    return this.penalidades.update(eventId, penaltyId, dto, userId);
   }
 
   @Delete(':penalidadeId')
@@ -72,7 +75,8 @@ export class PenalidadesController {
   remove(
     @Param('eventoId', ParseIntPipe) eventId: number,
     @Param('penalidadeId', ParseIntPipe) penaltyId: number,
+    @CurrentUserId() userId: number,
   ) {
-    return this.penalidades.remove(eventId, penaltyId);
+    return this.penalidades.remove(eventId, penaltyId, userId);
   }
 }

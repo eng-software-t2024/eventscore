@@ -4,17 +4,22 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { AuditoriaService } from '../auditoria/auditoria.service.js';
 import type {
   AtualizarBonificacoesDto,
-  BonificacaoResumoDto,
+  BonificacaoGrupoResumoDto,
 } from './dto/bonificacao.dto.js';
 
 @Injectable()
 export class BonificacoesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditoriaService,
+  ) {}
 
-  async list(eventId: number): Promise<BonificacaoResumoDto[]> {
+  async list(eventId: number): Promise<BonificacaoGrupoResumoDto[]> {
     await this.assertEventExists(eventId);
 
     const entries = await this.prisma.bonificacaoGrupo.findMany({
@@ -26,14 +31,15 @@ export class BonificacoesService {
       },
     });
 
-    return entries.map((entry) => this.toSummary(entry));
+    return this.groupEntries(entries);
   }
 
   async replaceForGroup(
     eventId: number,
     groupId: number,
     dto: AtualizarBonificacoesDto,
-  ): Promise<BonificacaoResumoDto[]> {
+    userId: number,
+  ): Promise<BonificacaoGrupoResumoDto> {
     await this.assertGroupInEvent(eventId, groupId);
 
     const itemIds = dto.bonificacoes.map((entry) => entry.itemBonificacaoId);
@@ -64,15 +70,51 @@ export class BonificacoesService {
     }
 
     await this.prisma.$transaction(async (tx) => {
+      const previous = await tx.bonificacaoGrupo.findMany({
+        where: { grupoId: groupId },
+        select: { id: true, itemBonificacaoId: true, valor: true },
+      });
+      const operationId = randomUUID();
+
       await tx.bonificacaoGrupo.deleteMany({ where: { grupoId: groupId } });
-      if (dto.bonificacoes.length > 0) {
-        await tx.bonificacaoGrupo.createMany({
-          data: dto.bonificacoes.map((entry) => ({
-            grupoId: groupId,
+      for (const entry of previous) {
+        await this.audit.record(tx, {
+          usuarioId: userId,
+          eventoId: eventId,
+          operacaoId: operationId,
+          entidade: 'BONIFICACAO_GRUPO',
+          registroId: entry.id,
+          operacao: 'DELETE',
+          before: {
             itemBonificacaoId: entry.itemBonificacaoId,
             valor: entry.valor,
-          })),
+          },
+          afetaResultado: true,
         });
+      }
+      if (dto.bonificacoes.length > 0) {
+        for (const entry of dto.bonificacoes) {
+          const created = await tx.bonificacaoGrupo.create({
+            data: {
+              grupoId: groupId,
+              itemBonificacaoId: entry.itemBonificacaoId,
+              valor: entry.valor,
+            },
+          });
+          await this.audit.record(tx, {
+            usuarioId: userId,
+            eventoId: eventId,
+            operacaoId: operationId,
+            entidade: 'BONIFICACAO_GRUPO',
+            registroId: created.id,
+            operacao: 'INSERT',
+            after: {
+              itemBonificacaoId: entry.itemBonificacaoId,
+              valor: entry.valor,
+            },
+            afetaResultado: true,
+          });
+        }
       }
     });
 
@@ -85,19 +127,33 @@ export class BonificacoesService {
       },
     });
 
-    return entries.map((entry) => this.toSummary(entry));
+    return (
+      this.groupEntries(entries)[0] ?? {
+        grupoId: groupId,
+        itens: [],
+        total: 0,
+      }
+    );
   }
 
-  private toSummary(entry: any): BonificacaoResumoDto {
-    return {
-      id: entry.id,
-      itemBonificacaoId: entry.itemBonificacao.id,
-      itemNome: entry.itemBonificacao.nome,
-      teto: entry.itemBonificacao.teto,
-      grupoId: entry.grupo.id,
-      grupo: entry.grupo.nome,
-      valor: entry.valor,
-    };
+  private groupEntries(entries: any[]): BonificacaoGrupoResumoDto[] {
+    const byGroup = new Map<number, BonificacaoGrupoResumoDto>();
+    for (const entry of entries) {
+      const current: BonificacaoGrupoResumoDto = byGroup.get(
+        entry.grupo.id,
+      ) ?? {
+        grupoId: entry.grupo.id,
+        itens: [],
+        total: 0,
+      };
+      current.itens.push({
+        itemBonificacaoId: entry.itemBonificacao.id,
+        valor: entry.valor,
+      });
+      current.total += entry.valor;
+      byGroup.set(entry.grupo.id, current);
+    }
+    return [...byGroup.values()];
   }
 
   private async assertEventExists(eventId: number): Promise<void> {
