@@ -1,3 +1,4 @@
+import { AuditoriaModule } from '../auditoria/auditoria.module.js';
 import {
   type INestApplication,
   NotFoundException,
@@ -66,6 +67,7 @@ describe('RelatoriosController (HTTP com dependências simuladas)', () => {
         }),
         AuthModule.register({ provide: AuthUserRepository, useValue: users }),
         PrismaModule,
+        AuditoriaModule,
         RelatoriosModule,
       ],
     })

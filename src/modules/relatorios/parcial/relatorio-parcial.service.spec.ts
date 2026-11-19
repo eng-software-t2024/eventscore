@@ -2,6 +2,8 @@ import { NotFoundException } from '@nestjs/common';
 import ExcelJS from 'exceljs';
 import { TipoCriterioDesempate } from '../../../common/enums/tipo-criterio-desempate.enum.js';
 import type { PrismaService } from '../../../prisma/prisma.service.js';
+import type { AuditoriaService } from '../../auditoria/auditoria.service.js';
+import { ClassificacaoService } from '../../classificacao/classificacao.service.js';
 import type { EventosService } from '../../eventos/eventos.service.js';
 import { FormatoRelatorio } from '../enums/formato-relatorio.enum.js';
 import { PdfTabelaExporter } from '../exporters/pdf-tabela.exporter.js';
@@ -21,6 +23,8 @@ const eventoMock = {
 
 describe('RelatorioParcialService', () => {
   const prisma = {
+    evento: { findUnique: vi.fn() },
+    classificacaoGrupo: { findMany: vi.fn() },
     grupo: { findMany: vi.fn() },
     desafio: { findMany: vi.fn() },
     bonificacaoGrupo: { findMany: vi.fn() },
@@ -45,10 +49,15 @@ describe('RelatorioParcialService', () => {
     prisma.penalidade.findMany.mockResolvedValue([]);
     prisma.criterioDesempate.findMany.mockResolvedValue([]);
     prisma.desempateManual.findMany.mockResolvedValue([]);
+    prisma.evento.findUnique.mockResolvedValue({ id: 1 });
+    prisma.classificacaoGrupo.findMany.mockResolvedValue([]);
 
     service = new RelatorioParcialService(
-      prisma as unknown as PrismaService,
       eventosService as unknown as EventosService,
+      new ClassificacaoService(
+        prisma as unknown as PrismaService,
+        {} as AuditoriaService,
+      ),
       pdfExporter,
       xlsxExporter,
     );
@@ -235,53 +244,19 @@ describe('RelatorioParcialService', () => {
       { grupoId: 3, valor: 50 },
     ]);
     prisma.desempateManual.findMany.mockResolvedValue([
-      {
-        grupoId: 3,
-        apuracaoId: 99,
-        posicao: 1,
-        apuracao: {
-          classificacoes: [
-            {
-              grupoId: 3,
-              pontosDesafios: 0,
-              pontosBonificacoes: 50,
-              pontosPenalidades: 0,
-              pontosTotal: 50,
-            },
-            {
-              grupoId: 2,
-              pontosDesafios: 0,
-              pontosBonificacoes: 50,
-              pontosPenalidades: 0,
-              pontosTotal: 50,
-            },
-          ],
-        },
-      },
-      {
-        grupoId: 2,
-        apuracaoId: 99,
-        posicao: 2,
-        apuracao: {
-          classificacoes: [
-            {
-              grupoId: 3,
-              pontosDesafios: 0,
-              pontosBonificacoes: 50,
-              pontosPenalidades: 0,
-              pontosTotal: 50,
-            },
-            {
-              grupoId: 2,
-              pontosDesafios: 0,
-              pontosBonificacoes: 50,
-              pontosPenalidades: 0,
-              pontosTotal: 50,
-            },
-          ],
-        },
-      },
+      { id: 10, grupoId: 3, apuracaoId: 99, posicao: 1 },
+      { id: 11, grupoId: 2, apuracaoId: 99, posicao: 2 },
     ]);
+    prisma.classificacaoGrupo.findMany.mockResolvedValue(
+      [3, 2].map((grupoId) => ({
+        apuracaoId: 99,
+        grupoId,
+        pontosDesafios: 0,
+        pontosBonificacoes: 50,
+        pontosPenalidades: 0,
+        pontosTotal: 50,
+      })),
+    );
 
     const resultado = await service.calcularClassificacaoParcial(1);
 

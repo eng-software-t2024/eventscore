@@ -3,6 +3,7 @@ import type { OpenAPIObject } from '@nestjs/swagger';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
+import { AuditoriaModule } from '../modules/auditoria/auditoria.module.js';
 import { EventosModule } from '../modules/eventos/eventos.module.js';
 import { RelatoriosModule } from '../modules/relatorios/relatorios.module.js';
 import { PrismaModule } from '../prisma/prisma.module.js';
@@ -15,7 +16,7 @@ describe('Swagger de eventos', () => {
 
   beforeAll(async () => {
     const module = await Test.createTestingModule({
-      imports: [PrismaModule, EventosModule, RelatoriosModule],
+      imports: [PrismaModule, AuditoriaModule, EventosModule, RelatoriosModule],
     })
       .overrideProvider(PrismaService)
       .useValue({})
