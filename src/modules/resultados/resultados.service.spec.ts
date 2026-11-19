@@ -389,5 +389,32 @@ describe('ResultadosService', () => {
     await expect(
       service.save(7, 1, 3, [{ grupoId: 1, colocacao: 1, ausente: false }]),
     ).rejects.toThrow('driver failure');
+
+    tx.$executeRaw.mockRejectedValueOnce(
+      Object.assign(
+        new Error(
+          'Raw query failed. Code: `42P01`. Message: `relation "desafio" does not exist`',
+        ),
+        {
+          code: 'P2010',
+          meta: { code: '42P01', message: 'relation "desafio" does not exist' },
+        },
+      ),
+    );
+    await expect(
+      service.save(7, 1, 3, [{ grupoId: 1, colocacao: 1, ausente: false }]),
+    ).rejects.toThrow('42P01');
+
+    tx.$executeRaw.mockRejectedValueOnce(
+      Object.assign(
+        new Error(
+          'Raw query failed. Code: `42P01`. Message: `relation "desafio" does not exist`',
+        ),
+        { code: 'P2010' },
+      ),
+    );
+    await expect(
+      service.save(7, 1, 3, [{ grupoId: 1, colocacao: 1, ausente: false }]),
+    ).rejects.toThrow('42P01');
   });
 });

@@ -357,14 +357,25 @@ export class ResultadosService {
   }
 
   private isDomainValidationError(error: unknown): boolean {
+    if (typeof error === 'object' && error !== null && 'meta' in error) {
+      const meta = (error as { meta?: unknown }).meta;
+      if (
+        typeof meta === 'object' &&
+        meta !== null &&
+        'code' in meta &&
+        typeof (meta as { code?: unknown }).code === 'string'
+      ) {
+        const sqlState = (meta as { code: string }).code;
+        return sqlState === '23514' || sqlState === '23503';
+      }
+    }
+
     const serialized = this.extractErrorText(error).toLowerCase();
     return (
       serialized.includes('23514') ||
       serialized.includes('23503') ||
       serialized.includes('check_violation') ||
-      serialized.includes('foreign_key_violation') ||
-      serialized.includes('p2004') ||
-      serialized.includes('p2010')
+      serialized.includes('foreign_key_violation')
     );
   }
 
