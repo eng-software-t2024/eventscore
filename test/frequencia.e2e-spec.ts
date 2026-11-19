@@ -14,7 +14,9 @@ describe('Frequência individual por participante e dia (e2e)', () => {
   let eventoId: number;
   let outroEventoId: number;
   let participanteId: number;
+  let segundoParticipanteId: number;
   let outroParticipanteId: number;
+  let segundoGrupoId: number;
   let dia1Id: number;
   let dia2Id: number;
   let outroDiaId: number;
@@ -86,6 +88,13 @@ describe('Frequência individual por participante e dia (e2e)', () => {
     const grupo = await prisma.grupo.create({
       data: { eventoId, nome: `Grupo T205 ${randomUUID()}`, cor: '#123456' },
     });
+    const segundoGrupo = await prisma.grupo.create({
+      data: {
+        eventoId,
+        nome: `Segundo Grupo T205 ${randomUUID()}`,
+        cor: '#ABCDEF',
+      },
+    });
     const outroGrupo = await prisma.grupo.create({
       data: {
         eventoId: outroEventoId,
@@ -98,7 +107,16 @@ describe('Frequência individual por participante e dia (e2e)', () => {
         eventoId,
         grupoId: grupo.id,
         nome: 'Pessoa T205',
-        matricula: randomUUID().slice(0, 20),
+        matricula: 'MAT-T205-A-000001',
+        turma: 'T205',
+      },
+    });
+    const segundoParticipante = await prisma.participante.create({
+      data: {
+        eventoId,
+        grupoId: segundoGrupo.id,
+        nome: 'Sofia de Ávila T205',
+        matricula: 'MAT-T205-B-000002',
         turma: 'T205',
       },
     });
@@ -112,6 +130,8 @@ describe('Frequência individual por participante e dia (e2e)', () => {
       },
     });
     participanteId = participante.id;
+    segundoParticipanteId = segundoParticipante.id;
+    segundoGrupoId = segundoGrupo.id;
     outroParticipanteId = outroParticipante.id;
 
     const outroDia = await prisma.diaEvento.create({
@@ -158,7 +178,11 @@ describe('Frequência individual por participante e dia (e2e)', () => {
         where: { eventoId: { in: [eventoId, outroEventoId] } },
       });
       await prisma.participante.deleteMany({
-        where: { id: { in: [participanteId, outroParticipanteId] } },
+        where: {
+          id: {
+            in: [participanteId, segundoParticipanteId, outroParticipanteId],
+          },
+        },
       });
       await prisma.diaEvento.deleteMany({
         where: { eventoId: { in: [eventoId, outroEventoId] } },
@@ -175,13 +199,121 @@ describe('Frequência individual por participante e dia (e2e)', () => {
   });
 
   it('exige autenticação e rejeita token inválido', async () => {
-    await request(app.getHttpServer())
+    const semToken = await request(app.getHttpServer())
       .get(`/api/v1/eventos/${eventoId}/dias/${dia1Id}/presencas`)
       .expect(401);
-    await request(app.getHttpServer())
+    expect(semToken.body).toEqual({
+      statusCode: 401,
+      message: 'Token ausente ou inválido',
+      error: 'Unauthorized',
+    });
+    const tokenInvalido = await request(app.getHttpServer())
       .get(`/api/v1/eventos/${eventoId}/dias/${dia1Id}/presencas`)
       .set('Authorization', 'Bearer token-invalido')
       .expect(401);
+    expect(tokenInvalido.body).toEqual(semToken.body);
+
+    for (const tokenHeader of [undefined, 'token-invalido']) {
+      const antes = await prisma.presenca.count({
+        where: { diaId: dia1Id, participanteId },
+      });
+      const chamada = request(app.getHttpServer()).put(
+        `/api/v1/eventos/${eventoId}/dias/${dia1Id}/presencas/${participanteId}`,
+      );
+      if (tokenHeader) chamada.set('Authorization', `Bearer ${tokenHeader}`);
+      const resposta = await chamada.send({ presente: true }).expect(401);
+      expect(resposta.body).toEqual(semToken.body);
+      await expect(
+        prisma.presenca.count({ where: { diaId: dia1Id, participanteId } }),
+      ).resolves.toBe(antes);
+    }
+  });
+
+  it('filtra GET por grupo, nome, matrícula e interseção sem expor outro evento', async () => {
+    const rota = `/api/v1/eventos/${eventoId}/dias/${dia1Id}/presencas`;
+    const todos = await request(app.getHttpServer())
+      .get(rota)
+      .auth(token, { type: 'bearer' })
+      .expect(200);
+    expect(
+      todos.body.dados.map(
+        (item: { participanteId: number }) => item.participanteId,
+      ),
+    ).toEqual([participanteId, segundoParticipanteId]);
+    expect(todos.body.resumo).toEqual({ total: 2, presentes: 0, ausentes: 2 });
+    expect(todos.body.dados).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ participanteId: outroParticipanteId }),
+      ]),
+    );
+
+    const porGrupo = await request(app.getHttpServer())
+      .get(rota)
+      .query({ grupoId: segundoGrupoId })
+      .auth(token, { type: 'bearer' })
+      .expect(200);
+    expect(
+      porGrupo.body.dados.map(
+        (item: { participanteId: number }) => item.participanteId,
+      ),
+    ).toEqual([segundoParticipanteId]);
+    expect(porGrupo.body.resumo).toEqual({
+      total: 1,
+      presentes: 0,
+      ausentes: 1,
+    });
+
+    const porNome = await request(app.getHttpServer())
+      .get(rota)
+      .query({ busca: 'sofia de ávila' })
+      .auth(token, { type: 'bearer' })
+      .expect(200);
+    expect(
+      porNome.body.dados.map(
+        (item: { participanteId: number }) => item.participanteId,
+      ),
+    ).toEqual([segundoParticipanteId]);
+
+    const porMatricula = await request(app.getHttpServer())
+      .get(rota)
+      .query({ busca: 'MAT-T205-A-000001' })
+      .auth(token, { type: 'bearer' })
+      .expect(200);
+    expect(
+      porMatricula.body.dados.map(
+        (item: { participanteId: number }) => item.participanteId,
+      ),
+    ).toEqual([participanteId]);
+
+    const intersecao = await request(app.getHttpServer())
+      .get(rota)
+      .query({ grupoId: segundoGrupoId, busca: 'Sofia' })
+      .auth(token, { type: 'bearer' })
+      .expect(200);
+    expect(
+      intersecao.body.dados.map(
+        (item: { participanteId: number }) => item.participanteId,
+      ),
+    ).toEqual([segundoParticipanteId]);
+    const intersecaoVazia = await request(app.getHttpServer())
+      .get(rota)
+      .query({ grupoId: segundoGrupoId, busca: 'MAT-T205-A-000001' })
+      .auth(token, { type: 'bearer' })
+      .expect(200);
+    expect(intersecaoVazia.body).toEqual({
+      dados: [],
+      resumo: { total: 0, presentes: 0, ausentes: 0 },
+    });
+
+    const semCorrespondencia = await request(app.getHttpServer())
+      .get(rota)
+      .query({ busca: 'sem-correspondencia-T205' })
+      .auth(token, { type: 'bearer' })
+      .expect(200);
+    expect(semCorrespondencia.body).toEqual({
+      dados: [],
+      resumo: { total: 0, presentes: 0, ausentes: 0 },
+    });
   });
 
   it('registra presença, repete o PUT, altera para ausência e consulta a grade', async () => {
@@ -189,11 +321,23 @@ describe('Frequência individual por participante e dia (e2e)', () => {
       .get(`/api/v1/eventos/${eventoId}/dias/${dia2Id}/presencas`)
       .auth(token, { type: 'bearer' })
       .expect(200);
-    expect(diaSemRegistro.body.dados).toEqual([
-      expect.objectContaining({ participanteId, presente: false }),
-    ]);
+    expect(
+      diaSemRegistro.body.dados.map(
+        (item: { participanteId: number }) => item.participanteId,
+      ),
+    ).toEqual([participanteId, segundoParticipanteId]);
+    expect(
+      diaSemRegistro.body.dados.every(
+        (item: { presente: boolean }) => !item.presente,
+      ),
+    ).toBe(true);
+    expect(diaSemRegistro.body.resumo).toEqual({
+      total: 2,
+      presentes: 0,
+      ausentes: 2,
+    });
 
-    await request(app.getHttpServer())
+    const primeiraMarcacao = await request(app.getHttpServer())
       .put(
         `/api/v1/eventos/${eventoId}/dias/${dia1Id}/presencas/${participanteId}`,
       )
@@ -203,6 +347,17 @@ describe('Frequência individual por participante e dia (e2e)', () => {
         participanteId,
         presente: true,
       });
+    const repeticao = await request(app.getHttpServer())
+      .put(
+        `/api/v1/eventos/${eventoId}/dias/${dia1Id}/presencas/${participanteId}`,
+      )
+      .auth(token, { type: 'bearer' })
+      .send({ presente: true })
+      .expect(200);
+    expect(repeticao.body).toEqual(primeiraMarcacao.body);
+    await expect(
+      prisma.presenca.count({ where: { diaId: dia1Id, participanteId } }),
+    ).resolves.toBe(1);
 
     const consulta = await request(app.getHttpServer())
       .get(`/api/v1/eventos/${eventoId}/dias/${dia1Id}/presencas`)
@@ -210,11 +365,15 @@ describe('Frequência individual por participante e dia (e2e)', () => {
       .expect(200);
     expect(consulta.body.dados).toEqual([
       expect.objectContaining({ participanteId, presente: true }),
+      expect.objectContaining({
+        participanteId: segundoParticipanteId,
+        presente: false,
+      }),
     ]);
     expect(consulta.body.resumo).toEqual({
-      total: 1,
+      total: 2,
       presentes: 1,
-      ausentes: 0,
+      ausentes: 1,
     });
     const view = await prisma.$queryRaw<
       Array<{ diasPresentes: bigint; fator: number }>
@@ -238,27 +397,98 @@ describe('Frequência individual por participante e dia (e2e)', () => {
       .auth(token, { type: 'bearer' })
       .expect(200)
       .then((res) => expect(res.body.dados[0].presente).toBe(false));
+    const viewAposAusencia = await prisma.$queryRaw<
+      Array<{ diasPresentes: bigint; fator: number }>
+    >(Prisma.sql`
+      SELECT dias_presentes AS "diasPresentes", fator
+      FROM vw_participante_fator
+      WHERE id_evento = ${eventoId} AND id_participante = ${participanteId}
+    `);
+    expect(Number(viewAposAusencia[0].diasPresentes)).toBe(0);
+    expect(Number(viewAposAusencia[0].fator)).toBe(0);
   });
 
   it('rejeita payload inválido e recursos de outro evento', async () => {
-    await request(app.getHttpServer())
+    const eventoInexistente = await request(app.getHttpServer())
       .get('/api/v1/eventos/999999/dias/999999/presencas')
       .auth(token, { type: 'bearer' })
       .expect(404);
+    expect(eventoInexistente.body).toEqual({
+      statusCode: 404,
+      message: 'Evento não encontrado',
+      error: 'Not Found',
+    });
 
-    await request(app.getHttpServer())
+    const getDiaDeOutroEvento = await request(app.getHttpServer())
+      .get(`/api/v1/eventos/${eventoId}/dias/${outroDiaId}/presencas`)
+      .auth(token, { type: 'bearer' })
+      .expect(404);
+    expect(getDiaDeOutroEvento.body).toEqual({
+      statusCode: 404,
+      message: 'Dia não encontrado neste evento',
+      error: 'Not Found',
+    });
+
+    const antes = await prisma.presenca.count({
+      where: { diaId: dia1Id, participanteId },
+    });
+    const corposInvalidos: Array<Record<string, unknown> | undefined> = [
+      undefined,
+      {},
+      { presente: 'sim' },
+      { presente: true, campoExtra: 'não permitido' },
+    ];
+    for (const corpo of corposInvalidos) {
+      const chamada = request(app.getHttpServer())
+        .put(
+          `/api/v1/eventos/${eventoId}/dias/${dia1Id}/presencas/${participanteId}`,
+        )
+        .auth(token, { type: 'bearer' });
+      if (corpo !== undefined) chamada.send(corpo);
+      const resposta = await chamada.expect(400);
+      expect(resposta.body.statusCode).toBe(400);
+      expect(resposta.body.error).toBe('Bad Request');
+      expect(Array.isArray(resposta.body.message)).toBe(true);
+      expect(resposta.body.message.length).toBeGreaterThan(0);
+      await expect(
+        prisma.presenca.count({ where: { diaId: dia1Id, participanteId } }),
+      ).resolves.toBe(antes);
+    }
+
+    const jsonMalformado = await request(app.getHttpServer())
       .put(
         `/api/v1/eventos/${eventoId}/dias/${dia1Id}/presencas/${participanteId}`,
       )
       .auth(token, { type: 'bearer' })
-      .send({ presente: 'sim' })
+      .set('Content-Type', 'application/json')
+      .send('{"presente":')
       .expect(400);
-    const grupoSemParticipantes = await request(app.getHttpServer())
+    expect(jsonMalformado.headers['content-type']).toMatch(/application\/json/);
+    expect(jsonMalformado.body.statusCode).toBe(400);
+    expect(jsonMalformado.body.error).toBe('Bad Request');
+    await expect(
+      prisma.presenca.count({ where: { diaId: dia1Id, participanteId } }),
+    ).resolves.toBe(antes);
+
+    const participanteNaoEncontrado = await request(app.getHttpServer())
+      .put(`/api/v1/eventos/${eventoId}/dias/${dia1Id}/presencas/999999`)
+      .auth(token, { type: 'bearer' })
+      .send({ presente: true })
+      .expect(404);
+    expect(participanteNaoEncontrado.body).toEqual({
+      statusCode: 404,
+      message: 'Participante não encontrado neste evento',
+      error: 'Not Found',
+    });
+    await expect(
+      prisma.presenca.count({ where: { diaId: dia1Id, participanteId } }),
+    ).resolves.toBe(antes);
+    const filtroSemCorrespondencia = await request(app.getHttpServer())
       .get(`/api/v1/eventos/${eventoId}/dias/${dia1Id}/presencas`)
       .auth(token, { type: 'bearer' })
       .query({ grupoId: 999999 })
       .expect(200);
-    expect(grupoSemParticipantes.body).toEqual({
+    expect(filtroSemCorrespondencia.body).toEqual({
       dados: [],
       resumo: { total: 0, presentes: 0, ausentes: 0 },
     });
@@ -310,27 +540,42 @@ describe('Frequência individual por participante e dia (e2e)', () => {
       where: { eventoId: outroEventoId },
     });
 
-    await request(app.getHttpServer())
+    const participanteDeOutroEvento = await request(app.getHttpServer())
       .put(
         `/api/v1/eventos/${eventoId}/dias/${dia1Id}/presencas/${outroParticipanteId}`,
       )
       .auth(token, { type: 'bearer' })
       .send({ presente: true })
       .expect(404);
-    await request(app.getHttpServer())
+    expect(participanteDeOutroEvento.body).toEqual({
+      statusCode: 404,
+      message: 'Participante não encontrado neste evento',
+      error: 'Not Found',
+    });
+    const diaInexistente = await request(app.getHttpServer())
       .put(
         `/api/v1/eventos/${eventoId}/dias/999999/presencas/${participanteId}`,
       )
       .auth(token, { type: 'bearer' })
       .send({ presente: true })
       .expect(404);
-    await request(app.getHttpServer())
+    expect(diaInexistente.body).toEqual({
+      statusCode: 404,
+      message: 'Dia não encontrado neste evento',
+      error: 'Not Found',
+    });
+    const diaDeOutroEvento = await request(app.getHttpServer())
       .put(
         `/api/v1/eventos/${eventoId}/dias/${outroDiaId}/presencas/${participanteId}`,
       )
       .auth(token, { type: 'bearer' })
       .send({ presente: true })
       .expect(404);
+    expect(diaDeOutroEvento.body).toEqual({
+      statusCode: 404,
+      message: 'Dia não encontrado neste evento',
+      error: 'Not Found',
+    });
 
     expect(
       await prisma.presenca.findUnique({
