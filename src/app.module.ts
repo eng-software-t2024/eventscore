@@ -6,6 +6,7 @@ import { AuditoriaModule } from './modules/auditoria/auditoria.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { AuthUserRepository } from './modules/auth/auth-user.repository.js';
 import { PrismaAuthUserRepository } from './modules/auth/prisma-auth-user.repository.js';
+import { ConfiguracaoModule } from './modules/configuracao/configuracao.module.js';
 import { EventosModule } from './modules/eventos/eventos.module.js';
 import { DesafiosModule } from './modules/desafios/desafios.module.js';
 import { GruposModule } from './modules/grupos/grupos.module.js';
@@ -30,6 +31,7 @@ import { DiasEventoModule } from './modules/dias-evento/dias-evento.module.js';
     }),
     HealthModule,
     EventosModule,
+    ConfiguracaoModule,
     DiasEventoModule,
     DesafiosModule,
     GruposModule,
