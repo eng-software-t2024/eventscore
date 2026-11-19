@@ -982,7 +982,7 @@ paths:
       tags:
         - Frequência
       summary: "Registrar ou atualizar presença de um participante no dia (RF07, idempotente)"
-      description: "Marca ou atualiza de forma idempotente a presença de um participante em um dia do evento, gravando trilha de auditoria na mesma transação."
+      description: "Marca ou atualiza de forma idempotente a presença de um participante em um dia do evento."
       operationId: "registrarPresencaParticipante"
       requestBody:
         required: true
