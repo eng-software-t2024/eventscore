@@ -4,6 +4,7 @@ import { validateAppEnv } from './config/env.js';
 import { HealthModule } from './health/health.module.js';
 import { AuditoriaModule } from './modules/auditoria/auditoria.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
+import { ClassificacaoModule } from './modules/classificacao/classificacao.module.js';
 import { AuthUserRepository } from './modules/auth/auth-user.repository.js';
 import { PrismaAuthUserRepository } from './modules/auth/prisma-auth-user.repository.js';
 import { ConfiguracaoModule } from './modules/configuracao/configuracao.module.js';
@@ -42,6 +43,7 @@ import { DiasEventoModule } from './modules/dias-evento/dias-evento.module.js';
     RelatoriosModule,
     ResultadosModule,
     BonificacoesPenalidadesModule,
+    ClassificacaoModule,
   ],
 })
 export class AppModule {}

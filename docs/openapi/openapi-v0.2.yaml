@@ -1524,7 +1524,13 @@ paths:
       summary: "Registrar decisão manual de desempate (RF14)"
       description: |
         Registra em transação única uma nova versão de apuração, o snapshot da classificação e as decisões manuais de desempate para todos os empates pendentes (ADR 0003).
-        Um novo envio substitui as decisões anteriores enquanto os grupos empatados mantiverem os mesmos pontos.
+        Um novo envio substitui as decisões anteriores dos mesmos grupos. A decisão vale enquanto os grupos empatados mantiverem os mesmos pontos.
+
+        Regras do envio:
+        - Só é aceito depois que todos os desafios do evento forem lançados (`desafiosLancados == desafiosTotais` no `GET /classificacao`); antes disso responde `422`. O front deve esconder o formulário até lá.
+        - Cada empate vem inteiro, com as posições que ele ocupa (empate no 2º lugar entre dois grupos: posições 2 e 3), e todos os empates pendentes vão no mesmo envio (`422`).
+        - Grupo repetido ou fora de um empate responde `422`; grupo de outro evento responde `404`.
+        - Reenviar a mesma decisão (mesmas posições e justificativa) não grava de novo e devolve a decisão vigente (RNF04).
       operationId: "registrarDesempateManual"
       requestBody:
         required: true
