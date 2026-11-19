@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsArray, IsInt, IsNotEmpty, Min } from 'class-validator';
+import { IsInt, Min } from 'class-validator';
 
 export class BonificacaoEntradaDto {
   @ApiProperty({ type: 'integer', example: 1 })
@@ -11,13 +11,6 @@ export class BonificacaoEntradaDto {
   @IsInt()
   @Min(0)
   valor: number;
-}
-
-export class AtualizarBonificacoesDto {
-  @ApiProperty({ type: () => [BonificacaoEntradaDto] })
-  @IsArray()
-  @IsNotEmpty()
-  bonificacoes: BonificacaoEntradaDto[];
 }
 
 export class BonificacaoGrupoResumoDto {

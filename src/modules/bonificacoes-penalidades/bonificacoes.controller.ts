@@ -3,11 +3,13 @@ import {
   Controller,
   Get,
   Param,
+  ParseArrayPipe,
   ParseIntPipe,
   Put,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiBody,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
@@ -16,10 +18,18 @@ import {
 import { ErroPadraoDto } from '../../common/dto/erro-padrao.dto.js';
 import { CurrentUserId } from '../../common/decorators/current-user-id.decorator.js';
 import {
-  AtualizarBonificacoesDto,
+  BonificacaoEntradaDto,
   BonificacaoGrupoResumoDto,
 } from './dto/bonificacao.dto.js';
 import { BonificacoesService } from './bonificacoes.service.js';
+
+const parseBonificacoesArrayPipe = new ParseArrayPipe({
+  items: BonificacaoEntradaDto,
+  whitelist: true,
+  forbidNonWhitelisted: true,
+  stopAtFirstError: false,
+  transformOptions: { enableImplicitConversion: false },
+});
 
 @ApiTags('Bonificações')
 @ApiBearerAuth()
@@ -37,13 +47,19 @@ export class BonificacoesController {
 
   @Put(':grupoId')
   @ApiOperation({ summary: 'Substituir bonificações de um grupo' })
+  @ApiBody({ type: BonificacaoEntradaDto, isArray: true })
   @ApiOkResponse({ type: BonificacaoGrupoResumoDto })
   replace(
     @Param('eventoId', ParseIntPipe) eventId: number,
     @Param('grupoId', ParseIntPipe) groupId: number,
-    @Body() dto: AtualizarBonificacoesDto,
+    @Body(parseBonificacoesArrayPipe) bonificacoes: BonificacaoEntradaDto[],
     @CurrentUserId() userId: number,
   ) {
-    return this.bonificacoes.replaceForGroup(eventId, groupId, dto, userId);
+    return this.bonificacoes.replaceForGroup(
+      eventId,
+      groupId,
+      bonificacoes,
+      userId,
+    );
   }
 }

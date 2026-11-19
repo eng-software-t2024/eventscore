@@ -59,7 +59,12 @@ export class PenalidadesService {
         entidade: 'PENALIDADE',
         registroId: created.id,
         operacao: 'INSERT',
-        after: { pontos: created.pontos, justificativa: created.justificativa },
+        after: {
+          grupoId: created.grupoId,
+          pontos: created.pontos,
+          descricao: created.descricao,
+          justificativa: created.justificativa,
+        },
         justificativa: created.justificativa,
         afetaResultado: true,
       });

@@ -1,5 +1,6 @@
 import { PartialType } from '@nestjs/swagger';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
   IsInt,
   IsNotEmpty,
@@ -10,6 +11,9 @@ import {
   MinLength,
 } from 'class-validator';
 
+const trimText = ({ value }: { value: unknown }) =>
+  typeof value === 'string' ? value.trim() : value;
+
 export class CriarPenalidadeDto {
   @ApiProperty({ type: 'integer', example: 1 })
   @IsInt()
@@ -17,6 +21,7 @@ export class CriarPenalidadeDto {
   grupoId: number;
 
   @ApiPropertyOptional({ example: 'Atraso na apresentação' })
+  @Transform(trimText)
   @IsOptional()
   @IsString()
   @MaxLength(255)
@@ -28,6 +33,7 @@ export class CriarPenalidadeDto {
   pontos: number;
 
   @ApiProperty({ example: 'A equipe iniciou a atividade após o horário.' })
+  @Transform(trimText)
   @IsString()
   @IsNotEmpty()
   @MinLength(1)

@@ -97,7 +97,7 @@ describe('Acesso a bônus e penalidades (#206 parte 2)', () => {
     const replace = await request(app.getHttpServer())
       .put(`/api/v1/eventos/${eventId}/bonificacoes/${groupId}`)
       .auth(token, { type: 'bearer' })
-      .send({ bonificacoes: [{ itemBonificacaoId: itemId, valor: 8 }] })
+      .send([{ itemBonificacaoId: itemId, valor: 8 }])
       .expect(200);
 
     expect(replace.body).toMatchObject({
@@ -110,13 +110,68 @@ describe('Acesso a bônus e penalidades (#206 parte 2)', () => {
       .get(`/api/v1/eventos/${eventId}/bonificacoes`)
       .auth(token, { type: 'bearer' })
       .expect(200)
-      .expect(({ body }) => expect(body[0].total).toBe(8));
+      .expect(({ body }) => {
+        const grupo = body.find(
+          (entry: { grupoId: number }) => entry.grupoId === groupId,
+        );
+        expect(grupo.total).toBe(8);
+      });
 
     await request(app.getHttpServer())
       .put(`/api/v1/eventos/${eventId}/bonificacoes/${groupId}`)
       .auth(token, { type: 'bearer' })
-      .send({ bonificacoes: [{ itemBonificacaoId: itemId, valor: 11 }] })
+      .send([{ itemBonificacaoId: itemId, valor: 11 }])
       .expect(422);
+  });
+
+  it('rejeita item inválido com 400 antes de chegar ao banco', async () => {
+    await request(app.getHttpServer())
+      .put(`/api/v1/eventos/${eventId}/bonificacoes/${groupId}`)
+      .auth(token, { type: 'bearer' })
+      .send([{ itemBonificacaoId: itemId, valor: -1 }])
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .put(`/api/v1/eventos/${eventId}/bonificacoes/${groupId}`)
+      .auth(token, { type: 'bearer' })
+      .send({ bonificacoes: [{ itemBonificacaoId: itemId, valor: 8 }] })
+      .expect(400);
+  });
+
+  it('reenvio idempotente mantém o id e o histórico sem duplicar', async () => {
+    const row = await prisma.bonificacaoGrupo.findFirst({
+      where: { grupoId: groupId },
+      select: { id: true },
+    });
+    expect(row).not.toBeNull();
+    const registroId = row!.id;
+
+    const auditoriaAntes = await request(app.getHttpServer())
+      .get('/api/v1/auditoria')
+      .query({ entidade: 'BONIFICACAO_GRUPO', registroId })
+      .auth(token, { type: 'bearer' })
+      .expect(200);
+    expect(auditoriaAntes.body).toHaveLength(1);
+    expect(auditoriaAntes.body[0].operacao).toBe('INSERT');
+
+    await request(app.getHttpServer())
+      .put(`/api/v1/eventos/${eventId}/bonificacoes/${groupId}`)
+      .auth(token, { type: 'bearer' })
+      .send([{ itemBonificacaoId: itemId, valor: 8 }])
+      .expect(200);
+
+    const aindaMesma = await prisma.bonificacaoGrupo.findFirst({
+      where: { grupoId: groupId },
+      select: { id: true },
+    });
+    expect(aindaMesma!.id).toBe(registroId);
+
+    const auditoriaDepois = await request(app.getHttpServer())
+      .get('/api/v1/auditoria')
+      .query({ entidade: 'BONIFICACAO_GRUPO', registroId })
+      .auth(token, { type: 'bearer' })
+      .expect(200);
+    expect(auditoriaDepois.body).toHaveLength(1);
   });
 
   it('executa CRUD de penalidade e valida a faixa do evento', async () => {
@@ -150,5 +205,13 @@ describe('Acesso a bônus e penalidades (#206 parte 2)', () => {
       .delete(`/api/v1/eventos/${eventId}/penalidades/${penaltyId}`)
       .auth(token, { type: 'bearer' })
       .expect(204);
+  });
+
+  it('rejeita justificativa só com espaços com 400', async () => {
+    await request(app.getHttpServer())
+      .post(`/api/v1/eventos/${eventId}/penalidades`)
+      .auth(token, { type: 'bearer' })
+      .send({ grupoId: groupId, pontos: 20, justificativa: '   ' })
+      .expect(400);
   });
 });

@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { AuditoriaService } from '../auditoria/auditoria.service.js';
 import type {
-  AtualizarBonificacoesDto,
+  BonificacaoEntradaDto,
   BonificacaoGrupoResumoDto,
 } from './dto/bonificacao.dto.js';
 
@@ -37,12 +37,12 @@ export class BonificacoesService {
   async replaceForGroup(
     eventId: number,
     groupId: number,
-    dto: AtualizarBonificacoesDto,
+    bonificacoes: BonificacaoEntradaDto[],
     userId: number,
   ): Promise<BonificacaoGrupoResumoDto> {
     await this.assertGroupInEvent(eventId, groupId);
 
-    const itemIds = dto.bonificacoes.map((entry) => entry.itemBonificacaoId);
+    const itemIds = bonificacoes.map((entry) => entry.itemBonificacaoId);
     if (new Set(itemIds).size !== itemIds.length) {
       throw new ConflictException(
         'Cada item de bonificação pode aparecer apenas uma vez',
@@ -55,7 +55,7 @@ export class BonificacoesService {
     });
     const itemById = new Map(items.map((item) => [item.id, item]));
 
-    for (const entry of dto.bonificacoes) {
+    for (const entry of bonificacoes) {
       const item = itemById.get(entry.itemBonificacaoId);
       if (!item) {
         throw new NotFoundException(
@@ -70,36 +70,27 @@ export class BonificacoesService {
     }
 
     await this.prisma.$transaction(async (tx) => {
-      const previous = await tx.bonificacaoGrupo.findMany({
+      const existing = await tx.bonificacaoGrupo.findMany({
         where: { grupoId: groupId },
         select: { id: true, itemBonificacaoId: true, valor: true },
       });
+      const existingByItem = new Map(
+        existing.map((entry) => [entry.itemBonificacaoId, entry]),
+      );
+      const payloadItems = new Set(itemIds);
       const operationId = randomUUID();
 
-      await tx.bonificacaoGrupo.deleteMany({ where: { grupoId: groupId } });
-      for (const entry of previous) {
-        await this.audit.record(tx, {
-          usuarioId: userId,
-          eventoId: eventId,
-          operacaoId: operationId,
-          entidade: 'BONIFICACAO_GRUPO',
-          registroId: entry.id,
-          operacao: 'DELETE',
-          before: {
-            itemBonificacaoId: entry.itemBonificacaoId,
-            valor: entry.valor,
-          },
-          afetaResultado: true,
-        });
-      }
-      if (dto.bonificacoes.length > 0) {
-        for (const entry of dto.bonificacoes) {
+      for (const entry of bonificacoes) {
+        const current = existingByItem.get(entry.itemBonificacaoId);
+
+        if (!current) {
           const created = await tx.bonificacaoGrupo.create({
             data: {
               grupoId: groupId,
               itemBonificacaoId: entry.itemBonificacaoId,
               valor: entry.valor,
             },
+            select: { id: true },
           });
           await this.audit.record(tx, {
             usuarioId: userId,
@@ -114,7 +105,55 @@ export class BonificacoesService {
             },
             afetaResultado: true,
           });
+          continue;
         }
+
+        // Reenvio igual (PUT idempotente, RNF04): não altera nem audita.
+        if (current.valor === entry.valor) {
+          continue;
+        }
+
+        await tx.bonificacaoGrupo.update({
+          where: { id: current.id },
+          data: { valor: entry.valor },
+        });
+        await this.audit.record(tx, {
+          usuarioId: userId,
+          eventoId: eventId,
+          operacaoId: operationId,
+          entidade: 'BONIFICACAO_GRUPO',
+          registroId: current.id,
+          operacao: 'UPDATE',
+          before: {
+            itemBonificacaoId: current.itemBonificacaoId,
+            valor: current.valor,
+          },
+          after: {
+            itemBonificacaoId: entry.itemBonificacaoId,
+            valor: entry.valor,
+          },
+          afetaResultado: true,
+        });
+      }
+
+      for (const current of existing) {
+        if (payloadItems.has(current.itemBonificacaoId)) {
+          continue;
+        }
+        await tx.bonificacaoGrupo.delete({ where: { id: current.id } });
+        await this.audit.record(tx, {
+          usuarioId: userId,
+          eventoId: eventId,
+          operacaoId: operationId,
+          entidade: 'BONIFICACAO_GRUPO',
+          registroId: current.id,
+          operacao: 'DELETE',
+          before: {
+            itemBonificacaoId: current.itemBonificacaoId,
+            valor: current.valor,
+          },
+          afetaResultado: true,
+        });
       }
     });
 
