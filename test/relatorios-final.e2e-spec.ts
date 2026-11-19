@@ -455,6 +455,155 @@ describe('Relatório Final por Participante E2E (#229)', () => {
     }
   });
 
+  it('renderiza matrículas de 17 e 20 caracteres em PDF multipágina com campos textuais longos', async () => {
+    const evento = await prisma.evento.create({
+      data: {
+        nome: `Relatório final com texto longo ${fixtureRunId}`,
+        ano: 2097,
+        dataInicio: new Date('2097-11-20T00:00:00.000Z'),
+        dataFim: new Date('2097-11-24T00:00:00.000Z'),
+        quantidadeDias: 5,
+        ativo: false,
+      },
+    });
+    createdEventIds.add(evento.id);
+
+    const dias = await Promise.all(
+      Array.from({ length: 5 }, (_, indice) =>
+        prisma.diaEvento.create({
+          data: {
+            eventoId: evento.id,
+            numeroDia: indice + 1,
+            data: new Date(Date.UTC(2097, 10, 20 + indice)),
+          },
+        }),
+      ),
+    );
+    const nomeGrupoAlfa = `Grupo São José ${'á'.repeat(45)}`;
+    const nomeGrupoBeta = `Grupo João da Conceição ${'é'.repeat(36)}`;
+    expect(nomeGrupoAlfa).toHaveLength(60);
+    expect(nomeGrupoBeta).toHaveLength(60);
+    const [alfa, beta] = await Promise.all([
+      prisma.grupo.create({
+        data: { eventoId: evento.id, nome: nomeGrupoAlfa, cor: '#112233' },
+      }),
+      prisma.grupo.create({
+        data: { eventoId: evento.id, nome: nomeGrupoBeta, cor: '#445566' },
+      }),
+    ]);
+
+    const matricula17 = `A${'1'.repeat(16)}`;
+    const matricula20 = `M${'2'.repeat(19)}`;
+    const nome150 = 'Zélia de Ávila '.repeat(10);
+    const nomeLongo = 'João da Conceição '.repeat(8);
+    expect(matricula17).toHaveLength(17);
+    expect(matricula20).toHaveLength(20);
+    expect(nome150).toHaveLength(150);
+    expect(nomeLongo.length).toBeLessThanOrEqual(150);
+    const participantes = Array.from({ length: 40 }, (_, indice) => {
+      const grupoIndex = indice < 20 ? 0 : 1;
+      const grupoId = grupoIndex === 0 ? alfa.id : beta.id;
+      return {
+        eventoId: evento.id,
+        grupoId,
+        nome:
+          indice === 0
+            ? nome150
+            : indice === 1
+              ? nomeLongo
+              : `Participante da amostra ${String(indice).padStart(2, '0')}`,
+        matricula:
+          indice === 0
+            ? matricula17
+            : indice === 1
+              ? matricula20
+              : `LONG${fixtureRunId.slice(0, 8)}${String(indice).padStart(2, '0')}`,
+        turma:
+          indice === 0
+            ? 'TURMA-2026'
+            : indice === 1
+              ? '7º ANO-26'
+              : grupoIndex === 0
+                ? 'A'
+                : 'B',
+      };
+    });
+    await prisma.participante.createMany({ data: participantes });
+    const participantesComMatriculaLonga = await prisma.participante.findMany({
+      where: {
+        eventoId: evento.id,
+        matricula: { in: [matricula17, matricula20] },
+      },
+      select: { id: true, matricula: true },
+    });
+    await prisma.presenca.createMany({
+      data: participantesComMatriculaLonga.map((participante, indice) => ({
+        eventoId: evento.id,
+        diaId: dias[indice].id,
+        participanteId: participante.id,
+        presente: true,
+      })),
+    });
+
+    const desafio = await prisma.desafio.create({
+      data: {
+        eventoId: evento.id,
+        diaId: dias[0].id,
+        nome: 'Desafio de layout',
+        pontosColocacao: {
+          create: [
+            { colocacao: 1, pontos: 100 },
+            { colocacao: 2, pontos: 80 },
+          ],
+        },
+      },
+    });
+    await prisma.resultadoDesafio.createMany({
+      data: [
+        {
+          eventoId: evento.id,
+          desafioId: desafio.id,
+          grupoId: alfa.id,
+          colocacao: 1,
+          ausente: false,
+        },
+        {
+          eventoId: evento.id,
+          desafioId: desafio.id,
+          grupoId: beta.id,
+          colocacao: 2,
+          ausente: false,
+        },
+      ],
+    });
+    await prisma.fatorPresenca.createMany({
+      data: Array.from({ length: 6 }, (_, diasPresentes) => ({
+        eventoId: evento.id,
+        diasPresentes,
+        fator: 0.5,
+      })),
+    });
+    await prisma.conversaoPontoExtra.createMany({
+      data: [
+        { eventoId: evento.id, colocacao: 1, pontoExtra: 1 },
+        { eventoId: evento.id, colocacao: 2, pontoExtra: 0.8 },
+      ],
+    });
+
+    const resposta = await request(app.getHttpServer())
+      .get(`/api/v1/eventos/${evento.id}/relatorios/final?formato=PDF`)
+      .auth(token, { type: 'bearer' })
+      .buffer(true)
+      .parse(binaryParser)
+      .expect(200);
+    expect(resposta.headers['content-type']).toMatch(/^application\/pdf/);
+    expect(resposta.headers['content-disposition']).toContain('.pdf');
+    const pdf = Buffer.from(resposta.body);
+    expect(pdf.subarray(0, 5).toString('ascii')).toBe('%PDF-');
+    const paginas = pdf.toString('latin1').match(/\/Type \/Page\b/g) ?? [];
+    expect(paginas.length).toBeGreaterThanOrEqual(2);
+  });
+
   it('distingue evento sem desafios de evento com desafio e sem grupos nas três saídas', async () => {
     for (const fixture of [
       { nome: 'sem-desafios', ano: 2092, comGrupo: true, comDesafio: false },

@@ -1,3 +1,4 @@
+import PDFDocument from 'pdfkit';
 import { FormatoRelatorio } from '../enums/formato-relatorio.enum.js';
 import { PdfTabelaExporter } from './pdf-tabela.exporter.js';
 import {
@@ -176,6 +177,78 @@ describe('PdfTabelaExporter e utilitários de exportação', () => {
       expect(buffer.subarray(0, 5).toString('ascii')).toBe('%PDF-');
       const paginasEncontradas = conteudoAscii.match(/\/Type \/Page\b/g) ?? [];
       expect(paginasEncontradas.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('mede e envia matrículas de 17 e 20 caracteres sem cortar os valores da célula', async () => {
+      const matricula17 = `A${'1'.repeat(16)}`;
+      const matricula20 = `M${'2'.repeat(19)}`;
+      const nomeLongo = 'Zélia de Ávila '.repeat(10);
+      const grupoLongo = `Grupo São José ${'á'.repeat(45)}`;
+      const alturaSpy = vi.spyOn(PDFDocument.prototype, 'heightOfString');
+      const textoSpy = vi.spyOn(PDFDocument.prototype, 'text');
+      let alturasObservadas: Array<{ texto: string; altura: number }> = [];
+      let textosEnviados: unknown[] = [];
+
+      try {
+        await exporter.gerarBuffer({
+          nomeEvento: 'Relatório final com texto longo',
+          tituloRelatorio: 'Relatório final por participante',
+          orientacaoPdf: 'landscape',
+          secoes: [
+            {
+              colunas: [
+                { chave: 'turma', titulo: 'Turma', larguraPeso: 1.4 },
+                { chave: 'matricula', titulo: 'Matrícula', larguraPeso: 1.5 },
+                { chave: 'nome', titulo: 'Nome', larguraPeso: 2.2 },
+                { chave: 'grupo', titulo: 'Grupo', larguraPeso: 1.2 },
+                ...Array.from({ length: 5 }, (_, indice) => ({
+                  chave: `dia${indice + 1}`,
+                  titulo: `Dia ${indice + 1}`,
+                  larguraPeso: 1.1,
+                })),
+                {
+                  chave: 'pontoExtra',
+                  titulo: 'Ponto extra',
+                  larguraPeso: 1.3,
+                },
+              ],
+              linhas: [matricula17, matricula20].map((matricula) => ({
+                turma: 'TURMA-2026',
+                matricula,
+                nome: nomeLongo,
+                grupo: grupoLongo,
+                dia1: 'Presente',
+                dia2: 'Ausente',
+                dia3: 'Ausente',
+                dia4: 'Ausente',
+                dia5: 'Ausente',
+                pontoExtra: 0.16,
+              })),
+            },
+          ],
+        });
+        alturasObservadas = alturaSpy.mock.calls.map(([texto], indice) => ({
+          texto: String(texto),
+          altura: Number(alturaSpy.mock.results[indice].value),
+        }));
+        textosEnviados = textoSpy.mock.calls.map(([texto]) => texto);
+      } finally {
+        alturaSpy.mockRestore();
+        textoSpy.mockRestore();
+      }
+
+      for (const matricula of [matricula17, matricula20]) {
+        const indiceAltura = alturasObservadas.findIndex(
+          ({ texto }) => texto === matricula,
+        );
+        expect(indiceAltura).toBeGreaterThanOrEqual(0);
+        expect(alturasObservadas[indiceAltura].altura).toBeGreaterThan(9);
+        expect(textosEnviados).toContain(matricula);
+      }
+      expect(alturasObservadas.some(({ texto }) => texto === nomeLongo)).toBe(
+        true,
+      );
+      expect(textosEnviados).toContain(grupoLongo);
     });
   });
 });

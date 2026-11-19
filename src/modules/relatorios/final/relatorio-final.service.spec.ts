@@ -276,6 +276,9 @@ describe('RelatorioFinalService', () => {
     }));
     const nomeZelia = `Zélia ${'de Ávila '.repeat(16)}`;
     const matriculaLonga = 'T229-C-0000000000001';
+    const matricula17 = `A${'1'.repeat(16)}`;
+    expect(matricula17).toHaveLength(17);
+    expect(matriculaLonga).toHaveLength(20);
     prisma.diaEvento.findMany.mockResolvedValueOnce(dias);
     prisma.participante.findMany.mockResolvedValueOnce([
       {
@@ -308,11 +311,21 @@ describe('RelatorioFinalService', () => {
         grupo: { nome: 'Beta' },
         presencas: [],
       },
+      {
+        id: 4,
+        matricula: matricula17,
+        nome: 'Íris de Souza',
+        turma: 'TURMA-2026',
+        grupoId: 20,
+        grupo: { nome: 'Beta' },
+        presencas: [],
+      },
     ]);
     prisma.$queryRaw.mockResolvedValueOnce([
       { participanteId: 1, fator: new Prisma.Decimal('0.4') },
       { participanteId: 2, fator: new Prisma.Decimal('0.2') },
       { participanteId: 3, fator: new Prisma.Decimal('0') },
+      { participanteId: 4, fator: new Prisma.Decimal('0.3') },
     ]);
     prisma.conversaoPontoExtra.findMany.mockResolvedValueOnce([
       { colocacao: 1, pontoExtra: new Prisma.Decimal('1') },
@@ -360,6 +373,18 @@ describe('RelatorioFinalService', () => {
         dia4: 'Ausente',
         dia5: 'Ausente',
         pontoExtra: 0,
+      },
+      {
+        turma: 'TURMA-2026',
+        matricula: matricula17,
+        nome: 'Íris de Souza',
+        grupo: 'Beta',
+        dia1: 'Ausente',
+        dia2: 'Ausente',
+        dia3: 'Ausente',
+        dia4: 'Ausente',
+        dia5: 'Ausente',
+        pontoExtra: 0.24,
       },
       {
         turma: 'TURMA-2026',
