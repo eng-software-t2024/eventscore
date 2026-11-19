@@ -30,6 +30,7 @@ describe('Persistência da configuração do evento (integração)', () => {
   let grupoIds: number[];
   let desafioIds: number[];
   let desafioDeOutroEventoId: number;
+  let usuarioId: number | undefined;
 
   async function criarEvento(sufixo: string) {
     const evento = await prisma.evento.create({
@@ -61,6 +62,11 @@ describe('Persistência da configuração do evento (integração)', () => {
       where: { grupo: { eventoId: id } },
     });
     await prisma.penalidade.deleteMany({ where: { grupo: { eventoId: id } } });
+    await prisma.apuracaoCriterio.deleteMany({
+      where: { classificacaoGrupo: { eventoId: id } },
+    });
+    await prisma.classificacaoGrupo.deleteMany({ where: { eventoId: id } });
+    await prisma.apuracao.deleteMany({ where: { eventoId: id } });
     await prisma.criterioDesempate.deleteMany({ where: { eventoId: id } });
     await prisma.desafio.deleteMany({ where: { eventoId: id } });
     await prisma.diaEvento.deleteMany({ where: { eventoId: id } });
@@ -140,12 +146,25 @@ describe('Persistência da configuração do evento (integração)', () => {
       data: { eventoId: outroEventoId, diaId: outro.diaId, nome: 'Quiz' },
     });
     desafioDeOutroEventoId = desafioOutro.id;
+
+    const usuario = await prisma.usuario.create({
+      data: {
+        nome: `${PREFIXO} Admin`,
+        email: `t199-${randomUUID()}@example.com`,
+        senhaHash: 'hash-de-teste',
+        perfil: 'ADMIN',
+      },
+    });
+    usuarioId = usuario.id;
   });
 
   afterAll(async () => {
     if (prisma) {
       await limparEvento(eventoId);
       await limparEvento(outroEventoId);
+      if (typeof usuarioId === 'number') {
+        await prisma.usuario.deleteMany({ where: { id: usuarioId } });
+      }
     }
     await module?.close();
   });
@@ -292,7 +311,7 @@ describe('Persistência da configuração do evento (integração)', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
-  it('reordena e encurta os critérios, e uma falha desfaz toda a gravação', async () => {
+  it('substitui e encurta os critérios, e uma falha desfaz toda a gravação', async () => {
     const atual: Configuracao = await service.obter(eventoId);
 
     const salva: Configuracao = await service.salvar(eventoId, {
@@ -329,5 +348,79 @@ describe('Persistência da configuração do evento (integração)', () => {
       }),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
     await expect(service.obter(eventoId)).resolves.toEqual(salva);
+  });
+
+  it('preserva o critério usado em apuração ao reordenar e recusa removê-lo', async () => {
+    const atual: Configuracao = await service.obter(eventoId);
+    // Neste ponto: 1º Menor penalidade, 2º Maior pontuação na Robótica.
+    const robotica = await prisma.criterioDesempate.findFirstOrThrow({
+      where: { eventoId, desafioId: desafioIds[1] },
+    });
+    const apuracao = await prisma.apuracao.create({
+      data: {
+        eventoId,
+        versao: 1,
+        usuarioId: usuarioId!,
+        operacaoId: randomUUID(),
+      },
+    });
+    await prisma.classificacaoGrupo.create({
+      data: {
+        apuracaoId: apuracao.id,
+        grupoId: grupoIds[0],
+        eventoId,
+        posicao: 1,
+        pontosTotal: 0,
+      },
+    });
+    await prisma.apuracaoCriterio.create({
+      data: {
+        apuracaoId: apuracao.id,
+        criterioDesempateId: robotica.id,
+        grupoId: grupoIds[0],
+        ordem: robotica.ordem,
+      },
+    });
+
+    const [penalidade, roboticaDto] = atual.criteriosDesempate;
+    const invertida: Configuracao = await service.salvar(eventoId, {
+      ...atual,
+      criteriosDesempate: [
+        { ...roboticaDto, ordem: 1 },
+        { ...penalidade, ordem: 2 },
+      ],
+    });
+    expect(invertida.criteriosDesempate.map((c) => c.descricao)).toEqual([
+      'Maior pontuação na Robótica',
+      'Menor penalidade',
+    ]);
+    // O id usado na apuração continua sendo a Robótica, agora em 1º.
+    await expect(
+      prisma.criterioDesempate.findUniqueOrThrow({
+        where: { id: robotica.id },
+      }),
+    ).resolves.toMatchObject({
+      ordem: 1,
+      tipo: TipoCriterioDesempate.MAIOR_PONTUACAO_DESAFIO,
+      desafioId: desafioIds[1],
+    });
+
+    await expect(
+      service.salvar(eventoId, {
+        ...invertida,
+        criteriosDesempate: [{ ...invertida.criteriosDesempate[1], ordem: 1 }],
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.obter(eventoId)).resolves.toEqual(invertida);
+
+    // Remover o critério que não foi usado continua permitido.
+    await expect(
+      service.salvar(eventoId, {
+        ...invertida,
+        criteriosDesempate: [invertida.criteriosDesempate[0]],
+      }),
+    ).resolves.toMatchObject({
+      criteriosDesempate: [{ descricao: 'Maior pontuação na Robótica' }],
+    });
   });
 });

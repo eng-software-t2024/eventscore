@@ -98,7 +98,7 @@ function setup() {
       update: vi.fn().mockResolvedValue({}),
       create: vi.fn().mockResolvedValue({}),
     },
-    apuracaoCriterio: { count: vi.fn().mockResolvedValue(0) },
+    apuracaoCriterio: { findFirst: vi.fn().mockResolvedValue(null) },
   };
   const prisma = {
     ...db,
@@ -634,48 +634,143 @@ describe('ConfiguracaoService', () => {
       );
     });
 
-    it('atualiza critérios pela ordem, cria os novos e remove os que sobraram', async () => {
-      const { service, db } = setup();
-      db.criterioDesempate.findMany.mockResolvedValue([
-        { id: 11, ordem: 1 },
-        { id: 12, ordem: 2 },
-        { id: 13, ordem: 3 },
-      ]);
-      const dto = configuracao();
-      dto.criteriosDesempate.pop();
+    describe('critérios casados por tipo + desafio, não pela posição', () => {
+      const maratona = {
+        id: 11,
+        ordem: 1,
+        tipo: TipoCriterioDesempate.MAIOR_PONTUACAO_DESAFIO,
+        desafioId: 30,
+        descricao: 'Maior pontuação na Maratona',
+      };
+      const bonificacao = {
+        id: 12,
+        ordem: 2,
+        tipo: TipoCriterioDesempate.MAIOR_BONIFICACAO,
+        desafioId: null,
+        descricao: 'Maior bonificação',
+      };
+      const penalidade = {
+        id: 13,
+        ordem: 2,
+        tipo: TipoCriterioDesempate.MENOR_PENALIDADE,
+        desafioId: null,
+        descricao: 'Menor penalidade',
+      };
 
-      await service.salvar(EVENTO_ID, dto);
+      it('não altera nada ao reenviar os mesmos critérios', async () => {
+        const { service, db } = setup();
+        db.criterioDesempate.findMany.mockResolvedValue([
+          maratona,
+          bonificacao,
+        ]);
 
-      expect(db.apuracaoCriterio.count).toHaveBeenCalledWith({
-        where: { criterioDesempateId: { in: [12, 13] } },
+        await service.salvar(EVENTO_ID, configuracao());
+
+        expect(db.criterioDesempate.update).not.toHaveBeenCalled();
+        expect(db.criterioDesempate.create).not.toHaveBeenCalled();
+        expect(db.criterioDesempate.deleteMany).not.toHaveBeenCalled();
       });
-      expect(db.criterioDesempate.deleteMany).toHaveBeenCalledWith({
-        where: { id: { in: [12, 13] } },
-      });
-      expect(db.criterioDesempate.update).toHaveBeenCalledWith({
-        where: { id: 11 },
-        data: {
-          tipo: TipoCriterioDesempate.MAIOR_PONTUACAO_DESAFIO,
-          desafioId: 30,
-          descricao: 'Maior pontuação na Maratona',
-        },
-      });
-      expect(db.criterioDesempate.create).not.toHaveBeenCalled();
-    });
 
-    it('recusa remover critério usado em apuração (409)', async () => {
-      const { service, db } = setup();
-      db.criterioDesempate.findMany.mockResolvedValue([
-        { id: 11, ordem: 1 },
-        { id: 12, ordem: 2 },
-        { id: 13, ordem: 3 },
-      ]);
-      db.apuracaoCriterio.count.mockResolvedValue(1);
+      it('reordena mudando só a ordem, em duas etapas, sem trocar tipo do id', async () => {
+        const { service, db } = setup();
+        db.criterioDesempate.findMany.mockResolvedValue([
+          maratona,
+          bonificacao,
+        ]);
+        const dto = configuracao();
+        const [primeiro, segundo] = dto.criteriosDesempate;
+        primeiro.ordem = 2;
+        segundo.ordem = 1;
+        dto.criteriosDesempate = [segundo, primeiro];
 
-      await expect(
-        service.salvar(EVENTO_ID, configuracao()),
-      ).rejects.toBeInstanceOf(ConflictException);
-      expect(db.criterioDesempate.deleteMany).not.toHaveBeenCalled();
+        await service.salvar(EVENTO_ID, dto);
+
+        expect(db.criterioDesempate.update.mock.calls.map(([a]) => a)).toEqual([
+          { where: { id: 12 }, data: { ordem: 3 } },
+          { where: { id: 11 }, data: { ordem: 4 } },
+          {
+            where: { id: 12 },
+            data: { ordem: 1, descricao: 'Maior bonificação' },
+          },
+          {
+            where: { id: 11 },
+            data: { ordem: 2, descricao: 'Maior pontuação na Maratona' },
+          },
+        ]);
+        expect(db.criterioDesempate.create).not.toHaveBeenCalled();
+        expect(db.criterioDesempate.deleteMany).not.toHaveBeenCalled();
+      });
+
+      it('remove só o critério que saiu da lista, mesmo no meio', async () => {
+        const { service, db } = setup();
+        db.criterioDesempate.findMany.mockResolvedValue([
+          maratona,
+          penalidade,
+          { ...bonificacao, ordem: 3 },
+        ]);
+
+        await service.salvar(EVENTO_ID, configuracao());
+
+        expect(db.apuracaoCriterio.findFirst).toHaveBeenCalledWith({
+          where: { criterioDesempateId: { in: [13] } },
+          select: { criterioDesempateId: true },
+        });
+        expect(db.criterioDesempate.deleteMany).toHaveBeenCalledWith({
+          where: { id: { in: [13] } },
+        });
+        expect(db.criterioDesempate.update.mock.calls.map(([a]) => a)).toEqual([
+          { where: { id: 12 }, data: { ordem: 4 } },
+          {
+            where: { id: 12 },
+            data: { ordem: 2, descricao: 'Maior bonificação' },
+          },
+        ]);
+      });
+
+      it('recusa remover critério usado em apuração (409) e nomeia o critério', async () => {
+        const { service, db } = setup();
+        db.criterioDesempate.findMany.mockResolvedValue([
+          maratona,
+          penalidade,
+          { ...bonificacao, ordem: 3 },
+        ]);
+        db.apuracaoCriterio.findFirst.mockResolvedValue({
+          criterioDesempateId: 13,
+        });
+
+        const promessa = service.salvar(EVENTO_ID, configuracao());
+
+        await expect(promessa).rejects.toBeInstanceOf(ConflictException);
+        await expect(promessa).rejects.toThrow('"Menor penalidade"');
+        expect(db.criterioDesempate.deleteMany).not.toHaveBeenCalled();
+      });
+
+      it('trocar o desafio é remover um critério e criar outro', async () => {
+        const { service, db } = setup();
+        db.criterioDesempate.findMany.mockResolvedValue([
+          maratona,
+          bonificacao,
+        ]);
+        const dto = configuracao();
+        dto.criteriosDesempate[0].desafioId = 31;
+        dto.criteriosDesempate[0].descricao = 'Maior pontuação na Robótica';
+
+        await service.salvar(EVENTO_ID, dto);
+
+        expect(db.criterioDesempate.deleteMany).toHaveBeenCalledWith({
+          where: { id: { in: [11] } },
+        });
+        expect(db.criterioDesempate.create).toHaveBeenCalledWith({
+          data: {
+            eventoId: EVENTO_ID,
+            ordem: 1,
+            tipo: TipoCriterioDesempate.MAIOR_PONTUACAO_DESAFIO,
+            desafioId: 31,
+            descricao: 'Maior pontuação na Robótica',
+          },
+        });
+        expect(db.criterioDesempate.update).not.toHaveBeenCalled();
+      });
     });
 
     it('limpa a faixa quando não há penalidade lançada', async () => {

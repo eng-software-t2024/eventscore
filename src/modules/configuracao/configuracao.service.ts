@@ -22,13 +22,21 @@ type FaixaPenalidade = {
 type ItemAtual = { id: number; nome: string; teto: number };
 
 /**
+ * Identidade de um critério: o tipo e, em MAIOR_PONTUACAO_DESAFIO, o desafio.
+ * Ordem e descrição podem mudar sem que o critério deixe de ser o mesmo.
+ */
+function chaveCriterio(tipo: string, desafioId: number | null | undefined) {
+  return `${tipo}:${desafioId ?? ''}`;
+}
+
+/**
  * Configuração de pontuação do evento (RF02, #199).
  *
  * O PUT substitui tudo numa transação, mas atualiza as linhas no lugar em vez
  * de apagar e recriar: itens de bonificação já lançados (`bonificacao_grupo`)
  * e critérios usados numa apuração gravada (`apuracao_criterio`) têm FK com
  * RESTRICT. Por isso cada lista é casada por chave: colocação, dias
- * presentes, ordem e id do item.
+ * presentes, id do item e, no critério, tipo + desafio.
  */
 @Injectable()
 export class ConfiguracaoService {
@@ -214,7 +222,7 @@ export class ConfiguracaoService {
         );
       }
 
-      const chave = `${criterio.tipo}:${desafioId ?? ''}`;
+      const chave = chaveCriterio(criterio.tipo, desafioId);
       if (vistos.has(chave)) {
         throw new UnprocessableEntityException(
           `O ${criterio.ordem}º critério de desempate repete um critério anterior.`,
@@ -466,8 +474,11 @@ export class ConfiguracaoService {
   }
 
   /**
-   * Critérios casados pela ordem: a linha de cada posição é atualizada no
-   * lugar, o que preserva o id e não colide no índice único (id_evento, ordem).
+   * Critérios casados pela identidade (tipo + desafio), nunca pela posição:
+   * a linha usada numa apuração (`apuracao_criterio`) aponta para o id, que
+   * não guarda o tipo. Se o id da 1ª posição passasse de "Maratona" para
+   * "Robótica" ao reordenar, a apuração antiga mudaria de sentido. Assim,
+   * reordenar só muda `ordem`, e só o critério que saiu da lista é removido.
    */
   private async salvarCriterios(
     tx: Prisma.TransactionClient,
@@ -476,39 +487,78 @@ export class ConfiguracaoService {
   ) {
     const atuais = await tx.criterioDesempate.findMany({
       where: { eventoId },
-      select: { id: true, ordem: true },
+      select: {
+        id: true,
+        ordem: true,
+        tipo: true,
+        desafioId: true,
+        descricao: true,
+      },
     });
-    const sobrando = atuais.filter((c) => c.ordem > criterios.length);
-    if (sobrando.length > 0) {
-      const emUso = await tx.apuracaoCriterio.count({
-        where: { criterioDesempateId: { in: sobrando.map((c) => c.id) } },
+    const atuaisPorChave = new Map(
+      atuais.map((c) => [chaveCriterio(c.tipo, c.desafioId), c]),
+    );
+    const chavesNovas = new Set(
+      criterios.map((c) => chaveCriterio(c.tipo, c.desafioId)),
+    );
+
+    const removidos = atuais.filter(
+      (c) => !chavesNovas.has(chaveCriterio(c.tipo, c.desafioId)),
+    );
+    if (removidos.length > 0) {
+      const emUso = await tx.apuracaoCriterio.findFirst({
+        where: { criterioDesempateId: { in: removidos.map((c) => c.id) } },
+        select: { criterioDesempateId: true },
       });
-      if (emUso > 0) {
+      if (emUso) {
+        const criterio = removidos.find(
+          (c) => c.id === emUso.criterioDesempateId,
+        );
         throw new ConflictException(
-          'Não é possível remover critério de desempate já usado em uma apuração.',
+          `O critério de desempate "${criterio?.descricao}" já foi usado em uma apuração e não pode ser removido.`,
         );
       }
       await tx.criterioDesempate.deleteMany({
-        where: { id: { in: sobrando.map((c) => c.id) } },
+        where: { id: { in: removidos.map((c) => c.id) } },
       });
     }
 
-    const atuaisPorOrdem = new Map(atuais.map((c) => [c.ordem, c]));
-    for (const criterio of criterios) {
-      const dados = {
-        tipo: criterio.tipo,
-        desafioId: criterio.desafioId ?? null,
-        descricao: criterio.descricao,
-      };
-      const atual = atuaisPorOrdem.get(criterio.ordem);
-      if (atual) {
+    const mantidos = criterios.flatMap((novo) => {
+      const atual = atuaisPorChave.get(
+        chaveCriterio(novo.tipo, novo.desafioId),
+      );
+      return atual ? [{ atual, novo }] : [];
+    });
+
+    // Duas etapas: o índice único (id_evento, ordem) não é adiável, então quem
+    // muda de posição passa antes por uma ordem livre, acima de todas as outras.
+    const movidos = mantidos.filter((m) => m.atual.ordem !== m.novo.ordem);
+    const livre = Math.max(criterios.length, ...atuais.map((c) => c.ordem)) + 1;
+    for (const [i, { atual }] of movidos.entries()) {
+      await tx.criterioDesempate.update({
+        where: { id: atual.id },
+        data: { ordem: livre + i },
+      });
+    }
+    for (const { atual, novo } of mantidos) {
+      if (atual.ordem !== novo.ordem || atual.descricao !== novo.descricao) {
         await tx.criterioDesempate.update({
           where: { id: atual.id },
-          data: dados,
+          data: { ordem: novo.ordem, descricao: novo.descricao },
         });
-      } else {
+      }
+    }
+
+    for (const novo of criterios) {
+      if (!atuaisPorChave.has(chaveCriterio(novo.tipo, novo.desafioId))) {
         await tx.criterioDesempate.create({
-          data: { eventoId, ordem: criterio.ordem, ...dados },
+          data: {
+            eventoId,
+            ordem: novo.ordem,
+            tipo: novo.tipo,
+            desafioId: novo.desafioId ?? null,
+            descricao: novo.descricao,
+          },
         });
       }
     }
