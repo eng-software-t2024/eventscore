@@ -41,7 +41,7 @@ Ficou acordado que a Sprint 01 entrega os 4 módulos essenciais com CRUD complet
    - `200`: Sucesso de leitura ou alteração.
    - `201`: Criação de novo recurso (`POST`).
    - `204`: Exclusão bem-sucedida sem corpo (`DELETE`).
-   - `400`: Erro de sintaxe ou campo inválido disparado pelo `ValidationPipe`.
+   - `400`: Requisição inválida. A validação de campos (`ValidationPipe`) devolve `message` como lista; JSON malformado, parâmetros de rota inválidos e validações feitas nos serviços devolvem `message` como texto.
    - `401`: Token ausente, inválido ou login incorreto.
    - `404`: Recurso não encontrado ou pertencente a outro evento.
    - `409`: Conflito de estado — inclui o bloqueio por trigger de grupos após resultado lançado (RF03) com a mensagem canônica `"os grupos não podem mais ser alterados porque já há resultado lançado"`, tentativa de excluir grupo com participantes vinculados ou dia com presenças/desafios, e violação de unicidade.

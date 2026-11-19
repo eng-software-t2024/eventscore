@@ -266,7 +266,7 @@ export interface paths {
         post?: never;
         /**
          * Excluir grupo do evento
-         * @description Remove um grupo do evento. Não é permitida a exclusão se o evento já possuir resultados lançados (RF03) ou se houver participantes/registros vinculados.
+         * @description Remove um grupo do evento. Não é permitida a exclusão se o evento já possuir resultados lançados (RF03) ou se houver participantes vinculados (ADR 0003).
          */
         delete: operations["excluirGrupoEvento"];
         options?: never;
@@ -276,6 +276,628 @@ export interface paths {
          * @description Atualiza parcialmente o nome ou a cor do grupo. Não é permitida a alteração se o evento já possuir resultados lançados (RF03).
          */
         patch: operations["atualizarGrupoEvento"];
+        trace?: never;
+    };
+    "/eventos/{eventoId}/configuracao": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Consultar configuração de pontuação do evento (RF02)
+         * @description Retorna a configuração completa do evento: conversão de colocação em ponto extra, itens de bonificação, faixa de penalidade, fatores de presença e critérios de desempate.
+         */
+        get: operations["obterConfiguracaoEvento"];
+        /**
+         * Salvar configuração completa do evento (idempotente)
+         * @description Substitui de forma transacional e idempotente toda a configuração de regras do evento.
+         *     Conforme o ADR 0003 (V12):
+         *     - `desafioId` nos critérios de desempate é obrigatório apenas para `MAIOR_PONTUACAO_DESAFIO` e proibido nos demais tipos.
+         *     - `penalidadeMin` não pode ser maior que `penalidadeMax`, e a alteração da faixa não pode deixar fora do intervalo penalidades já lançadas (retorna 422).
+         */
+        put: operations["salvarConfiguracaoEvento"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/eventos/{eventoId}/participantes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Listar participantes do evento com paginação e filtros (RF04)
+         * @description Lista os participantes do evento com suporte a paginação e filtros opcionais por grupo, turma e busca textual por nome ou matrícula.
+         */
+        get: operations["listarParticipantesEvento"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/eventos/{eventoId}/participantes/importacao/previa": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pré-visualizar importação de participantes via CSV ou XLSX (RF04)
+         * @description Valida a planilha enviada no campo `arquivo` (CSV UTF-8 separado por vírgula ou ponto e vírgula, ou XLSX, até 5 MB) sem gravar dados no banco.
+         *     Retorna todas as linhas do arquivo indicando `VALIDO` ou `ERRO` e o respectivo `motivoErro`.
+         */
+        post: operations["previsualizarImportacaoParticipantes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/eventos/{eventoId}/participantes/importacao": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirmar e gravar importação de participantes (RF04)
+         * @description Revalida a planilha enviada (CSV ou XLSX até 5 MB) e persiste os participantes em transação única somente se não houver nenhuma linha com erro.
+         *     Caso exista qualquer linha inválida, responde 422 com o detalhamento completo das linhas e não grava nenhum registro.
+         */
+        post: operations["confirmarImportacaoParticipantes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/eventos/{eventoId}/dias/{diaId}/presencas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+                /**
+                 * @description Identificador numérico único do dia do evento.
+                 * @example 1
+                 */
+                diaId: components["parameters"]["DiaIdParam"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Consultar grade de presença dos participantes no dia (RF07)
+         * @description Retorna a lista de participantes do evento com seu status de presença no dia especificado e o resumo consolidado (total, presentes e ausentes).
+         */
+        get: operations["listarPresencasDia"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/eventos/{eventoId}/dias/{diaId}/presencas/{participanteId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+                /**
+                 * @description Identificador numérico único do dia do evento.
+                 * @example 1
+                 */
+                diaId: components["parameters"]["DiaIdParam"];
+                /**
+                 * @description Identificador numérico único do participante.
+                 * @example 1
+                 */
+                participanteId: components["parameters"]["ParticipanteIdParam"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Registrar ou atualizar presença de um participante no dia (RF07, idempotente)
+         * @description Marca ou atualiza de forma idempotente a presença de um participante em um dia do evento.
+         */
+        put: operations["registrarPresencaParticipante"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/eventos/{eventoId}/desafios": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Listar desafios do evento
+         * @description Lista os desafios do evento com suas tabelas de pontuação por colocação.
+         *     Evento inexistente retorna 404; evento sem desafios retorna [].
+         *     Ordem estável: numeroDia crescente do dia e, em seguida, id do desafio.
+         *     Cada tabela de pontos vem ordenada por colocacao crescente.
+         */
+        get: operations["listarDesafios"];
+        put?: never;
+        /**
+         * Criar desafio e tabela de pontos
+         * @description Cria desafio e pontos na mesma transação. O dia deve pertencer ao evento da URL.
+         *     Exige pelo menos um grupo cadastrado e uma linha para cada grupo, com colocações únicas formando 1..N.
+         *     Não cria resultado nem grupo.
+         */
+        post: operations["criarDesafio"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/eventos/{eventoId}/desafios/{desafioId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+                /**
+                 * @description Identificador numérico único do desafio.
+                 * @example 3
+                 */
+                desafioId: components["parameters"]["DesafioIdParam"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Consultar desafio no contexto do evento
+         * @description Consulta individual de um desafio e sua tabela de pontos. Desafio de outro evento retorna 404.
+         */
+        get: operations["obterDesafioPorId"];
+        put?: never;
+        post?: never;
+        /**
+         * Excluir desafio sem dependências impeditivas
+         * @description Remove os pontos próprios e o desafio na mesma transação.
+         *     Desafio usado em critério de desempate (ADR 0003) ou com resultado lançado retorna 409;
+         *     não apagar resultados nem histórico em cascata.
+         */
+        delete: operations["excluirDesafio"];
+        options?: never;
+        head?: never;
+        /**
+         * Atualizar desafio parcialmente
+         * @description Campos ausentes são preservados; null não é aceito. descricao vazia limpa a descrição.
+         *     Quando pontosColocacao muda de valor, substitui a tabela inteira na mesma transação da atualização do desafio.
+         *     A tabela resultante precisa atender a regra 1..N dos grupos atuais.
+         *     Após resultados, o 409 só ocorre se diaId mudar de valor ou se o conteúdo da tabela (colocacao e pontos) mudar.
+         *     A comparação da tabela considera os pares por colocacao, independentemente da ordem do array.
+         *     Reenviar diaId ou pontosColocacao com os valores já gravados é permitido e não exige substituir a tabela.
+         *     A presença desses campos no corpo não caracteriza mudança.
+         *     Nome e descrição continuam editáveis, inclusive quando acompanhados do mesmo dia e da mesma tabela.
+         *     Condição registrada no aceite do frontend no PR #31.
+         */
+        patch: operations["atualizarDesafio"];
+        trace?: never;
+    };
+    "/eventos/{eventoId}/desafios/{desafioId}/resultados": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+                /**
+                 * @description Identificador numérico único do desafio.
+                 * @example 3
+                 */
+                desafioId: components["parameters"]["DesafioIdParam"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Consultar colocações dos grupos no desafio (RF08, RF09, RF18)
+         * @description Valida evento e desafio no mesmo contexto e retorna uma linha por grupo do evento (ordenada por `grupoId` crescente).
+         *     Sem lançamento prévio, a linha possui `id: null`, `colocacao: null`, `ausente: false` e `pontos: 0` (preenchimento pendente).
+         *     Uma ausência gravada possui `id` preenchido, `colocacao: null`, `ausente: true` e `pontos: 0`.
+         */
+        get: operations["listarResultadosDoDesafio"];
+        /**
+         * Salvar todas as colocações do desafio (idempotente, RF08, RF09, RF18)
+         * @description Recebe um array completo com exatamente uma linha para cada grupo do evento.
+         *     Com P grupos presentes, suas colocações devem formar a sequência `1..P` sem repetição nem lacunas; grupos com `ausente: true` exigem `colocacao: null` e recebem `0` ponto.
+         *     Grava o conjunto e a trilha de auditoria na mesma transação, preservando o `id` de cada resultado existente.
+         */
+        put: operations["salvarResultadosDoDesafio"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auditoria": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Consultar histórico de alterações de um registro (RF18)
+         * @description Lista em ordem cronológica as alterações auditadas para uma entidade e chave primária específicas (`entidade` + `registroId`).
+         */
+        get: operations["listarAuditoria"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/eventos/{eventoId}/bonificacoes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Consultar bonificações de cada grupo por item (RF10)
+         * @description Retorna a lista de grupos do evento com os valores atribuídos em cada item de bonificação e a soma total por grupo.
+         */
+        get: operations["listarBonificacoesEvento"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/eventos/{eventoId}/bonificacoes/{grupoId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+                /**
+                 * @description Identificador numérico único do grupo.
+                 * @example 1
+                 */
+                grupoId: components["parameters"]["GrupoIdParam"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Registrar bonificações de um grupo (idempotente, RF10)
+         * @description Salva de forma idempotente os pontos de bonificação do grupo por item. Valores que excedam o teto configurado para o item retornam 422.
+         */
+        put: operations["salvarBonificacoesGrupo"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/eventos/{eventoId}/penalidades": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Listar penalidades aplicadas no evento (RF11)
+         * @description Retorna todas as penalidades lançadas para os grupos do evento.
+         */
+        get: operations["listarPenalidadesEvento"];
+        put?: never;
+        /**
+         * Aplicar penalidade a um grupo (RF11)
+         * @description Registra uma nova penalidade disciplinar para um grupo do evento.
+         *     Conforme ADR 0003, retorna 422 se a faixa de penalidade do evento ainda não estiver configurada ou se `pontos` estiver fora do intervalo `[penalidadeMin, penalidadeMax]`.
+         */
+        post: operations["aplicarPenalidade"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/eventos/{eventoId}/penalidades/{penalidadeId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+                /**
+                 * @description Identificador numérico único da penalidade.
+                 * @example 1
+                 */
+                penalidadeId: components["parameters"]["PenalidadeIdParam"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remover penalidade lançada (RF11)
+         * @description Exclui uma penalidade do evento e registra a operação na auditoria.
+         */
+        delete: operations["removerPenalidade"];
+        options?: never;
+        head?: never;
+        /**
+         * Atualizar penalidade lançada (RF11)
+         * @description Corrige dados de uma penalidade existente no evento, validando a faixa configurada e registrando auditoria.
+         */
+        patch: operations["atualizarPenalidade"];
+        trace?: never;
+    };
+    "/eventos/{eventoId}/classificacao": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Consultar classificação geral dos grupos (RF12, RF13)
+         * @description Calcula em tempo real a classificação das equipes a partir dos lançamentos atuais (`pontosDesafios + bonificacao - penalidade`),
+         *     aplicando os critérios de desempate configurados (V12) e decisões manuais vigentes (ADR 0003).
+         *     Retorna `dados` com a posição de cada grupo e `resumo` indicando desafios lançados e eventuais `empatesPendentes`.
+         */
+        get: operations["consultarClassificacaoGrupos"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/eventos/{eventoId}/desempates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Registrar decisão manual de desempate (RF14)
+         * @description Registra em transação única uma nova versão de apuração, o snapshot da classificação e as decisões manuais de desempate para todos os empates pendentes (ADR 0003).
+         *     Um novo envio substitui as decisões anteriores enquanto os grupos empatados mantiverem os mesmos pontos.
+         */
+        post: operations["registrarDesempateManual"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/eventos/{eventoId}/apuracao": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Consultar apuração individual de ponto extra (RF16)
+         * @description Calcula na consulta o ponto extra individual de cada participante (`ROUND(pontoExtraGrupo * fator, 2)`) a partir da colocação do grupo e dos dias presentes.
+         *     Retorna `409 Conflict` caso a classificação possua empate pendente ainda não resolvido.
+         */
+        get: operations["consultarApuracaoIndividual"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/eventos/{eventoId}/relatorios/parcial": {
+        parameters: {
+            query: {
+                /**
+                 * @description Formato do arquivo de relatório a ser gerado (PDF ou XLSX).
+                 * @example PDF
+                 */
+                formato: components["parameters"]["FormatoRelatorioParam"];
+            };
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Exportar relatório parcial por grupo em PDF ou XLSX (RF15)
+         * @description Gera o relatório parcial da classificação das equipes considerando apenas os desafios com resultados já lançados, em formato PDF ou XLSX.
+         *     Não bloqueia em caso de empate pendente (equipes empatadas saem na mesma posição marcadas com empate) e não expõe dados pessoais de alunos (RF15, RNF03).
+         */
+        get: operations["exportarRelatorioParcial"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/eventos/{eventoId}/relatorios/final/previa": {
+        parameters: {
+            query?: {
+                /** @description Busca por nome, matrícula ou turma. */
+                busca?: string;
+            };
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Consultar prévia do relatório final por participante
+         * @description Retorna um array puro ordenado por turma e nome, incluindo todos os dias do evento e ausências. Só fica disponível quando há ao menos um desafio e todos os grupos do evento têm resultado lançado em cada desafio. Resultados parciais permanecem disponíveis no relatório parcial.
+         */
+        get: operations["consultarPreviaRelatorioFinal"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/eventos/{eventoId}/relatorios/final": {
+        parameters: {
+            query: {
+                /**
+                 * @description Formato do arquivo de relatório a ser gerado (PDF ou XLSX).
+                 * @example PDF
+                 */
+                formato: components["parameters"]["FormatoRelatorioParam"];
+            };
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Exportar relatório final por participante em PDF ou XLSX
+         * @description Gera o relatório final agrupado por turma com presença de todos os dias, ausências e ponto extra individual. Só fica disponível quando há ao menos um desafio e todos os grupos do evento têm resultado lançado em cada desafio. Resultados parciais permanecem disponíveis no relatório parcial.
+         */
+        get: operations["exportarRelatorioFinal"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
 }
@@ -559,6 +1181,743 @@ export interface components {
              */
             cor?: string;
         };
+        PontoColocacaoDto: {
+            /**
+             * @description Posição ordinal (1..N) na tabela de pontuação do desafio.
+             * @example 1
+             */
+            colocacao: number;
+            /**
+             * @description Pontuação inteira não negativa atribuída à colocação.
+             * @example 100
+             */
+            pontos: number;
+        };
+        CriarDesafioDto: {
+            /**
+             * @description Deve conter pelo menos um caractere não branco. No backend,
+             *     remover espaços externos com trim() e rejeitar com 400 se o nome
+             *     normalizado ficar vazio; persistir o valor normalizado.
+             * @example Hackathon
+             */
+            nome: string;
+            /**
+             * @description Descrição opcional do desafio (máximo de 255 caracteres).
+             * @default
+             * @example Desenvolvimento em equipe
+             */
+            descricao: string;
+            /**
+             * @description Identificador do dia de competição ao qual o desafio pertence.
+             * @example 2
+             */
+            diaId: number;
+            /** @description Uma linha por grupo; colocações devem formar 1..N sem repetição. */
+            pontosColocacao: components["schemas"]["PontoColocacaoDto"][];
+        };
+        /** @description Os mesmos campos da criação, todos opcionais; null é inválido. */
+        AtualizarDesafioDto: {
+            /**
+             * @description Quando informado, remover espaços externos com trim() no backend
+             *     e rejeitar com 400 se o nome normalizado ficar vazio. O pattern
+             *     exige pelo menos um caractere não branco no valor recebido.
+             *     Campo ausente preserva o nome; null é inválido.
+             * @example Hackathon
+             */
+            nome?: string;
+            /**
+             * @description Nova descrição do desafio; string vazia limpa o texto.
+             * @example
+             */
+            descricao?: string;
+            /**
+             * @description Novo identificador do dia do evento; após resultados, mudanças efetivas retornam 409.
+             * @example 2
+             */
+            diaId?: number;
+            /**
+             * @description Quando o conteúdo mudar, substitui a tabela inteira; não é um
+             *     patch de itens. Comparar pares colocacao/pontos ignorando a ordem
+             *     do array. Valores iguais aos gravados são aceitos após resultados;
+             *     só a presença do campo não dispara o bloqueio 409.
+             */
+            pontosColocacao?: components["schemas"]["PontoColocacaoDto"][];
+        };
+        /**
+         * @example {
+         *       "id": 3,
+         *       "nome": "Hackathon",
+         *       "descricao": "Desenvolvimento em equipe",
+         *       "diaId": 2,
+         *       "pontosColocacao": [
+         *         {
+         *           "colocacao": 1,
+         *           "pontos": 100
+         *         },
+         *         {
+         *           "colocacao": 2,
+         *           "pontos": 80
+         *         }
+         *       ]
+         *     }
+         */
+        DesafioDto: {
+            /**
+             * @description Identificador numérico único do desafio.
+             * @example 3
+             */
+            id: number;
+            /**
+             * @description Nome identificador do desafio.
+             * @example Hackathon
+             */
+            nome: string;
+            /**
+             * @description Retorna string vazia quando a coluna do banco é null.
+             * @example Desenvolvimento em equipe
+             */
+            descricao: string;
+            /**
+             * @description Identificador do dia do evento vinculado ao desafio.
+             * @example 2
+             */
+            diaId: number;
+            /** @description Tabela de pontos por colocação ordenada crescentemente por colocacao. */
+            pontosColocacao: components["schemas"]["PontoColocacaoDto"][];
+        };
+        ConversaoPontoExtraItemDto: {
+            /**
+             * @description Colocação final do grupo na classificação geral.
+             * @example 1
+             */
+            colocacao: number;
+            /**
+             * @description Ponto extra base atribuído à colocação do grupo (0 a 1, uma casa decimal — `NUMERIC(5,1)`).
+             * @example 1
+             */
+            pontoExtra: number;
+        };
+        ItemBonificacaoConfigDto: {
+            /**
+             * @description Identificador do item de bonificação (ausente em item novo).
+             * @example 1
+             */
+            id?: number;
+            /**
+             * @description Nome do quesito/item de bonificação.
+             * @example Uniformização
+             */
+            nome: string;
+            /**
+             * @description Pontuação máxima permitida para este item.
+             * @example 10
+             */
+            teto: number;
+        };
+        FatorPresencaItemDto: {
+            /**
+             * @description Quantidade de dias em que o participante esteve presente.
+             * @example 2
+             */
+            diasPresentes: number;
+            /**
+             * @description Fator multiplicador (0 a 1) aplicado sobre o ponto extra do grupo.
+             * @example 1
+             */
+            fator: number;
+        };
+        CriterioDesempateConfigDto: {
+            /**
+             * @description Ordem de precedência do critério (1..N).
+             * @example 1
+             */
+            ordem: number;
+            tipo: components["schemas"]["TipoCriterioDesempate"];
+            /**
+             * @description Obrigatório quando tipo = MAIOR_PONTUACAO_DESAFIO; null nos demais tipos (ADR 0003 / V12).
+             * @example 3
+             */
+            desafioId?: number | null;
+            /**
+             * @description Descrição legível do critério de desempate.
+             * @example Maior pontuação no Hackathon
+             */
+            descricao: string;
+        };
+        /**
+         * @example {
+         *       "conversaoPontoExtra": [
+         *         {
+         *           "colocacao": 1,
+         *           "pontoExtra": 1
+         *         },
+         *         {
+         *           "colocacao": 2,
+         *           "pontoExtra": 0.8
+         *         },
+         *         {
+         *           "colocacao": 3,
+         *           "pontoExtra": 0.6
+         *         }
+         *       ],
+         *       "itensBonificacao": [
+         *         {
+         *           "id": 1,
+         *           "nome": "Uniformização",
+         *           "teto": 10
+         *         },
+         *         {
+         *           "id": 2,
+         *           "nome": "Grito de guerra",
+         *           "teto": 10
+         *         }
+         *       ],
+         *       "penalidadeMin": 10,
+         *       "penalidadeMax": 50,
+         *       "fatoresPresenca": [
+         *         {
+         *           "diasPresentes": 2,
+         *           "fator": 1
+         *         },
+         *         {
+         *           "diasPresentes": 1,
+         *           "fator": 0.5
+         *         },
+         *         {
+         *           "diasPresentes": 0,
+         *           "fator": 0
+         *         }
+         *       ],
+         *       "criteriosDesempate": [
+         *         {
+         *           "ordem": 1,
+         *           "tipo": "MAIOR_PONTUACAO_DESAFIO",
+         *           "desafioId": 3,
+         *           "descricao": "Maior pontuação no Hackathon"
+         *         },
+         *         {
+         *           "ordem": 2,
+         *           "tipo": "MENOR_PENALIDADE",
+         *           "desafioId": null,
+         *           "descricao": "Menos penalidades"
+         *         }
+         *       ]
+         *     }
+         */
+        ConfiguracaoEventoDto: {
+            conversaoPontoExtra: components["schemas"]["ConversaoPontoExtraItemDto"][];
+            itensBonificacao: components["schemas"]["ItemBonificacaoConfigDto"][];
+            /**
+             * @description Valor mínimo permitido para aplicação de uma penalidade. `null` enquanto a faixa não estiver configurada; deve ser nulo ou preenchido junto com `penalidadeMax` (ADR 0003, item 7).
+             * @example 10
+             */
+            penalidadeMin: number | null;
+            /**
+             * @description Valor máximo permitido para aplicação de uma penalidade. `null` enquanto a faixa não estiver configurada; deve ser nulo ou preenchido junto com `penalidadeMin` (ADR 0003, item 7).
+             * @example 50
+             */
+            penalidadeMax: number | null;
+            fatoresPresenca: components["schemas"]["FatorPresencaItemDto"][];
+            criteriosDesempate: components["schemas"]["CriterioDesempateConfigDto"][];
+        };
+        ParticipanteResumoDto: {
+            /**
+             * @description Identificador numérico único do participante.
+             * @example 1
+             */
+            id: number;
+            /**
+             * @description Nome completo do participante.
+             * @example Lucas Vitorino
+             */
+            nome: string;
+            /**
+             * @description Matrícula do participante (única por evento).
+             * @example 2026-101
+             */
+            matricula: string;
+            /**
+             * @description Turma acadêmica do participante.
+             * @example ES 2026.2
+             */
+            turma: string;
+            /**
+             * @description Identificador do grupo ao qual o participante pertence.
+             * @example 1
+             */
+            grupoId: number;
+            /**
+             * @description Nome do grupo do participante.
+             * @example Alfa
+             */
+            grupo: string;
+        };
+        /**
+         * @example {
+         *       "dados": [
+         *         {
+         *           "id": 1,
+         *           "nome": "Lucas Vitorino",
+         *           "matricula": "2026-101",
+         *           "turma": "ES 2026.2",
+         *           "grupoId": 1,
+         *           "grupo": "Alfa"
+         *         },
+         *         {
+         *           "id": 2,
+         *           "nome": "Sofia Moreira",
+         *           "matricula": "2026-102",
+         *           "turma": "ES 2026.2",
+         *           "grupoId": 1,
+         *           "grupo": "Alfa"
+         *         }
+         *       ],
+         *       "paginacao": {
+         *         "pagina": 1,
+         *         "tamanho": 20,
+         *         "totalItens": 72,
+         *         "totalPaginas": 4
+         *       },
+         *       "resumo": {
+         *         "totalParticipantes": 72
+         *       }
+         *     }
+         */
+        ParticipantesListagemDto: {
+            dados: components["schemas"]["ParticipanteResumoDto"][];
+            paginacao: components["schemas"]["PaginacaoMetaDto"];
+            resumo: {
+                /** @example 72 */
+                totalParticipantes: number;
+            };
+        };
+        UploadArquivoPlanilhaDto: {
+            /**
+             * Format: binary
+             * @description Planilha .csv (UTF-8 com vírgula ou ponto e vírgula) ou .xlsx de até 5 MB.
+             */
+            arquivo: string;
+        };
+        ImportacaoLinhaDto: {
+            /**
+             * @description Número da linha no arquivo (cabeçalho é a linha 1).
+             * @example 2
+             */
+            linha: number;
+            /** @example Lucas Vitorino */
+            nome: string | null;
+            /** @example 2026-101 */
+            matricula: string | null;
+            /** @example ES 2026.2 */
+            turma: string | null;
+            /** @example Alfa */
+            grupo: string | null;
+            /**
+             * @example VALIDO
+             * @enum {string}
+             */
+            status: "VALIDO" | "ERRO";
+            /**
+             * @description Descrição do problema quando status = ERRO; null quando VALIDO.
+             * @example null
+             */
+            motivoErro: string | null;
+        };
+        /**
+         * @example {
+         *       "totalLinhas": 3,
+         *       "linhasValidas": 2,
+         *       "linhasComErro": 1,
+         *       "linhas": [
+         *         {
+         *           "linha": 2,
+         *           "nome": "Lucas Vitorino",
+         *           "matricula": "2026-101",
+         *           "turma": "ES 2026.2",
+         *           "grupo": "Alfa",
+         *           "status": "VALIDO",
+         *           "motivoErro": null
+         *         },
+         *         {
+         *           "linha": 3,
+         *           "nome": "Sofia Moreira",
+         *           "matricula": "2026-102",
+         *           "turma": "ES 2026.2",
+         *           "grupo": "Alfa",
+         *           "status": "VALIDO",
+         *           "motivoErro": null
+         *         },
+         *         {
+         *           "linha": 4,
+         *           "nome": "Rafael Nogueira",
+         *           "matricula": "2026-110",
+         *           "turma": "CC 2026.2",
+         *           "grupo": "Inexistente",
+         *           "status": "ERRO",
+         *           "motivoErro": "grupo 'Inexistente' não pertence ao evento"
+         *         }
+         *       ]
+         *     }
+         */
+        ImportacaoPrevistaDto: {
+            /** @example 3 */
+            totalLinhas: number;
+            /** @example 2 */
+            linhasValidas: number;
+            /** @example 1 */
+            linhasComErro: number;
+            linhas: components["schemas"]["ImportacaoLinhaDto"][];
+        };
+        ImportacaoConfirmadaDto: {
+            /**
+             * @description Quantidade total de participantes criados.
+             * @example 2
+             */
+            importados: number;
+            participantes: components["schemas"]["ParticipanteResumoDto"][];
+        };
+        ImportacaoErro422Dto: {
+            /** @example 422 */
+            statusCode: number;
+            /** @example Existem linhas com erro na importação */
+            message: string;
+            /** @example Unprocessable Entity */
+            error: string;
+            /** @example 3 */
+            totalLinhas: number;
+            /** @example 2 */
+            linhasValidas: number;
+            /** @example 1 */
+            linhasComErro: number;
+            linhas: components["schemas"]["ImportacaoLinhaDto"][];
+        };
+        PresencaParticipanteItemDto: {
+            /** @example 1 */
+            participanteId: number;
+            /** @example 2026-101 */
+            matricula: string;
+            /** @example Lucas Vitorino */
+            nome: string;
+            /** @example ES 2026.2 */
+            turma: string;
+            /** @example 1 */
+            grupoId: number;
+            /** @example Alfa */
+            grupo: string;
+            /** @example true */
+            presente: boolean;
+        };
+        PresencaResumoDto: {
+            /** @example 5 */
+            total: number;
+            /** @example 3 */
+            presentes: number;
+            /** @example 2 */
+            ausentes: number;
+        };
+        PresencaGradeDto: {
+            dados: components["schemas"]["PresencaParticipanteItemDto"][];
+            resumo: components["schemas"]["PresencaResumoDto"];
+        };
+        RegistrarPresencaDto: {
+            /**
+             * @description Define se o participante esteve presente (true) ou ausente (false) no dia.
+             * @example true
+             */
+            presente: boolean;
+        };
+        PresencaRegistradaDto: {
+            /** @example 3 */
+            participanteId: number;
+            /** @example true */
+            presente: boolean;
+        };
+        /**
+         * @description Item retornado na consulta GET de resultados por desafio.
+         *     Quando id é null, representa preenchimento pendente (colocacao null, ausente false, pontos 0).
+         *     O retorno do PUT utiliza ResultadoDesafioSalvoDto, cujo id não aceita null.
+         */
+        ResultadoDesafioDto: {
+            /**
+             * @description null somente quando ainda não existe resultado persistido para o grupo no desafio.
+             * @example 11
+             */
+            id: number | null;
+            /** @example 1 */
+            grupoId: number;
+            /** @example 1 */
+            colocacao: number | null;
+            /** @example false */
+            ausente: boolean;
+            /**
+             * @description Pontos obtidos pelo grupo no desafio; 0 para ausente ou pendente.
+             * @example 100
+             */
+            pontos: number;
+        };
+        /**
+         * @description Resultado persistido retornado pelo PUT; não representa uma linha pendente.
+         *     O id é obrigatório e não anulável (nullable: false), inclusive para grupo ausente.
+         *     A colocacao continua anulável para representar ausência, que vale zero ponto.
+         */
+        ResultadoDesafioSalvoDto: {
+            /**
+             * @description Identificador persistido e preservado em correções.
+             * @example 11
+             */
+            id: number;
+            /** @example 1 */
+            grupoId: number;
+            /** @example 1 */
+            colocacao: number | null;
+            /** @example false */
+            ausente: boolean;
+            /**
+             * @description Pontos da colocação no desafio; zero para ausência.
+             * @example 100
+             */
+            pontos: number;
+        };
+        SalvarResultadoDesafioDto: {
+            /** @example 1 */
+            grupoId: number;
+            /**
+             * @description null apenas quando ausente = true; inteiro positivo (1..P) quando presente.
+             * @example 1
+             */
+            colocacao: number | null;
+            /** @example false */
+            ausente: boolean;
+        };
+        RegistroAuditoriaDto: {
+            /**
+             * Format: date-time
+             * @example 2026-11-23T14:38:00Z
+             */
+            dataHora: string;
+            /** @example Administrador Arena */
+            usuario: string;
+            /**
+             * @example UPDATE
+             * @enum {string}
+             */
+            operacao: "INSERT" | "UPDATE" | "DELETE" | "RECALCULO";
+            /** @example colocacao=2 */
+            valorAnterior: string | null;
+            /** @example colocacao=1 */
+            valorNovo: string | null;
+        };
+        ItemBonificacaoLancamentoDto: {
+            /** @example 1 */
+            itemBonificacaoId: number;
+            /** @example 10 */
+            valor: number;
+        };
+        BonificacaoGrupoResumoDto: {
+            /** @example 1 */
+            grupoId: number;
+            itens: components["schemas"]["ItemBonificacaoLancamentoDto"][];
+            /** @example 18 */
+            total: number;
+        };
+        PenalidadeDto: {
+            /** @example 1 */
+            id: number;
+            /** @example 2 */
+            grupoId: number;
+            /** @example 20 */
+            pontos: number;
+            /**
+             * @description Opcional no lançamento; `null` quando não informada.
+             * @example Atraso na entrega
+             */
+            descricao: string | null;
+            /** @example Entregou o projeto 15 minutos depois do prazo */
+            justificativa: string;
+        };
+        CriarPenalidadeDto: {
+            /** @example 2 */
+            grupoId: number;
+            /** @example 20 */
+            pontos: number;
+            /** @example Atraso na entrega */
+            descricao?: string;
+            /** @example Entregou o projeto 15 minutos depois do prazo */
+            justificativa: string;
+        };
+        AtualizarPenalidadeDto: {
+            /** @example 2 */
+            grupoId?: number;
+            /** @example 15 */
+            pontos?: number;
+            /** @example Atraso na entrega */
+            descricao?: string;
+            /** @example Entregou o projeto 15 minutos depois do prazo */
+            justificativa?: string;
+        };
+        LinhaClassificacaoGrupoDto: {
+            /** @example 1 */
+            posicao: number;
+            /** @example 1 */
+            grupoId: number;
+            /** @example Alfa */
+            grupo: string;
+            /** @example #FF5733 */
+            cor: string;
+            /** @example 260 */
+            pontosDesafios: number;
+            /** @example 18 */
+            bonificacao: number;
+            /** @example 0 */
+            penalidade: number;
+            /** @example 278 */
+            total: number;
+            /** @example false */
+            empatado: boolean;
+        };
+        ResumoClassificacaoDto: {
+            /** @example 4 */
+            desafiosLancados: number;
+            /** @example 4 */
+            desafiosTotais: number;
+            /**
+             * @description Grupos de IDs empatados que não foram separados pelos critérios automáticos nem por decisão manual vigente.
+             * @example [
+             *       [
+             *         2,
+             *         3
+             *       ],
+             *       [
+             *         5,
+             *         6
+             *       ]
+             *     ]
+             */
+            empatesPendentes: number[][];
+        };
+        ClassificacaoEnvelopeDto: {
+            dados: components["schemas"]["LinhaClassificacaoGrupoDto"][];
+            resumo: components["schemas"]["ResumoClassificacaoDto"];
+        };
+        PosicaoDesempateItemDto: {
+            /** @example 2 */
+            grupoId: number;
+            /** @example 1 */
+            posicao: number;
+        };
+        RegistrarDesempateDto: {
+            posicoes: components["schemas"]["PosicaoDesempateItemDto"][];
+            /** @example Sorteio na frente das equipes */
+            justificativa: string;
+        };
+        DesempateRegistradoDto: {
+            posicoes: components["schemas"]["PosicaoDesempateItemDto"][];
+            /** @example Sorteio na frente das equipes */
+            justificativa: string;
+            /** @example Administrador Arena */
+            responsavel: string;
+            /**
+             * Format: date-time
+             * @example 2026-11-24T20:10:00Z
+             */
+            dataHora: string;
+        };
+        LinhaApuracaoParticipanteDto: {
+            /** @example 1 */
+            participanteId: number;
+            /** @example 2026-101 */
+            matricula: string;
+            /** @example Lucas Vitorino */
+            nome: string;
+            /** @example ES 2026.2 */
+            turma: string;
+            /** @example Alfa */
+            grupo: string;
+            /** @example 1 */
+            colocacaoGrupo: number;
+            /** @example 1 */
+            pontoExtraGrupo: number;
+            /** @example 2 */
+            diasPresentes: number;
+            /** @example 2 */
+            diasTotais: number;
+            /** @example 1 */
+            fator: number;
+            /** @example 1 */
+            pontoExtra: number;
+        };
+        ResumoApuracaoDto: {
+            /** @example 72 */
+            totalParticipantes: number;
+            /** @example 0.924 */
+            assiduidade: number;
+            /** @example 68 */
+            aptos: number;
+        };
+        ApuracaoEnvelopeDto: {
+            dados: components["schemas"]["LinhaApuracaoParticipanteDto"][];
+            paginacao: components["schemas"]["PaginacaoMetaDto"];
+            resumo: components["schemas"]["ResumoApuracaoDto"];
+        };
+        /**
+         * @description Formatos suportados para exportação de relatórios.
+         * @example PDF
+         * @enum {string}
+         */
+        FormatoRelatorio: "PDF" | "XLSX";
+        PresencaDiaRelatorioDto: {
+            /** @example 1 */
+            numeroDia: number;
+            /** @example true */
+            presente: boolean;
+        };
+        ParticipantePreviaRelatorioDto: {
+            /** @example 2026-101 */
+            matricula: string;
+            /** @example Lucas Vitorino */
+            nome: string;
+            /** @example Alfa */
+            grupo: string;
+            presencas: components["schemas"]["PresencaDiaRelatorioDto"][];
+            /** @example 1 */
+            pontoExtra: number;
+        };
+        TurmaPreviaRelatorioDto: {
+            /** @example ES 2026.2 */
+            turma: string;
+            /** @example 2 */
+            totalParticipantes: number;
+            participantes: components["schemas"]["ParticipantePreviaRelatorioDto"][];
+        };
+        TurmaRelatorioFinalDto: {
+            /** @example ES 2026.2 */
+            turma: string;
+            /** @example 2 */
+            totalParticipantes: number;
+            participantes: components["schemas"]["ParticipanteRelatorioFinalDto"][];
+        };
+        ParticipanteRelatorioFinalDto: {
+            /** @example 2026-101 */
+            matricula: string;
+            /** @example Lucas Vitorino */
+            nome: string;
+            /** @example Alfa */
+            grupo: string;
+            presencas: components["schemas"]["PresencaRelatorioFinalDto"][];
+            /**
+             * Format: double
+             * @example 0.8
+             */
+            pontoExtra: number;
+            /** @example ES 2026.2 */
+            turma: string;
+        };
+        PresencaRelatorioFinalDto: {
+            /** @example 1 */
+            numeroDia: number;
+            /** @example false */
+            presente: boolean;
+        };
         PaginacaoMetaDto: {
             /**
              * @description Página atual consultada (1-indexed).
@@ -609,16 +1968,15 @@ export interface components {
             resumo?: Record<string, never>;
         };
         /**
-         * @description Critérios de desempate homologados na regra de negócio da competição (RF13):
+         * @description Critérios de desempate homologados na regra de negócio da competição (RF13 / ADR 0003 / V12):
          *     - `MAIOR_PONTUACAO_DESAFIO`: Maior pontuação em um desafio específico (requer parâmetro `desafioId`).
          *     - `MAIOR_SOMA_DESAFIOS`: Maior pontuação agregada considerando apenas os desafios realizados.
          *     - `MAIOR_BONIFICACAO`: Maior pontuação obtida por itens de bonificação.
          *     - `MENOR_PENALIDADE`: Menor dedução acumulada por penalidades disciplinares.
-         *     - `MAIOR_PRESENCA`: Maior índice/quantidade percentual de presença dos membros do grupo.
          * @example MAIOR_PONTUACAO_DESAFIO
          * @enum {string}
          */
-        TipoCriterioDesempate: "MAIOR_PONTUACAO_DESAFIO" | "MAIOR_SOMA_DESAFIOS" | "MAIOR_BONIFICACAO" | "MENOR_PENALIDADE" | "MAIOR_PRESENCA";
+        TipoCriterioDesempate: "MAIOR_PONTUACAO_DESAFIO" | "MAIOR_SOMA_DESAFIOS" | "MAIOR_BONIFICACAO" | "MENOR_PENALIDADE";
         ErroPadraoDto: {
             /**
              * @description Código de status HTTP correspondente.
@@ -658,23 +2016,13 @@ export interface components {
         };
     };
     responses: {
-        /** @description Erro de validação de sintaxe ou de campos do payload disparado pelo ValidationPipe. */
+        /** @description Requisição inválida. A validação de campos do payload (ValidationPipe) devolve `message` como lista; JSON malformado, parâmetros de rota inválidos e validações feitas nos serviços devolvem `message` como texto. */
         RequisicaoInvalida: {
             headers: {
                 [name: string]: unknown;
             };
             content: {
-                /**
-                 * @example {
-                 *       "statusCode": 400,
-                 *       "message": [
-                 *         "email deve ser um endereço de e-mail válido",
-                 *         "senha deve ter pelo menos 6 caracteres"
-                 *       ],
-                 *       "error": "Bad Request"
-                 *     }
-                 */
-                "application/json": components["schemas"]["ErroValidacaoDto"];
+                "application/json": components["schemas"]["ErroValidacaoDto"] | components["schemas"]["ErroPadraoDto"];
             };
         };
         /** @description Token JWT ausente, expirado ou inválido. */
@@ -709,7 +2057,7 @@ export interface components {
                 "application/json": components["schemas"]["ErroPadraoDto"];
             };
         };
-        /** @description Conflito de estado ou violação de unicidade de dados. */
+        /** @description Conflito de estado ou violação de unicidade. Nas rotas do relatório final, o campo message distingue empate pendente, ausência de desafios, ausência de grupos e resultados pendentes. */
         Conflito: {
             headers: {
                 [name: string]: unknown;
@@ -741,6 +2089,87 @@ export interface components {
                 "application/json": components["schemas"]["ErroPadraoDto"];
             };
         };
+        /** @description Dados do desafio com a tabela de pontos. */
+        DesafioRetornado: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["DesafioDto"];
+            };
+        };
+        /**
+         * @description Nome duplicado no mesmo dia e evento; dependência impeditiva de
+         *     exclusão ou alteração estrutural conforme o contrato de desafios (#245).
+         *     No PATCH após resultados, a alteração estrutural exige mudança efetiva
+         *     do dia ou dos pares colocacao/pontos; reenvio de valores iguais é permitido.
+         */
+        ConflitoDesafio: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "statusCode": 409,
+                 *       "message": "O desafio está vinculado a um critério de desempate.",
+                 *       "error": "Conflict"
+                 *     }
+                 */
+                "application/json": components["schemas"]["ErroPadraoDto"];
+            };
+        };
+        /**
+         * @description Evento sem grupos, tabela com número de linhas diferente de N
+         *     ou colocações repetidas/com lacunas. N é o total de grupos do evento.
+         */
+        TabelaInvalida: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "statusCode": 422,
+                 *       "message": "A tabela de pontos precisa ter uma linha por grupo (6).",
+                 *       "error": "Unprocessable Entity"
+                 *     }
+                 */
+                "application/json": components["schemas"]["ErroPadraoDto"];
+            };
+        };
+        /** @description Arquivo binário do relatório final agrupado por turma com cabeçalho Content-Disposition. */
+        ArquivoRelatorioFinal: {
+            headers: {
+                /**
+                 * @description Instrução de download com o nome sugerido para o arquivo.
+                 * @example attachment; filename="relatorio-final-arena-final.pdf"; filename*=UTF-8'relatorio-final-arena-final.pdf
+                 */
+                "Content-Disposition"?: string;
+                [name: string]: unknown;
+            };
+            content: {
+                /** @example %PDF-1.4 relatório final do evento */
+                "application/pdf": string;
+                /** @example planilha binária .xlsx do relatório final */
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+            };
+        };
+        /** @description Arquivo binário do relatório gerado com cabeçalho Content-Disposition. */
+        ArquivoRelatorio: {
+            headers: {
+                /**
+                 * @description Instrução de download com o nome sugerido para o arquivo.
+                 * @example attachment; filename="relatorio-parcial-arena-comp-2026.pdf"; filename*=UTF-8'relatorio-parcial-arena-comp-2026.pdf
+                 */
+                "Content-Disposition"?: string;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/pdf": string;
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+            };
+        };
     };
     parameters: {
         /**
@@ -758,6 +2187,36 @@ export interface components {
          * @example 1
          */
         GrupoIdParam: number;
+        /**
+         * @description Identificador numérico único do desafio.
+         * @example 3
+         */
+        DesafioIdParam: number;
+        /**
+         * @description Identificador numérico único do participante.
+         * @example 1
+         */
+        ParticipanteIdParam: number;
+        /**
+         * @description Identificador numérico único da penalidade.
+         * @example 1
+         */
+        PenalidadeIdParam: number;
+        /**
+         * @description Formato do arquivo de relatório a ser gerado (PDF ou XLSX).
+         * @example PDF
+         */
+        FormatoRelatorioParam: components["schemas"]["FormatoRelatorio"];
+        /**
+         * @description Página consultada (1-indexed).
+         * @example 1
+         */
+        PaginaQueryParam: number;
+        /**
+         * @description Quantidade de itens por página (máximo 100).
+         * @example 20
+         */
+        TamanhoQueryParam: number;
     };
     requestBodies: never;
     headers: never;
@@ -938,6 +2397,22 @@ export interface operations {
             };
             400: components["responses"]["RequisicaoInvalida"];
             401: components["responses"]["NaoAutorizado"];
+            /** @description Conflito: já existe um evento com o mesmo nome e ano (`uq_evento_nome_ano`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "statusCode": 409,
+                     *       "message": "Já existe um registro com os dados informados",
+                     *       "error": "Conflict"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErroPadraoDto"];
+                };
+            };
             /** @description Violação de regra de negócio (ex.: data de término anterior à data de início ou quantidadeDias superior ao período do evento). */
             422: {
                 headers: {
@@ -1093,6 +2568,22 @@ export interface operations {
             400: components["responses"]["RequisicaoInvalida"];
             401: components["responses"]["NaoAutorizado"];
             404: components["responses"]["NaoEncontrado"];
+            /** @description Conflito: já existe outro evento com o mesmo nome e ano (`uq_evento_nome_ano`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "statusCode": 409,
+                     *       "message": "Já existe um registro com os dados informados",
+                     *       "error": "Conflict"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErroPadraoDto"];
+                };
+            };
             /** @description Violação de regra de negócio (ex.: período ou quantidadeDias incompatível com o intervalo de datas ou com dias já cadastrados). */
             422: {
                 headers: {
@@ -1252,7 +2743,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "statusCode": 409,
-                     *       "message": "O número de dia 1 já está cadastrado para este evento",
+                     *       "message": "Já existe um dia com esse número neste evento.",
                      *       "error": "Conflict"
                      *     }
                      */
@@ -1268,7 +2759,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "statusCode": 422,
-                     *       "message": "A data informada (2026-11-25) está fora do período do evento (2026-11-20 a 2026-11-22)",
+                     *       "message": "O número do dia não pode exceder a quantidade de dias do evento.",
                      *       "error": "Unprocessable Entity"
                      *     }
                      */
@@ -1318,6 +2809,22 @@ export interface operations {
                      *       "statusCode": 409,
                      *       "message": "Não é possível excluir o dia pois já existem registros de presença ou desafios vinculados",
                      *       "error": "Conflict"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErroPadraoDto"];
+                };
+            };
+            /** @description Serviço indisponível: ocorre quando a verificação de dependências (presenças/desafios) está indisponível. Este status não representa um conflito de dependência existente (que continua retornando 409 Conflict). */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "statusCode": 503,
+                     *       "message": "Não foi possível verificar as dependências do dia. Tente novamente mais tarde.",
+                     *       "error": "Service Unavailable"
                      *     }
                      */
                     "application/json": components["schemas"]["ErroPadraoDto"];
@@ -1373,7 +2880,7 @@ export interface operations {
             400: components["responses"]["RequisicaoInvalida"];
             401: components["responses"]["NaoAutorizado"];
             404: components["responses"]["NaoEncontrado"];
-            /** @description Conflito: número de dia já utilizado por outro dia deste evento. */
+            /** @description Conflito: número do dia ou data já utilizados por outro dia deste evento. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -1382,7 +2889,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "statusCode": 409,
-                     *       "message": "Já existe outro dia cadastrado com o número 2 neste evento",
+                     *       "message": "Já existe um dia com esse número neste evento.",
                      *       "error": "Conflict"
                      *     }
                      */
@@ -1398,7 +2905,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "statusCode": 422,
-                     *       "message": "A data informada (2026-11-25) está fora do período do evento (2026-11-20 a 2026-11-22)",
+                     *       "message": "O número do dia não pode exceder a quantidade de dias do evento.",
                      *       "error": "Unprocessable Entity"
                      *     }
                      */
@@ -1587,19 +3094,12 @@ export interface operations {
             400: components["responses"]["RequisicaoInvalida"];
             401: components["responses"]["NaoAutorizado"];
             404: components["responses"]["NaoEncontrado"];
-            /** @description Conflito: evento já possui resultados lançados (RF03) ou grupo possui participantes vinculados. */
+            /** @description Conflito: os grupos não podem mais ser alterados porque já há resultado lançado (RF03) ou o grupo possui participantes vinculados (ADR 0003). */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    /**
-                     * @example {
-                     *       "statusCode": 409,
-                     *       "message": "Não é permitido excluir grupos de um evento que já possui resultados lançados (RF03)",
-                     *       "error": "Conflict"
-                     *     }
-                     */
                     "application/json": components["schemas"]["ErroPadraoDto"];
                 };
             };
@@ -1655,7 +3155,7 @@ export interface operations {
             400: components["responses"]["RequisicaoInvalida"];
             401: components["responses"]["NaoAutorizado"];
             404: components["responses"]["NaoEncontrado"];
-            /** @description Conflito: evento já possui resultados lançados (bloqueio por RF03) ou nome duplicado. */
+            /** @description Conflito: os grupos não podem mais ser alterados porque já há resultado lançado (bloqueio por RF03) ou nome/cor duplicados. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -1664,13 +3164,1082 @@ export interface operations {
                     /**
                      * @example {
                      *       "statusCode": 409,
-                     *       "message": "Não é permitido alterar grupos de um evento que já possui resultados lançados (RF03)",
+                     *       "message": "os grupos não podem mais ser alterados porque já há resultado lançado",
                      *       "error": "Conflict"
                      *     }
                      */
                     "application/json": components["schemas"]["ErroPadraoDto"];
                 };
             };
+        };
+    };
+    obterConfiguracaoEvento: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Configuração do evento retornada com sucesso. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfiguracaoEventoDto"];
+                };
+            };
+            400: components["responses"]["RequisicaoInvalida"];
+            401: components["responses"]["NaoAutorizado"];
+            404: components["responses"]["NaoEncontrado"];
+        };
+    };
+    salvarConfiguracaoEvento: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfiguracaoEventoDto"];
+            };
+        };
+        responses: {
+            /** @description Configuração salva com sucesso. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfiguracaoEventoDto"];
+                };
+            };
+            400: components["responses"]["RequisicaoInvalida"];
+            401: components["responses"]["NaoAutorizado"];
+            404: components["responses"]["NaoEncontrado"];
+            409: components["responses"]["Conflito"];
+            /** @description Violação de regra de negócio (ex.: penalidade mínima maior que a máxima, penalidade já lançada fora da nova faixa ou diasPresentes acima da quantidade de dias do evento). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "statusCode": 422,
+                     *       "message": "A penalidade mínima não pode ser maior que a máxima.",
+                     *       "error": "Unprocessable Entity"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErroPadraoDto"];
+                };
+            };
+        };
+    };
+    listarParticipantesEvento: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Página consultada (1-indexed).
+                 * @example 1
+                 */
+                pagina?: components["parameters"]["PaginaQueryParam"];
+                /**
+                 * @description Quantidade de itens por página (máximo 100).
+                 * @example 20
+                 */
+                tamanho?: components["parameters"]["TamanhoQueryParam"];
+                /**
+                 * @description Filtra participantes pelo identificador do grupo.
+                 * @example 1
+                 */
+                grupoId?: number;
+                /**
+                 * @description Filtra participantes pela turma.
+                 * @example ES 2026.2
+                 */
+                turma?: string;
+                /**
+                 * @description Busca parcial case-insensitive por nome ou matrícula.
+                 * @example Lucas
+                 */
+                busca?: string;
+            };
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Lista paginada de participantes com resumo totalizador. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ParticipantesListagemDto"];
+                };
+            };
+            400: components["responses"]["RequisicaoInvalida"];
+            401: components["responses"]["NaoAutorizado"];
+            404: components["responses"]["NaoEncontrado"];
+        };
+    };
+    previsualizarImportacaoParticipantes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["UploadArquivoPlanilhaDto"];
+            };
+        };
+        responses: {
+            /** @description Prévia da importação processada com sucesso. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportacaoPrevistaDto"];
+                };
+            };
+            /** @description Arquivo ausente, malformado ou acima do limite de 5 MB. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "statusCode": 400,
+                     *       "message": "O arquivo excede o limite de 5 MB",
+                     *       "error": "Bad Request"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErroPadraoDto"];
+                };
+            };
+            401: components["responses"]["NaoAutorizado"];
+            404: components["responses"]["NaoEncontrado"];
+        };
+    };
+    confirmarImportacaoParticipantes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["UploadArquivoPlanilhaDto"];
+            };
+        };
+        responses: {
+            /** @description Participantes importados com sucesso. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportacaoConfirmadaDto"];
+                };
+            };
+            /** @description Arquivo ausente, malformado ou acima do limite de 5 MB. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "statusCode": 400,
+                     *       "message": "O arquivo excede o limite de 5 MB",
+                     *       "error": "Bad Request"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErroPadraoDto"];
+                };
+            };
+            401: components["responses"]["NaoAutorizado"];
+            404: components["responses"]["NaoEncontrado"];
+            /** @description A planilha contém linhas com erro; nenhum participante foi persistido. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportacaoErro422Dto"];
+                };
+            };
+        };
+    };
+    listarPresencasDia: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Filtra a grade de presença pelo grupo.
+                 * @example 1
+                 */
+                grupoId?: number;
+                /**
+                 * @description Filtra participantes por nome ou matrícula.
+                 * @example Sofia
+                 */
+                busca?: string;
+            };
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+                /**
+                 * @description Identificador numérico único do dia do evento.
+                 * @example 1
+                 */
+                diaId: components["parameters"]["DiaIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Grade de presença do dia retornada com sucesso. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresencaGradeDto"];
+                };
+            };
+            400: components["responses"]["RequisicaoInvalida"];
+            401: components["responses"]["NaoAutorizado"];
+            404: components["responses"]["NaoEncontrado"];
+        };
+    };
+    registrarPresencaParticipante: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+                /**
+                 * @description Identificador numérico único do dia do evento.
+                 * @example 1
+                 */
+                diaId: components["parameters"]["DiaIdParam"];
+                /**
+                 * @description Identificador numérico único do participante.
+                 * @example 1
+                 */
+                participanteId: components["parameters"]["ParticipanteIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegistrarPresencaDto"];
+            };
+        };
+        responses: {
+            /** @description Presença registrada com sucesso. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresencaRegistradaDto"];
+                };
+            };
+            400: components["responses"]["RequisicaoInvalida"];
+            401: components["responses"]["NaoAutorizado"];
+            404: components["responses"]["NaoEncontrado"];
+        };
+    };
+    listarDesafios: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array de desafios do evento. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DesafioDto"][];
+                };
+            };
+            400: components["responses"]["RequisicaoInvalida"];
+            401: components["responses"]["NaoAutorizado"];
+            404: components["responses"]["NaoEncontrado"];
+        };
+    };
+    criarDesafio: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CriarDesafioDto"];
+            };
+        };
+        responses: {
+            201: components["responses"]["DesafioRetornado"];
+            400: components["responses"]["RequisicaoInvalida"];
+            401: components["responses"]["NaoAutorizado"];
+            404: components["responses"]["NaoEncontrado"];
+            409: components["responses"]["ConflitoDesafio"];
+            422: components["responses"]["TabelaInvalida"];
+        };
+    };
+    obterDesafioPorId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+                /**
+                 * @description Identificador numérico único do desafio.
+                 * @example 3
+                 */
+                desafioId: components["parameters"]["DesafioIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["DesafioRetornado"];
+            400: components["responses"]["RequisicaoInvalida"];
+            401: components["responses"]["NaoAutorizado"];
+            404: components["responses"]["NaoEncontrado"];
+        };
+    };
+    excluirDesafio: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+                /**
+                 * @description Identificador numérico único do desafio.
+                 * @example 3
+                 */
+                desafioId: components["parameters"]["DesafioIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Desafio excluído, sem corpo de resposta. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["RequisicaoInvalida"];
+            401: components["responses"]["NaoAutorizado"];
+            404: components["responses"]["NaoEncontrado"];
+            409: components["responses"]["ConflitoDesafio"];
+        };
+    };
+    atualizarDesafio: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+                /**
+                 * @description Identificador numérico único do desafio.
+                 * @example 3
+                 */
+                desafioId: components["parameters"]["DesafioIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AtualizarDesafioDto"];
+            };
+        };
+        responses: {
+            200: components["responses"]["DesafioRetornado"];
+            400: components["responses"]["RequisicaoInvalida"];
+            401: components["responses"]["NaoAutorizado"];
+            404: components["responses"]["NaoEncontrado"];
+            409: components["responses"]["ConflitoDesafio"];
+            422: components["responses"]["TabelaInvalida"];
+        };
+    };
+    listarResultadosDoDesafio: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+                /**
+                 * @description Identificador numérico único do desafio.
+                 * @example 3
+                 */
+                desafioId: components["parameters"]["DesafioIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array com o resultado ou estado pendente de cada grupo do evento. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResultadoDesafioDto"][];
+                };
+            };
+            400: components["responses"]["RequisicaoInvalida"];
+            401: components["responses"]["NaoAutorizado"];
+            404: components["responses"]["NaoEncontrado"];
+        };
+    };
+    salvarResultadosDoDesafio: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+                /**
+                 * @description Identificador numérico único do desafio.
+                 * @example 3
+                 */
+                desafioId: components["parameters"]["DesafioIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SalvarResultadoDesafioDto"][];
+            };
+        };
+        responses: {
+            /** @description Colocações salvas com sucesso (todos os resultados retornam com id preenchido). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example [
+                     *       {
+                     *         "id": 11,
+                     *         "grupoId": 1,
+                     *         "colocacao": 1,
+                     *         "ausente": false,
+                     *         "pontos": 100
+                     *       },
+                     *       {
+                     *         "id": 12,
+                     *         "grupoId": 2,
+                     *         "colocacao": 2,
+                     *         "ausente": false,
+                     *         "pontos": 80
+                     *       }
+                     *     ]
+                     */
+                    "application/json": components["schemas"]["ResultadoDesafioSalvoDto"][];
+                };
+            };
+            400: components["responses"]["RequisicaoInvalida"];
+            401: components["responses"]["NaoAutorizado"];
+            404: components["responses"]["NaoEncontrado"];
+            /** @description Violação de regra de negócio (ex.: colocação repetida, sequência 1..P com lacunas, omissão/repetição de grupos ou combinação inválida entre ausente e colocacao). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "statusCode": 422,
+                     *       "message": "Dois grupos não podem ter a mesma colocação.",
+                     *       "error": "Unprocessable Entity"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErroPadraoDto"];
+                };
+            };
+        };
+    };
+    listarAuditoria: {
+        parameters: {
+            query: {
+                /**
+                 * @description Nome canônico da entidade auditada (RESULTADO_DESAFIO, BONIFICACAO_GRUPO, PENALIDADE, DESEMPATE_MANUAL ou APURACAO).
+                 * @example RESULTADO_DESAFIO
+                 */
+                entidade: "RESULTADO_DESAFIO" | "BONIFICACAO_GRUPO" | "PENALIDADE" | "DESEMPATE_MANUAL" | "APURACAO";
+                /**
+                 * @description Identificador numérico do registro auditado.
+                 * @example 11
+                 */
+                registroId: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Histórico de alterações do registro. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegistroAuditoriaDto"][];
+                };
+            };
+            400: components["responses"]["RequisicaoInvalida"];
+            401: components["responses"]["NaoAutorizado"];
+        };
+    };
+    listarBonificacoesEvento: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Bonificações por grupo retornadas com sucesso. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BonificacaoGrupoResumoDto"][];
+                };
+            };
+            400: components["responses"]["RequisicaoInvalida"];
+            401: components["responses"]["NaoAutorizado"];
+            404: components["responses"]["NaoEncontrado"];
+        };
+    };
+    salvarBonificacoesGrupo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+                /**
+                 * @description Identificador numérico único do grupo.
+                 * @example 1
+                 */
+                grupoId: components["parameters"]["GrupoIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ItemBonificacaoLancamentoDto"][];
+            };
+        };
+        responses: {
+            /** @description Bonificações do grupo registradas com sucesso. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BonificacaoGrupoResumoDto"];
+                };
+            };
+            400: components["responses"]["RequisicaoInvalida"];
+            401: components["responses"]["NaoAutorizado"];
+            404: components["responses"]["NaoEncontrado"];
+            /** @description Valor de bonificação acima do teto configurado para o item. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "statusCode": 422,
+                     *       "message": "O valor de Uniformização passa do teto de 10.",
+                     *       "error": "Unprocessable Entity"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErroPadraoDto"];
+                };
+            };
+        };
+    };
+    listarPenalidadesEvento: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Lista de penalidades do evento. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PenalidadeDto"][];
+                };
+            };
+            400: components["responses"]["RequisicaoInvalida"];
+            401: components["responses"]["NaoAutorizado"];
+            404: components["responses"]["NaoEncontrado"];
+        };
+    };
+    aplicarPenalidade: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CriarPenalidadeDto"];
+            };
+        };
+        responses: {
+            /** @description Penalidade aplicada com sucesso. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PenalidadeDto"];
+                };
+            };
+            400: components["responses"]["RequisicaoInvalida"];
+            401: components["responses"]["NaoAutorizado"];
+            404: components["responses"]["NaoEncontrado"];
+            /** @description Pontos fora da faixa configurada no evento ou faixa ainda não configurada. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "statusCode": 422,
+                     *       "message": "A penalidade deve estar entre 10 e 50 pontos.",
+                     *       "error": "Unprocessable Entity"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErroPadraoDto"];
+                };
+            };
+        };
+    };
+    removerPenalidade: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+                /**
+                 * @description Identificador numérico único da penalidade.
+                 * @example 1
+                 */
+                penalidadeId: components["parameters"]["PenalidadeIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Penalidade removida com sucesso (sem conteúdo no corpo). */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["RequisicaoInvalida"];
+            401: components["responses"]["NaoAutorizado"];
+            404: components["responses"]["NaoEncontrado"];
+        };
+    };
+    atualizarPenalidade: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+                /**
+                 * @description Identificador numérico único da penalidade.
+                 * @example 1
+                 */
+                penalidadeId: components["parameters"]["PenalidadeIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AtualizarPenalidadeDto"];
+            };
+        };
+        responses: {
+            /** @description Penalidade atualizada com sucesso. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PenalidadeDto"];
+                };
+            };
+            400: components["responses"]["RequisicaoInvalida"];
+            401: components["responses"]["NaoAutorizado"];
+            404: components["responses"]["NaoEncontrado"];
+            422: components["responses"]["RegraDeNegocio"];
+        };
+    };
+    consultarClassificacaoGrupos: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Classificação calculada com sucesso. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClassificacaoEnvelopeDto"];
+                };
+            };
+            400: components["responses"]["RequisicaoInvalida"];
+            401: components["responses"]["NaoAutorizado"];
+            404: components["responses"]["NaoEncontrado"];
+        };
+    };
+    registrarDesempateManual: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegistrarDesempateDto"];
+            };
+        };
+        responses: {
+            /** @description Desempate manual registrado com sucesso. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DesempateRegistradoDto"];
+                };
+            };
+            400: components["responses"]["RequisicaoInvalida"];
+            401: components["responses"]["NaoAutorizado"];
+            404: components["responses"]["NaoEncontrado"];
+            422: components["responses"]["RegraDeNegocio"];
+        };
+    };
+    consultarApuracaoIndividual: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Página consultada (1-indexed).
+                 * @example 1
+                 */
+                pagina?: components["parameters"]["PaginaQueryParam"];
+                /**
+                 * @description Quantidade de itens por página (máximo 100).
+                 * @example 20
+                 */
+                tamanho?: components["parameters"]["TamanhoQueryParam"];
+                /**
+                 * @description Filtra a apuração pelo grupo.
+                 * @example 1
+                 */
+                grupoId?: number;
+                /**
+                 * @description Filtra a apuração pela turma.
+                 * @example ES 2026.2
+                 */
+                turma?: string;
+                /**
+                 * @description Busca parcial por nome ou matrícula do participante.
+                 * @example Lucas
+                 */
+                busca?: string;
+            };
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Apuração individual paginada com resumo de assiduidade e aptos. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApuracaoEnvelopeDto"];
+                };
+            };
+            400: components["responses"]["RequisicaoInvalida"];
+            401: components["responses"]["NaoAutorizado"];
+            404: components["responses"]["NaoEncontrado"];
+            /** @description Classificação possui empate pendente; é necessário registrar o desempate antes da apuração. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "statusCode": 409,
+                     *       "message": "A classificação tem empate pendente; registre o desempate antes da apuração.",
+                     *       "error": "Conflict"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErroPadraoDto"];
+                };
+            };
+        };
+    };
+    exportarRelatorioParcial: {
+        parameters: {
+            query: {
+                /**
+                 * @description Formato do arquivo de relatório a ser gerado (PDF ou XLSX).
+                 * @example PDF
+                 */
+                formato: components["parameters"]["FormatoRelatorioParam"];
+            };
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["ArquivoRelatorio"];
+            400: components["responses"]["RequisicaoInvalida"];
+            401: components["responses"]["NaoAutorizado"];
+            404: components["responses"]["NaoEncontrado"];
+        };
+    };
+    consultarPreviaRelatorioFinal: {
+        parameters: {
+            query?: {
+                /** @description Busca por nome, matrícula ou turma. */
+                busca?: string;
+            };
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Prévia do relatório final. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TurmaRelatorioFinalDto"][];
+                };
+            };
+            400: components["responses"]["RequisicaoInvalida"];
+            401: components["responses"]["NaoAutorizado"];
+            404: components["responses"]["NaoEncontrado"];
+            /** @description Evento sem grupos, sem desafios, com resultados pendentes ou empate pendente. */
+            409: components["responses"]["Conflito"];
+        };
+    };
+    exportarRelatorioFinal: {
+        parameters: {
+            query: {
+                /**
+                 * @description Formato do arquivo de relatório a ser gerado (PDF ou XLSX).
+                 * @example PDF
+                 */
+                formato: components["parameters"]["FormatoRelatorioParam"];
+            };
+            header?: never;
+            path: {
+                /**
+                 * @description Identificador numérico único do evento.
+                 * @example 1
+                 */
+                eventoId: components["parameters"]["EventoIdParam"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["ArquivoRelatorioFinal"];
+            400: components["responses"]["RequisicaoInvalida"];
+            401: components["responses"]["NaoAutorizado"];
+            404: components["responses"]["NaoEncontrado"];
+            /** @description Evento sem grupos, sem desafios, com resultados pendentes ou empate pendente. */
+            409: components["responses"]["Conflito"];
         };
     };
 }

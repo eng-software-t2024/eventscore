@@ -17,6 +17,7 @@ import {
   ApiQuery,
   ApiTags,
   ApiUnauthorizedResponse,
+  getSchemaPath,
 } from '@nestjs/swagger';
 import { ErroPadraoDto } from '../../common/dto/erro-padrao.dto.js';
 import { ErroValidacaoDto } from '../../common/dto/erro-validacao.dto.js';
@@ -42,7 +43,15 @@ export class FrequenciaController {
   @ApiQuery({ name: 'grupoId', required: false, type: 'integer' })
   @ApiQuery({ name: 'busca', required: false, type: String })
   @ApiOkResponse({ type: PresencaGradeDto })
-  @ApiBadRequestResponse({ type: ErroValidacaoDto })
+  @ApiBadRequestResponse({
+    description: 'Identificador ou filtro da consulta inválidos.',
+    schema: {
+      oneOf: [
+        { $ref: getSchemaPath(ErroValidacaoDto) },
+        { $ref: getSchemaPath(ErroPadraoDto) },
+      ],
+    },
+  })
   @ApiNotFoundResponse({ type: ErroPadraoDto })
   listar(
     @Param('eventoId', ParseIntPipe) eventoId: number,
@@ -57,7 +66,15 @@ export class FrequenciaController {
     summary: 'Registrar ou atualizar presença de um participante no dia',
   })
   @ApiOkResponse({ schema: { example: { participanteId: 3, presente: true } } })
-  @ApiBadRequestResponse({ type: ErroValidacaoDto })
+  @ApiBadRequestResponse({
+    description: 'Identificador ou corpo da presença inválidos.',
+    schema: {
+      oneOf: [
+        { $ref: getSchemaPath(ErroValidacaoDto) },
+        { $ref: getSchemaPath(ErroPadraoDto) },
+      ],
+    },
+  })
   @ApiNotFoundResponse({ type: ErroPadraoDto })
   registrar(
     @Param('eventoId', ParseIntPipe) eventoId: number,

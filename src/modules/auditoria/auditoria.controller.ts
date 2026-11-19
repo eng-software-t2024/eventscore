@@ -6,6 +6,7 @@ import {
   ApiOperation,
   ApiTags,
   ApiUnauthorizedResponse,
+  getSchemaPath,
 } from '@nestjs/swagger';
 import { ErroPadraoDto } from '../../common/dto/erro-padrao.dto.js';
 import { ErroValidacaoDto } from '../../common/dto/erro-validacao.dto.js';
@@ -35,7 +36,12 @@ export class AuditoriaController {
   })
   @ApiBadRequestResponse({
     description: 'Entidade ou identificador do registro inválidos.',
-    type: ErroValidacaoDto,
+    schema: {
+      oneOf: [
+        { $ref: getSchemaPath(ErroValidacaoDto) },
+        { $ref: getSchemaPath(ErroPadraoDto) },
+      ],
+    },
   })
   list(@Query() query: ListarAuditoriaQueryDto): Promise<AuditoriaItemDto[]> {
     return this.audit.list(query.entidade, query.registroId);
