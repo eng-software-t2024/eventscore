@@ -192,6 +192,16 @@ paths:
           $ref: '#/components/responses/RequisicaoInvalida'
         '401':
           $ref: '#/components/responses/NaoAutorizado'
+        '409':
+          description: "Conflito: já existe um evento com o mesmo nome e ano (`uq_evento_nome_ano`)."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErroPadraoDto'
+              example:
+                statusCode: 409
+                message: "Já existe um registro com os dados informados"
+                error: "Conflict"
         '422':
           description: "Violação de regra de negócio (ex.: data de término anterior à data de início ou quantidadeDias superior ao período do evento)."
           content:
@@ -305,6 +315,16 @@ paths:
           $ref: '#/components/responses/NaoAutorizado'
         '404':
           $ref: '#/components/responses/NaoEncontrado'
+        '409':
+          description: "Conflito: já existe outro evento com o mesmo nome e ano (`uq_evento_nome_ano`)."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErroPadraoDto'
+              example:
+                statusCode: 409
+                message: "Já existe um registro com os dados informados"
+                error: "Conflict"
         '422':
           description: "Violação de regra de negócio (ex.: período ou quantidadeDias incompatível com o intervalo de datas ou com dias já cadastrados)."
           content:
@@ -470,7 +490,7 @@ paths:
         '404':
           $ref: '#/components/responses/NaoEncontrado'
         '409':
-          description: "Conflito: número de dia já utilizado por outro dia deste evento."
+          description: "Conflito: número do dia ou data já utilizados por outro dia deste evento."
           content:
             application/json:
               schema:
@@ -1252,7 +1272,7 @@ paths:
         - Auditoria
       summary: "Consultar histórico de alterações de um registro (RF18)"
       description: "Lista em ordem cronológica as alterações auditadas para uma entidade e chave primária específicas (`entidade` + `registroId`)."
-      operationId: "listarHistoricoAuditoria"
+      operationId: "listarAuditoria"
       parameters:
         - name: entidade
           in: query
@@ -1274,6 +1294,7 @@ paths:
           schema:
             type: integer
             minimum: 1
+            maximum: 2147483647
           example: 11
       responses:
         '200':
@@ -2404,7 +2425,8 @@ components:
         pontoExtra:
           type: number
           minimum: 0
-          description: "Ponto extra base atribuído à colocação do grupo."
+          maximum: 1
+          description: "Ponto extra base atribuído à colocação do grupo (0 a 1, uma casa decimal — `NUMERIC(5,1)`)."
           example: 1.0
 
     ItemBonificacaoConfigDto:
@@ -2426,7 +2448,7 @@ components:
           example: "Uniformização"
         teto:
           type: integer
-          minimum: 1
+          minimum: 0
           description: "Pontuação máxima permitida para este item."
           example: 10
 
@@ -2494,13 +2516,15 @@ components:
             $ref: '#/components/schemas/ItemBonificacaoConfigDto'
         penalidadeMin:
           type: integer
+          nullable: true
           minimum: 0
-          description: "Valor mínimo permitido para aplicação de uma penalidade."
+          description: "Valor mínimo permitido para aplicação de uma penalidade. `null` enquanto a faixa não estiver configurada; deve ser nulo ou preenchido junto com `penalidadeMax` (ADR 0003, item 7)."
           example: 10
         penalidadeMax:
           type: integer
+          nullable: true
           minimum: 0
-          description: "Valor máximo permitido para aplicação de uma penalidade."
+          description: "Valor máximo permitido para aplicação de uma penalidade. `null` enquanto a faixa não estiver configurada; deve ser nulo ou preenchido junto com `penalidadeMin` (ADR 0003, item 7)."
           example: 50
         fatoresPresenca:
           type: array
@@ -3062,6 +3086,8 @@ components:
           example: 20
         descricao:
           type: string
+          nullable: true
+          description: "Opcional no lançamento; `null` quando não informada."
           example: "Atraso na entrega"
         justificativa:
           type: string
@@ -3080,7 +3106,7 @@ components:
           example: 2
         pontos:
           type: integer
-          minimum: 0
+          minimum: 1
           example: 20
         descricao:
           type: string
@@ -3101,7 +3127,7 @@ components:
           example: 2
         pontos:
           type: integer
-          minimum: 0
+          minimum: 1
           example: 15
         descricao:
           type: string
