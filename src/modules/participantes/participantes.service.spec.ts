@@ -3,7 +3,7 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { Workbook } from 'exceljs';
+import ExcelJS from 'exceljs';
 import { ParticipantesService } from './participantes.service.js';
 
 const EVENT_ID = 1;
@@ -199,7 +199,7 @@ describe('ParticipantesService', () => {
     prisma.grupo.findMany.mockResolvedValue([{ id: 1, nome: 'Alfa' }]);
     prisma.participante.findMany.mockResolvedValue([]);
 
-    const workbook = new Workbook();
+    const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Participantes');
     worksheet.addRow(['nome', 'matricula', 'turma', 'grupo']);
     worksheet.addRow(['João', 2023001, 'A1', 'Alfa']);
