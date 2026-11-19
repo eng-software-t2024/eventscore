@@ -80,7 +80,12 @@ export class RelatoriosController {
   })
   @ApiBadRequestResponse({
     description: 'Parâmetro de rota ou formato de exportação inválido.',
-    type: ErroValidacaoDto,
+    schema: {
+      oneOf: [
+        { $ref: getSchemaPath(ErroValidacaoDto) },
+        { $ref: getSchemaPath(ErroPadraoDto) },
+      ],
+    },
   })
   @ApiUnauthorizedResponse({
     description: 'Token JWT ausente ou inválido.',
@@ -122,7 +127,14 @@ export class RelatoriosController {
       },
     },
   })
-  @ApiBadRequestResponse({ type: ErroValidacaoDto })
+  @ApiBadRequestResponse({
+    schema: {
+      oneOf: [
+        { $ref: getSchemaPath(ErroValidacaoDto) },
+        { $ref: getSchemaPath(ErroPadraoDto) },
+      ],
+    },
+  })
   @ApiUnauthorizedResponse({ type: ErroPadraoDto })
   @ApiNotFoundResponse({ type: ErroPadraoDto })
   @ApiConflictResponse({
@@ -164,7 +176,14 @@ export class RelatoriosController {
       },
     },
   })
-  @ApiBadRequestResponse({ type: ErroValidacaoDto })
+  @ApiBadRequestResponse({
+    schema: {
+      oneOf: [
+        { $ref: getSchemaPath(ErroValidacaoDto) },
+        { $ref: getSchemaPath(ErroPadraoDto) },
+      ],
+    },
+  })
   @ApiUnauthorizedResponse({ type: ErroPadraoDto })
   @ApiNotFoundResponse({ type: ErroPadraoDto })
   @ApiConflictResponse({
