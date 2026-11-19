@@ -122,6 +122,10 @@ await this.prisma.$transaction(async (tx) => {
 });
 ```
 
+O histórico gravado é consultado em
+`GET /api/v1/auditoria?entidade=<ENTIDADE>&registroId=<id>`, usado pelo botão
+"Histórico" do front.
+
 A auditoria é imutável e impede a exclusão do evento e do usuário ligados a
 ela. Testes e2e que gravam auditoria não devem apagar esses registros ao final.
 

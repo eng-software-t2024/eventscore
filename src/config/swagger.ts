@@ -6,6 +6,10 @@ import { AtualizarEventoDto } from '../modules/eventos/dto/atualizar-evento.dto.
 import { CriarEventoDto } from '../modules/eventos/dto/criar-evento.dto.js';
 import { EventoDetalheDto } from '../modules/eventos/dto/evento-detalhe.dto.js';
 import { EventoResumoDto } from '../modules/eventos/dto/evento-resumo.dto.js';
+import { AtualizarDesafioDto } from '../modules/desafios/dto/atualizar-desafio.dto.js';
+import { CriarDesafioDto } from '../modules/desafios/dto/criar-desafio.dto.js';
+import { DesafioDto } from '../modules/desafios/dto/desafio.dto.js';
+import { PontoColocacaoDto } from '../modules/desafios/dto/ponto-colocacao.dto.js';
 import { AtualizarGrupoDto } from '../modules/grupos/dto/atualizar-grupo.dto.js';
 import { CriarGrupoDto } from '../modules/grupos/dto/criar-grupo.dto.js';
 import { GrupoResumoDto } from '../modules/grupos/dto/grupo-resumo.dto.js';
@@ -39,6 +43,10 @@ export function configurarSwagger(app: INestApplication): void {
       AtualizarEventoDto,
       EventoResumoDto,
       EventoDetalheDto,
+      PontoColocacaoDto,
+      CriarDesafioDto,
+      AtualizarDesafioDto,
+      DesafioDto,
       CriarGrupoDto,
       AtualizarGrupoDto,
       GrupoResumoDto,

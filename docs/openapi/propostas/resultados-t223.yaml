@@ -13,7 +13,7 @@ tags:
   - name: Resultados de desafios
 security:
   - bearerAuth: []
-x-status: proposta-pendente-de-aprovacao
+x-status: aprovado-e-incorporado-v0.2.0
 paths:
   /eventos/{eventoId}/desafios/{desafioId}/resultados:
     parameters:

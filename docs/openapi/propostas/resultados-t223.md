@@ -1,12 +1,9 @@
-# Taiga #223 — Proposta de contrato de colocações da US #206
+# Taiga #223 — Contrato de Colocações da US #206 (Aprovado e Incorporado na v0.2.0)
 
-Status: proposta para revisão do frontend e backend. A #223 continua
-em andamento; este recorte não implementa resultados nem conclui a história.
+Status: **aprovado e incorporado ao contrato oficial** ([openapi-v0.2.yaml](../openapi-v0.2.yaml) e [openapi-v0.1.yaml](../openapi-v0.1.yaml), versão **`v0.2.0`**). Proposta revisada no PR #35 com aprovação do backend (**Saylon**, inclusive com a separação de `ResultadoSalvoDto` / `id` não anulável no `PUT`) e aceite formal do frontend (**Luiz Meneses**). A implementação dos endpoints e regras de resultados segue na #223.
 
 O [OpenAPI da proposta](./resultados-t223.yaml) descreve as duas operações
 de colocações por desafio (RF08/RF09), com a gravação de auditoria (RF18).
-Não modifica o OpenAPI oficial v0.1 nem publica a versão v0.2. O mock é uma
-referência de compatibilidade, não evidência de contrato oficial aprovado.
 
 ## Base e escopo
 
@@ -26,8 +23,8 @@ PR #34, que disponibilizou `AuditoriaService` e `@CurrentUserId()`.
 
 O recorte cobre a parte de Gustavo, #223. Bônus e penalidades (#224),
 classificação e desempate (#225), conversão em ponto extra e apuração
-permanecem nas respectivas entregas. `GET /auditoria` também não é
-implementado pelo PR #34 nem por esta proposta.
+permanecem nas respectivas entregas. `GET /auditoria`, consultado pelo botão
+Histórico, não faz parte desta proposta: é entregue pela #255 (parte 2).
 
 ## Interface para revisão
 
@@ -134,9 +131,9 @@ ajuste solicitado estão registrados abaixo:
   `1..P`. A tela hoje impede repetição, mas permite selecionar posições com
   lacunas; deverá apresentar a mensagem 422 ou antecipar essa validação.
 - Confirmar os erros 400/404/422 e a distinção entre pendente e ausente no GET.
-- Alinhar com o responsável pela auditoria quem entrega `GET /auditoria` e
-  seu contrato. O serviço de gravação já existe; o botão Histórico ainda
-  dependerá do endpoint de consulta.
+- `GET /auditoria` é entregue pela #255 (parte 2) e busca o histórico pelo
+  ID do resultado; por isso o PUT precisa preservar os IDs. A incorporação ao
+  contrato oficial fica com o OpenAPI v0.2.
 - Alinhar com o responsável pela #225 como uma correção afeta classificação,
   desempates e eventual apuração já realizada (RNF05). Gravar auditoria com
   `afetaResultado` não implementa sozinho o recálculo/invalidação. Esse ponto
@@ -210,6 +207,7 @@ recusa após a separação dos schemas.
 | --- | --- |
 | Auth, eventos, grupos e schema de resultados | Integrados na `main`. |
 | Gravação da auditoria e usuário autenticado | Integrados pelo PR #34. |
+| Consulta do histórico (`GET /auditoria`) | Entregue pela #255 (parte 2). |
 | Contrato desta proposta | Pendente de revisão/aceite e incorporação oficial. |
 | Cadastro/consulta de desafios (#245–#248) | Proposta #245 mesclada; módulo e endpoints ainda pendentes. |
 | Resultados (#223) | Apenas este contrato proposto; sem implementação. |

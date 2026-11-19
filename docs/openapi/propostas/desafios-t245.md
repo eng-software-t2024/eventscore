@@ -1,14 +1,9 @@
-# Taiga #245 — Proposta de contrato de desafios
+# Taiga #245 — Contrato de Desafios (Aprovado e Incorporado na v0.2.0)
 
-Status: proposta em revisão no PR #31. Aceite do frontend registrado com a
-condição de reenvio de valores iguais detalhada abaixo; revisão backend e
-incorporação ao contrato oficial ainda pendentes. Módulo, DTOs TypeScript,
-service e endpoints ainda não implementados nesta task.
+Status: **aprovado e incorporado ao contrato oficial** ([openapi-v0.2.yaml](../openapi-v0.2.yaml) e [openapi-v0.1.yaml](../openapi-v0.1.yaml), versão **`v0.2.0`**). Proposta revisada no PR #31 com aceite do frontend (**Luiz Meneses**) e aprovação do backend (**Saylon**). Módulo, DTOs TypeScript, service e endpoints seguem para implementação na #245.
 
 O recorte [desafios-t245.yaml](./desafios-t245.yaml) reúne as cinco operações
-de RF05/RF06 e os schemas necessários ao frontend. A proposta permite revisar
-esse módulo antes de terminar o contrato dos demais módulos da Sprint 02.
-Não altera o OpenAPI v0.1 nem publica uma versão oficial v0.2.
+de RF05/RF06 e os schemas incorporados à especificação oficial.
 
 ## Fontes e limite da proposta
 

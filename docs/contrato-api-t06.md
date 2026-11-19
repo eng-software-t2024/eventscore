@@ -31,8 +31,8 @@ Ficou acordado que a Sprint 01 entrega os 4 módulos essenciais com CRUD complet
    - Todos os endpoints `PUT` (frequência, bônus e resultados de desafios) são estritamente idempotentes via substituição transacional / `upsert`.
 4. **Histórico e Auditoria (RF18):**
    - O endpoint `GET .../resultados` devolve o campo `id` (ou `null` se ainda não lançado), e o `PUT` preserva a mesma chave primária, permitindo consulta pontual na auditoria via `entidade + registroId`.
-5. **Critérios de Desempate (RF13):**
-   - Enum fechado: `MAIOR_PONTUACAO_DESAFIO` (exige `desafioId`), `MAIOR_SOMA_DESAFIOS`, `MAIOR_BONIFICACAO`, `MENOR_PENALIDADE`, `MAIOR_PRESENCA`.
+5. **Critérios de Desempate (RF13 / ADR 0003 / V12):**
+   - Enum fechado: `MAIOR_PONTUACAO_DESAFIO` (exige `desafioId`), `MAIOR_SOMA_DESAFIOS`, `MAIOR_BONIFICACAO`, `MENOR_PENALIDADE` (`MAIOR_PRESENCA` foi removido conforme ADR 0003).
 6. **Autenticação:**
    - Retorno do login inclui `expiraEm` no formato ISO 8601 UTC.
    - Sessão gerenciada por token JWT no cabeçalho `Authorization: Bearer <token>`.

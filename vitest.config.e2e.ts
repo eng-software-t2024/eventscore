@@ -6,7 +6,7 @@ const testDatabaseUrl = process.env.TEST_DATABASE_URL?.trim();
 
 if (!testDatabaseUrl) {
   throw new Error(
-    'TEST_DATABASE_URL deve apontar explicitamente para um banco exclusivo de testes',
+    'TEST_DATABASE_URL é obrigatória para os testes e2e e deve apontar para um banco PostgreSQL exclusivo de testes',
   );
 }
 

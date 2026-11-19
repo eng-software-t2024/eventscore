@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client.js';
+import { PrismaService } from '../../prisma/prisma.service.js';
 import type { AuditOperation, AuditedEntity } from './auditoria.constants.js';
+import type { AuditoriaItemDto } from './dto/auditoria-item.dto.js';
 
 /**
  * Dados de uma anotação. As propriedades espelham as colunas da tabela
@@ -32,6 +34,40 @@ type FieldChange = {
 
 @Injectable()
 export class AuditoriaService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * Histórico de um registro, da alteração mais antiga para a mais recente,
+   * no formato exibido pelo front. Registro sem histórico devolve lista vazia.
+   */
+  async list(
+    entidade: AuditedEntity,
+    registroId: number,
+  ): Promise<AuditoriaItemDto[]> {
+    const audits = await this.prisma.auditoria.findMany({
+      where: { entidade, registroId },
+      orderBy: [{ dataHora: 'asc' }, { id: 'asc' }],
+      select: {
+        dataHora: true,
+        operacao: true,
+        usuario: { select: { nome: true } },
+        detalhes: {
+          select: { campo: true, valorAnterior: true, valorNovo: true },
+          orderBy: { campo: 'asc' },
+        },
+      },
+    });
+
+    return audits.map((audit) => ({
+      // Sem milissegundos, no formato do contrato (2026-11-23T14:38:00Z).
+      dataHora: audit.dataHora.toISOString().replace(/\.\d{3}Z$/, 'Z'),
+      usuario: audit.usuario.nome,
+      operacao: audit.operacao,
+      valorAnterior: this.joinValues(audit.detalhes, 'valorAnterior'),
+      valorNovo: this.joinValues(audit.detalhes, 'valorNovo'),
+    }));
+  }
+
   /**
    * Grava a anotação e os campos alterados usando a transação de quem chama,
    * para que alteração e histórico sejam confirmados ou desfeitos juntos.
@@ -95,6 +131,21 @@ export class AuditoriaService {
       }
     }
     return changes;
+  }
+
+  /**
+   * Junta um lado das alterações como `campo=valor; campo=valor`, omitindo
+   * os campos sem valor. Retorna `null` quando nenhum campo tem valor
+   * (o "antes" de um INSERT ou o "depois" de um DELETE).
+   */
+  private joinValues(
+    details: FieldChange[],
+    side: 'valorAnterior' | 'valorNovo',
+  ): string | null {
+    const pairs = details
+      .filter((detail) => detail[side] !== null)
+      .map((detail) => `${detail.campo}=${detail[side]}`);
+    return pairs.length > 0 ? pairs.join('; ') : null;
   }
 
   private toText(value: unknown): string | null {
