@@ -369,8 +369,11 @@ export class ResultadosService {
   }
 
   private extractErrorText(error: unknown): string {
+    if (typeof error === 'string') {
+      return error;
+    }
     if (typeof error !== 'object' || error === null) {
-      return String(error ?? '');
+      return '';
     }
 
     const parts: string[] = [];
