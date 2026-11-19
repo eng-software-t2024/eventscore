@@ -206,6 +206,51 @@ e penalidades, usando as tabelas e triggers da migração V9.
 
 ---
 
+## Onda 4 — #206 parte 3: classificação e desempate
+
+Módulo `src/modules/classificacao/`, seguindo o ADR 0003 (item 5): a classificação é
+calculada na consulta e só é gravada como apuração quando a comissão registra um
+desempate manual.
+
+### Rotas
+
+| Método | Rota | Descrição |
+|---|---|---|
+| `GET` | `/eventos/{eventoId}/classificacao` | classificação calculada na hora (RF12, RF13) |
+| `POST` | `/eventos/{eventoId}/desempates` | registra o desempate manual (RF14) |
+
+- Total = desafios lançados pela tabela de pontos + bonificação − penalidade. Os
+  critérios configurados são aplicados em ordem; o que eles não separam fica em
+  `resumo.empatesPendentes`, com os grupos na mesma posição.
+- O `POST /desempates` grava, na mesma transação, uma `apuracao` nova
+  (`PROVISORIA`, versão seguinte), a `classificacao_grupo` já decidida, as decisões
+  em `desempate_manual` e a auditoria (`APURACAO` e `DESEMPATE_MANUAL`).
+- Regras do envio (`422`): todos os desafios do evento precisam estar lançados
+  (o desempate decide a classificação final, Regimento Art. 16); precisa haver empate; cada empate vem inteiro e com as
+  posições que ocupa; todos os empates pendentes vão juntos. Grupo de outro evento
+  responde `404`.
+- Um novo envio substitui a decisão anterior dos mesmos grupos (`vigente = false` e
+  `id_decisao_anterior`). Reenviar a mesma decisão não grava nada.
+- A decisão manual só vale enquanto os grupos continuam empatados com os mesmos
+  pontos. Uma correção que desfaz o empate passa a valer; se o mesmo empate voltar
+  com os mesmos pontos, a decisão antiga volta a valer.
+
+### Mudança para os relatórios (#207)
+
+O cálculo da classificação saiu de `RelatorioParcialService` e foi para
+`ClassificacaoService` (`calculo-classificacao.ts`). O relatório parcial, o relatório
+final e a tela usam o mesmo cálculo. A apuração individual (#204) deve partir dele
+também.
+
+### Testes
+
+- Unitários do cálculo (soma, critérios, validade da decisão manual) e das regras do
+  `POST /desempates`.
+- E2E com PostgreSQL real: empate pendente, envios inválidos sem gravar, registro com
+  auditoria, reenvio igual, troca da decisão e correção que desfaz o empate.
+
+---
+
 ## Pendências
 
 - **#201 Grupos** — história do Taiga que fecha a US05 com o front-end (revisão do
