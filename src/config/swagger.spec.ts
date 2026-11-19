@@ -4,6 +4,7 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
 import { EventosModule } from '../modules/eventos/eventos.module.js';
+import { RelatoriosModule } from '../modules/relatorios/relatorios.module.js';
 import { PrismaModule } from '../prisma/prisma.module.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { configurarSwagger } from './swagger.js';
@@ -14,7 +15,7 @@ describe('Swagger de eventos', () => {
 
   beforeAll(async () => {
     const module = await Test.createTestingModule({
-      imports: [PrismaModule, EventosModule],
+      imports: [PrismaModule, EventosModule, RelatoriosModule],
     })
       .overrideProvider(PrismaService)
       .useValue({})
@@ -203,6 +204,150 @@ describe('Swagger de eventos', () => {
           content: {
             'application/json': {
               schema: { $ref: '#/components/schemas/EventoDetalheDto' },
+            },
+          },
+        },
+      },
+    });
+  });
+
+  it('publica os schemas gerados das rotas de prévia e exportação final', () => {
+    const previa =
+      document.paths['/api/v1/eventos/{eventoId}/relatorios/final/previa']?.get;
+    expect(previa).toMatchObject({
+      security: [{ bearer: [] }],
+      parameters: expect.arrayContaining([
+        expect.objectContaining({
+          name: 'eventoId',
+          in: 'path',
+          required: true,
+          schema: expect.objectContaining({ type: 'integer', minimum: 1 }),
+        }),
+        expect.objectContaining({
+          name: 'busca',
+          in: 'query',
+          required: false,
+          schema: expect.objectContaining({ type: 'string' }),
+        }),
+      ]),
+      responses: {
+        '200': {
+          content: {
+            'application/json': {
+              schema: {
+                type: 'array',
+                items: { $ref: '#/components/schemas/TurmaRelatorioFinalDto' },
+              },
+            },
+          },
+        },
+        '409': {
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErroPadraoDto' },
+            },
+          },
+        },
+      },
+    });
+
+    const turmaSchema = document.components?.schemas?.TurmaRelatorioFinalDto;
+    const participanteSchema =
+      document.components?.schemas?.ParticipanteRelatorioFinalDto;
+    const presencaSchema =
+      document.components?.schemas?.PresencaRelatorioFinalDto;
+    expect(turmaSchema).toMatchObject({
+      type: 'object',
+      required: ['turma', 'totalParticipantes', 'participantes'],
+      properties: {
+        turma: { type: 'string', maxLength: 10 },
+        totalParticipantes: { type: 'integer', minimum: 0 },
+        participantes: {
+          type: 'array',
+          items: { $ref: '#/components/schemas/ParticipanteRelatorioFinalDto' },
+        },
+      },
+    });
+    expect(participanteSchema).toMatchObject({
+      type: 'object',
+      required: [
+        'matricula',
+        'nome',
+        'grupo',
+        'presencas',
+        'pontoExtra',
+        'turma',
+      ],
+      properties: {
+        matricula: { type: 'string', maxLength: 20 },
+        nome: { type: 'string', maxLength: 150 },
+        grupo: { type: 'string', maxLength: 60 },
+        presencas: {
+          type: 'array',
+          items: { $ref: '#/components/schemas/PresencaRelatorioFinalDto' },
+        },
+        pontoExtra: {
+          type: 'number',
+          format: 'double',
+          minimum: 0,
+          maximum: 1,
+        },
+        turma: { type: 'string', maxLength: 10 },
+      },
+    });
+    expect(presencaSchema).toMatchObject({
+      type: 'object',
+      required: ['numeroDia', 'presente'],
+      properties: {
+        numeroDia: { type: 'integer', minimum: 1 },
+        presente: { type: 'boolean' },
+      },
+    });
+    for (const ref of [
+      '#/components/schemas/TurmaRelatorioFinalDto',
+      '#/components/schemas/ParticipanteRelatorioFinalDto',
+      '#/components/schemas/PresencaRelatorioFinalDto',
+    ]) {
+      const schemaName = ref.split('/').at(-1)!;
+      expect(document.components?.schemas?.[schemaName]).toBeDefined();
+    }
+
+    const exportacao =
+      document.paths['/api/v1/eventos/{eventoId}/relatorios/final']?.get;
+    expect(exportacao).toMatchObject({
+      security: [{ bearer: [] }],
+      parameters: expect.arrayContaining([
+        expect.objectContaining({
+          name: 'eventoId',
+          in: 'path',
+          required: true,
+          schema: expect.objectContaining({ type: 'integer', minimum: 1 }),
+        }),
+        expect.objectContaining({
+          name: 'formato',
+          in: 'query',
+          required: true,
+          schema: expect.objectContaining({
+            type: 'string',
+            enum: ['PDF', 'XLSX'],
+          }),
+        }),
+      ]),
+      responses: {
+        '200': {
+          headers: { 'Content-Disposition': { schema: { type: 'string' } } },
+          content: {
+            'application/pdf': { schema: { type: 'string', format: 'binary' } },
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
+              {
+                schema: { type: 'string', format: 'binary' },
+              },
+          },
+        },
+        '409': {
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErroPadraoDto' },
             },
           },
         },
