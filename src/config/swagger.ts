@@ -20,6 +20,11 @@ import {
 } from '../modules/participantes/dto/importacao.dto.js';
 import { ParticipanteResumoDto } from '../modules/participantes/dto/participante-resumo.dto.js';
 import { ParticipantesListagemDto } from '../modules/participantes/dto/participantes-listagem.dto.js';
+import { ConfiguracaoEventoDto } from '../modules/configuracao/dto/configuracao-evento.dto.js';
+import { ConversaoPontoExtraItemDto } from '../modules/configuracao/dto/conversao-ponto-extra-item.dto.js';
+import { CriterioDesempateConfigDto } from '../modules/configuracao/dto/criterio-desempate-config.dto.js';
+import { FatorPresencaItemDto } from '../modules/configuracao/dto/fator-presenca-item.dto.js';
+import { ItemBonificacaoConfigDto } from '../modules/configuracao/dto/item-bonificacao-config.dto.js';
 import { ResultadoSalvoDto } from '../modules/resultados/dto/resultado-salvo.dto.js';
 import { ResultadoDto } from '../modules/resultados/dto/resultado.dto.js';
 import { SalvarResultadoDto } from '../modules/resultados/dto/salvar-resultado.dto.js';
@@ -61,6 +66,11 @@ export function configurarSwagger(app: INestApplication): void {
       SalvarResultadoDto,
       ResultadoDto,
       ResultadoSalvoDto,
+      ConfiguracaoEventoDto,
+      ConversaoPontoExtraItemDto,
+      ItemBonificacaoConfigDto,
+      FatorPresencaItemDto,
+      CriterioDesempateConfigDto,
       ErroPadraoDto,
       ErroValidacaoDto,
     ],
