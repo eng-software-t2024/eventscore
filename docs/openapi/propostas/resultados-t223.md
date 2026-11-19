@@ -1,12 +1,9 @@
-# Taiga #223 — Proposta de contrato de colocações da US #206
+# Taiga #223 — Contrato de Colocações da US #206 (Aprovado e Incorporado na v0.2.0)
 
-Status: proposta para revisão do frontend e backend. A #223 continua
-em andamento; este recorte não implementa resultados nem conclui a história.
+Status: **aprovado e incorporado ao contrato oficial** ([openapi-v0.2.yaml](../openapi-v0.2.yaml) e [openapi-v0.1.yaml](../openapi-v0.1.yaml), versão **`v0.2.0`**). Proposta revisada no PR #35 com aprovação do backend (**Saylon**, inclusive com a separação de `ResultadoSalvoDto` / `id` não anulável no `PUT`) e aceite formal do frontend (**Luiz Meneses**). A implementação dos endpoints e regras de resultados segue na #223.
 
 O [OpenAPI da proposta](./resultados-t223.yaml) descreve as duas operações
 de colocações por desafio (RF08/RF09), com a gravação de auditoria (RF18).
-Não modifica o OpenAPI oficial v0.1 nem publica a versão v0.2. O mock é uma
-referência de compatibilidade, não evidência de contrato oficial aprovado.
 
 ## Base e escopo
 
