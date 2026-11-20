@@ -112,3 +112,9 @@ export function bonusPendente(pendente: EnvioPendente | undefined): Record<numbe
   if (!pendente || !Array.isArray(pendente.corpo)) return undefined;
   return Object.fromEntries((pendente.corpo as { itemBonificacaoId: number; valor: number }[]).map((i) => [i.itemBonificacaoId, String(i.valor)]));
 }
+
+/**
+ * A tela ainda mostra exatamente o que a API recusou num reenvio automático? Então ela volta ao que
+ * está salvo; se o usuário já mudou algo depois, o que ele digitou fica.
+ */
+export const telaMostraRecusado = (naTela: unknown, recusado: Pick<EnvioPendente, 'corpo'>) => JSON.stringify(naTela) === JSON.stringify(recusado.corpo);

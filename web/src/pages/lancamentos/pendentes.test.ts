@@ -10,6 +10,7 @@ import {
   LIMITE_REENVIO_AUTOMATICO_MS,
   pendentesDeOutraAba,
   semPendente,
+  telaMostraRecusado,
   tipoDeFalha,
   type EnvioPendente,
   type Pendentes,
@@ -108,4 +109,11 @@ test('mudança na fila de outro usuário ou evento não mexe na fila da tela', (
 
 test('localStorage.clear() em outra aba esvazia a fila da tela', () => {
   assert.deepEqual(pendentesDeOutraAba({ key: null, newValue: null }, { eventoId: 1, usuarioId: 7 }), {});
+});
+
+test('valor recusado no reenvio só sai da tela se ela ainda mostra exatamente ele', () => {
+  const recusado = envio('a', { corpo: [{ grupoId: 1, colocacao: 1, ausente: false }] });
+  assert.equal(telaMostraRecusado([{ grupoId: 1, colocacao: 1, ausente: false }], recusado), true);
+  // O usuário já corrigiu depois do envio: o que ele digitou fica.
+  assert.equal(telaMostraRecusado([{ grupoId: 1, colocacao: 2, ausente: false }], recusado), false);
 });

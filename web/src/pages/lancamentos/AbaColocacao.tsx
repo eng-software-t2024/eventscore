@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 import { api } from '../../api/client';
 import type { Desafio } from '../desafios/regras.ts';
 import { ListaHistorico, PontoCor, type Grupo } from './comum';
-import { aplicarColocacoesPendentes } from './pendentes.ts';
+import { aplicarColocacoesPendentes, telaMostraRecusado } from './pendentes.ts';
 import { corpoColocacoes, pontosDaColocacao, validarColocacoes, type Auditoria, type Resultado } from './regras.ts';
 import type { EnviosPendentes } from './useEnviosPendentes.ts';
 
@@ -90,6 +90,33 @@ export default function AbaColocacao({ eventoId, grupos, envios }: { eventoId: n
 
   const desafio = desafios?.find((d) => d.id === desafioId);
   const dados = linhas?.desafioId === desafioId ? linhas?.dados : undefined;
+
+  // RNF04: a API recusou no reenvio automático as colocações deste desafio. Se a tela ainda mostra
+  // exatamente elas, volta ao que está salvo; o motivo aparece no aviso da fila, acima das abas.
+  const recusado = desafioId ? envios.recusados[caminhoResultados(desafioId)] : undefined;
+  const recusaTratada = useRef<string>(undefined);
+  useEffect(() => {
+    if (!recusado || !dados || recusaTratada.current === recusado.id) return;
+    recusaTratada.current = recusado.id;
+    if (!desafioId || !telaMostraRecusado(corpoColocacoes(dados), recusado)) return;
+    const caminho = caminhoResultados(desafioId);
+    api<Resultado[]>(caminho)
+      .then((resultados) =>
+        setLinhas((l) => {
+          // Trocou de desafio ou o usuário mexeu enquanto a busca acontecia: o que está na tela fica.
+          if (l?.desafioId !== desafioId || !telaMostraRecusado(corpoColocacoes(l.dados), recusado)) return l;
+          const salvas = l.dados.map((x) => {
+            const r = resultados.find((y) => y.grupoId === x.grupoId);
+            return { ...x, id: r?.id ?? null, colocacao: r?.colocacao ?? null, ausente: r?.ausente ?? false };
+          });
+          // Um envio mais novo deste desafio que esteja guardado continua por cima.
+          return { ...l, dados: aplicarColocacoesPendentes(salvas, guardadosRef.current()[caminho]) };
+        }),
+      )
+      // Se falhar, a tela continua com o valor recusado, como antes; a próxima carga do desafio corrige.
+      .catch(() => {});
+  }, [recusado, dados, desafioId, base]);
+
   const nome = (id: number) => grupos.find((g) => g.id === id)?.nome ?? `grupo ${id}`;
   const maximo = Math.max(1, ...(desafio?.pontosColocacao.map((p) => p.pontos) ?? []));
 
