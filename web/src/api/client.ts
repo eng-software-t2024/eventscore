@@ -17,6 +17,22 @@ export const token = {
   },
 };
 
+/**
+ * Id do usuário (`sub`) lido do token, sem validar a assinatura: serve só para separar no navegador
+ * o que é de cada usuário (fila de lançamentos), sem depender do GET /auth/me responder.
+ */
+export function idDoUsuarioNoToken(valor: string | null): number | undefined {
+  const parte = valor?.split('.')[1];
+  if (!parte) return undefined;
+  try {
+    const base64 = parte.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(parte.length / 4) * 4, '=');
+    const sub = (JSON.parse(atob(base64)) as { sub?: unknown }).sub;
+    return typeof sub === 'number' && Number.isSafeInteger(sub) && sub > 0 ? sub : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export class ApiError extends Error {
   readonly status: number;
   constructor(status: number, message: string) {

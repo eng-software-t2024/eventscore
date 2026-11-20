@@ -1652,7 +1652,7 @@ paths:
       tags:
         - Relatórios
       summary: "Consultar prévia do relatório final por participante"
-      description: "Retorna um array puro ordenado por turma e nome, incluindo todos os dias do evento e ausências. Só fica disponível quando há ao menos um desafio e todos os grupos do evento têm resultado lançado em cada desafio. Resultados parciais permanecem disponíveis no relatório parcial."
+      description: "Retorna um array puro ordenado por turma e nome, incluindo todos os dias do evento e ausências. Só fica disponível quando há ao menos um desafio e todos os grupos do evento têm resultado lançado em cada desafio, sem empate pendente e com a configuração completa (conversão e fatores de presença), para nenhum participante receber ponto extra 0 por falta de configuração. Resultados parciais permanecem disponíveis no relatório parcial."
       operationId: "consultarPreviaRelatorioFinal"
       responses:
         '200':
@@ -1670,7 +1670,7 @@ paths:
         '404':
           $ref: '#/components/responses/NaoEncontrado'
         '409':
-          description: "Evento sem grupos, sem desafios, com resultados pendentes ou empate pendente."
+          description: "Evento sem grupos, sem desafios, com resultados pendentes, empate pendente ou configuração incompleta (falta conversão de alguma colocação de 1 até a quantidade de grupos, ou fator de alguma quantidade de dias de 0 até a quantidade de dias)."
           $ref: '#/components/responses/Conflito'
 
   /eventos/{eventoId}/relatorios/final:
@@ -1681,7 +1681,7 @@ paths:
       tags:
         - Relatórios
       summary: "Exportar relatório final por participante em PDF ou XLSX"
-      description: "Gera o relatório final agrupado por turma com presença de todos os dias, ausências e ponto extra individual. Só fica disponível quando há ao menos um desafio e todos os grupos do evento têm resultado lançado em cada desafio. Resultados parciais permanecem disponíveis no relatório parcial."
+      description: "Gera o relatório final agrupado por turma com presença de todos os dias, ausências e ponto extra individual. Só fica disponível quando há ao menos um desafio e todos os grupos do evento têm resultado lançado em cada desafio, sem empate pendente e com a configuração completa (conversão e fatores de presença), para nenhum participante receber ponto extra 0 por falta de configuração. Resultados parciais permanecem disponíveis no relatório parcial."
       operationId: "exportarRelatorioFinal"
       responses:
         '200':
@@ -1693,7 +1693,7 @@ paths:
         '404':
           $ref: '#/components/responses/NaoEncontrado'
         '409':
-          description: "Evento sem grupos, sem desafios, com resultados pendentes ou empate pendente."
+          description: "Evento sem grupos, sem desafios, com resultados pendentes, empate pendente ou configuração incompleta (falta conversão de alguma colocação de 1 até a quantidade de grupos, ou fator de alguma quantidade de dias de 0 até a quantidade de dias)."
           $ref: '#/components/responses/Conflito'
 
 components:

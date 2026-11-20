@@ -16,6 +16,13 @@ export function paraFormulario(desafio: Desafio | undefined, grupos: number): Fo
   };
 }
 
+/**
+ * Desafios cuja tabela de pontos não tem uma linha por grupo, o que acontece quando um grupo é
+ * cadastrado (ou excluído) depois do desafio. O lançamento de colocações desse desafio falha até editar e salvar.
+ */
+export const desafiosDesatualizados = (desafios: Desafio[], grupos: number) =>
+  grupos === 0 ? [] : desafios.filter((d) => d.pontosColocacao.length !== grupos);
+
 // Limites das colunas do banco, iguais aos da proposta de contrato de desafios (T245).
 export const MAX_NOME = 100;
 export const MAX_DESCRICAO = 255;

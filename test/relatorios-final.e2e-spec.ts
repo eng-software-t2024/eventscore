@@ -351,6 +351,55 @@ describe('Relatório Final por Participante E2E (#229)', () => {
     expect(semResultado.body).toEqual([]);
   });
 
+  it('bloqueia as três rotas quando falta conversão ou fator na configuração', async () => {
+    const rotas = [
+      `/api/v1/eventos/${eventoId}/relatorios/final/previa`,
+      `/api/v1/eventos/${eventoId}/relatorios/final?formato=PDF`,
+      `/api/v1/eventos/${eventoId}/relatorios/final?formato=XLSX`,
+    ];
+    const esperar409 = async (mensagem: string) => {
+      for (const rota of rotas) {
+        const resposta = await request(app.getHttpServer())
+          .get(rota)
+          .auth(token, { type: 'bearer' })
+          .expect(409);
+        expect(resposta.body.message).toBe(mensagem);
+      }
+    };
+
+    // Restaura a configuração no finally para não afetar os outros testes.
+    await prisma.conversaoPontoExtra.deleteMany({
+      where: { eventoId, colocacao: 2 },
+    });
+    try {
+      await esperar409(
+        'Falta a conversão da 2ª colocação na configuração do evento.',
+      );
+    } finally {
+      await prisma.conversaoPontoExtra.create({
+        data: { eventoId, colocacao: 2, pontoExtra: 0.8 },
+      });
+    }
+
+    await prisma.fatorPresenca.deleteMany({
+      where: { eventoId, diasPresentes: 1 },
+    });
+    try {
+      await esperar409(
+        'Falta o fator para 1 dia presente na configuração do evento.',
+      );
+    } finally {
+      await prisma.fatorPresenca.create({
+        data: { eventoId, diasPresentes: 1, fator: 0.5 },
+      });
+    }
+
+    await request(app.getHttpServer())
+      .get(rotas[0])
+      .auth(token, { type: 'bearer' })
+      .expect(200);
+  });
+
   it('protege a exportação, valida o formato e retorna 404 para evento inexistente', async () => {
     await request(app.getHttpServer())
       .get(`/api/v1/eventos/${eventoId}/relatorios/final?formato=PDF`)

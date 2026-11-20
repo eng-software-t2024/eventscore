@@ -1,15 +1,22 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
 import { api } from '../../api/client';
 import type { Configuracao } from '../configuracao/regras.ts';
 import { PontoCor, type Grupo } from './comum';
+import { bonusPendente, tipoDeFalha } from './pendentes.ts';
 import { montarBonificacao, montarPenalidade, type Bonificacao, type Penalidade } from './regras.ts';
+import type { EnviosPendentes } from './useEnviosPendentes.ts';
 
 const PENALIDADE_VAZIA = { grupoId: '', pontos: '', descricao: '', justificativa: '' };
 
 /** Aba 2 (RF10, RF11): bonificação por item com teto e penalidade com justificativa. */
-export default function AbaBonusPenalidades({ eventoId, grupos }: { eventoId: number; grupos: Grupo[] }) {
+export default function AbaBonusPenalidades({ eventoId, grupos, envios }: { eventoId: number; grupos: Grupo[]; envios: EnviosPendentes }) {
   const base = `/eventos/${eventoId}`;
+  // Lida por ref: a fila mudar (ou o usuário carregar) não pode recarregar os valores que estão sendo digitados.
+  const guardadosRef = useRef(envios.guardados);
+  useEffect(() => {
+    guardadosRef.current = envios.guardados;
+  }, [envios.guardados]);
   const [config, setConfig] = useState<Configuracao>();
   // Valor digitado por grupo e item: grupoId -> itemBonificacaoId -> texto.
   const [bonus, setBonus] = useState<Record<number, Record<number, string>>>({});
@@ -17,17 +24,31 @@ export default function AbaBonusPenalidades({ eventoId, grupos }: { eventoId: nu
   const [penalidade, setPenalidade] = useState(PENALIDADE_VAZIA);
   const [editando, setEditando] = useState<Penalidade>();
   const [ocupado, setOcupado] = useState<string>();
-  const [aviso, setAviso] = useState<{ tipo: 'erro' | 'sucesso'; texto: string }>();
+  const [aviso, setAviso] = useState<{ tipo: 'erro' | 'sucesso' | 'aviso'; texto: string }>();
 
   const carregar = useCallback(() => {
     Promise.all([api<Configuracao>(`${base}/configuracao`), api<Bonificacao[]>(`${base}/bonificacoes`), api<Penalidade[]>(`${base}/penalidades`)])
       .then(([cfg, bonificacoes, pens]) => {
         setConfig(cfg);
-        setBonus(Object.fromEntries(bonificacoes.map((b) => [b.grupoId, Object.fromEntries(b.itens.map((i) => [i.itemBonificacaoId, String(i.valor)]))])));
+        const fila = guardadosRef.current();
+        // Por grupo do evento: a API só devolve grupos que já têm bônus, e um bônus guardado sem
+        // conexão pode ser de um grupo que ainda não tem. O guardado aparece por cima do que veio da API.
+        setBonus(
+          Object.fromEntries(
+            grupos.map((g) => {
+              const daApi = bonificacoes.find((b) => b.grupoId === g.id);
+              return [
+                g.id,
+                bonusPendente(fila[`${base}/bonificacoes/${g.id}`]) ??
+                  Object.fromEntries((daApi?.itens ?? []).map((i) => [i.itemBonificacaoId, String(i.valor)])),
+              ];
+            }),
+          ),
+        );
         setPenalidades(pens);
       })
       .catch((e: Error) => setAviso({ tipo: 'erro', texto: e.message }));
-  }, [base]);
+  }, [base, grupos]);
 
   useEffect(carregar, [carregar]);
 
@@ -42,10 +63,14 @@ export default function AbaBonusPenalidades({ eventoId, grupos }: { eventoId: nu
     if ('erro' in resultado) return setAviso({ tipo: 'erro', texto: `${nome(grupoId)} · ${resultado.erro}` });
     setOcupado(`bonus-${grupoId}`);
     try {
-      await api(`${base}/bonificacoes/${grupoId}`, { method: 'PUT', body: JSON.stringify(resultado.dados) });
-      setAviso({ tipo: 'sucesso', texto: `Bônus de ${nome(grupoId)} registrado.` });
-    } catch (e) {
-      setAviso({ tipo: 'erro', texto: (e as Error).message });
+      // Passa pela fila: se a conexão cair, o envio fica guardado e sai em ordem depois (RNF04).
+      const r = await envios.enviar({ caminho: `${base}/bonificacoes/${grupoId}`, corpo: resultado.dados, descricao: `bônus de ${nome(grupoId)}` });
+      if (r.status === 'recusado') setAviso({ tipo: 'erro', texto: r.erro.message });
+      else if (r.status === 'erro-servidor')
+        setAviso({ tipo: 'erro', texto: `${r.erro.message} O bônus de ${nome(grupoId)} ficou guardado neste navegador e será reenviado.` });
+      else if (r.status === 'guardado')
+        setAviso({ tipo: 'aviso', texto: `Sem conexão com o servidor: o bônus de ${nome(grupoId)} ficou guardado e será enviado quando a conexão voltar.` });
+      else if (r.status === 'salvo') setAviso({ tipo: 'sucesso', texto: `Bônus de ${nome(grupoId)} registrado.` });
     } finally {
       setOcupado(undefined);
     }
@@ -64,7 +89,11 @@ export default function AbaBonusPenalidades({ eventoId, grupos }: { eventoId: nu
       cancelarEdicao();
       carregar();
     } catch (err) {
-      setAviso({ tipo: 'erro', texto: (err as Error).message });
+      // Penalidade é POST, que não é idempotente: reenviar sozinho poderia aplicá-la duas vezes.
+      const texto = tipoDeFalha(err) === 'conexao'
+        ? 'Sem conexão: a penalidade pode não ter sido registrada. O formulário continua preenchido; quando a conexão voltar, confira a lista abaixo antes de enviar de novo.'
+        : (err as Error).message;
+      setAviso({ tipo: 'erro', texto });
     } finally {
       setOcupado(undefined);
     }

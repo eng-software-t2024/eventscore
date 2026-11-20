@@ -1,4 +1,5 @@
 import {
+  describeMissingConfiguration,
   getIncompleteEventReason,
   getMissingConfiguration,
 } from './event-readiness.js';
@@ -47,5 +48,17 @@ describe('prerequisites for final event calculations', () => {
       value: 1,
     });
     expect(getMissingConfiguration(2, 2, [1, 2], [0, 1, 2])).toBeNull();
+  });
+
+  it('describes the missing configuration in Portuguese', () => {
+    expect(describeMissingConfiguration({ kind: 'conversion', value: 7 })).toBe(
+      'Falta a conversão da 7ª colocação na configuração do evento.',
+    );
+    expect(describeMissingConfiguration({ kind: 'factor', value: 1 })).toBe(
+      'Falta o fator para 1 dia presente na configuração do evento.',
+    );
+    expect(describeMissingConfiguration({ kind: 'factor', value: 3 })).toBe(
+      'Falta o fator para 3 dias presentes na configuração do evento.',
+    );
   });
 });

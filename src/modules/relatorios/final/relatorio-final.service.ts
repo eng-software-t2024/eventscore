@@ -1,7 +1,11 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { Prisma } from '../../../generated/prisma/client.js';
 import { PrismaService } from '../../../prisma/prisma.service.js';
-import { getIncompleteEventReason } from '../../classificacao/event-readiness.js';
+import {
+  describeMissingConfiguration,
+  getIncompleteEventReason,
+  getMissingConfiguration,
+} from '../../classificacao/event-readiness.js';
 import { EventosService } from '../../eventos/eventos.service.js';
 import { FormatoRelatorio } from '../enums/formato-relatorio.enum.js';
 import { RelatorioParcialService } from '../parcial/relatorio-parcial.service.js';
@@ -76,7 +80,20 @@ export class RelatorioFinalService {
     eventoId: number,
     query: PreviaRelatorioFinalQueryDto,
   ): Promise<TurmaRelatorioFinal[]> {
-    const { classificacao } = await this.obterBaseFinal(eventoId);
+    const { turmas } = await this.montarPrevia(eventoId, query);
+    return turmas;
+  }
+
+  /** Prévia junto com o evento, que a exportação usa no cabeçalho sem buscar de novo. */
+  private async montarPrevia(
+    eventoId: number,
+    query: PreviaRelatorioFinalQueryDto,
+  ): Promise<{
+    evento: { nome: string };
+    turmas: TurmaRelatorioFinal[];
+  }> {
+    const { evento, classificacao, conversaoPorColocacao } =
+      await this.obterBaseFinal(eventoId);
     const dias = await this.prisma.diaEvento.findMany({
       where: { eventoId },
       orderBy: [{ numeroDia: 'asc' }, { id: 'asc' }],
@@ -91,13 +108,6 @@ export class RelatorioFinalService {
       },
     });
     const fatores = await this.obterFatores(eventoId);
-    const conversoes = await this.prisma.conversaoPontoExtra.findMany({
-      where: { eventoId },
-      select: { colocacao: true, pontoExtra: true },
-    });
-    const conversaoPorColocacao = new Map(
-      conversoes.map((item) => [item.colocacao, item.pontoExtra]),
-    );
     const busca = query.busca?.trim().toLocaleLowerCase('pt-BR');
     const linhas = participantes
       .filter((participante) => {
@@ -143,19 +153,19 @@ export class RelatorioFinalService {
       porTurma.set(linha.turma, grupo);
     }
 
-    return [...porTurma.entries()].map(([turma, itens]) => ({
+    const turmas = [...porTurma.entries()].map(([turma, itens]) => ({
       turma,
       totalParticipantes: itens.length,
       participantes: itens,
     }));
+    return { evento, turmas };
   }
 
   async gerarRelatorioFinal(
     eventoId: number,
     formato: FormatoRelatorio,
   ): Promise<ArquivoRelatorioGerado> {
-    const evento = await this.eventosService.buscarPorId(eventoId);
-    const previa = await this.gerarPrevia(eventoId, {});
+    const { evento, turmas: previa } = await this.montarPrevia(eventoId, {});
     const dias = [
       ...new Set(
         previa.flatMap((turma) =>
@@ -227,9 +237,11 @@ export class RelatorioFinalService {
 
   private async obterBaseFinal(eventoId: number): Promise<{
     classificacao: Map<number, number>;
+    conversaoPorColocacao: Map<number, Prisma.Decimal>;
+    evento: { nome: string };
   }> {
-    await this.eventosService.buscarPorId(eventoId);
-    const [grupos, desafios] = await Promise.all([
+    const evento = await this.eventosService.buscarPorId(eventoId);
+    const [grupos, desafios, conversoes, fatores] = await Promise.all([
       this.prisma.grupo.findMany({ where: { eventoId }, select: { id: true } }),
       this.prisma.desafio.findMany({
         where: { eventoId },
@@ -238,6 +250,14 @@ export class RelatorioFinalService {
             select: { grupoId: true, colocacao: true, ausente: true },
           },
         },
+      }),
+      this.prisma.conversaoPontoExtra.findMany({
+        where: { eventoId },
+        select: { colocacao: true, pontoExtra: true },
+      }),
+      this.prisma.fatorPresenca.findMany({
+        where: { eventoId },
+        select: { diasPresentes: true },
       }),
     ]);
     const incompleteReason = getIncompleteEventReason(grupos, desafios);
@@ -252,9 +272,25 @@ export class RelatorioFinalService {
     if (calculada.resumo.empatesPendentes.length > 0) {
       throw new ConflictException(MENSAGEM_EMPATE);
     }
+    // Sem isso, a falta de conversão ou de fator viraria ponto extra 0.
+    const configuracaoFaltando = getMissingConfiguration(
+      grupos.length,
+      evento.quantidadeDias,
+      conversoes.map((item) => item.colocacao),
+      fatores.map((item) => item.diasPresentes),
+    );
+    if (configuracaoFaltando) {
+      throw new ConflictException(
+        describeMissingConfiguration(configuracaoFaltando),
+      );
+    }
     return {
       classificacao: new Map(
         calculada.dados.map((linha) => [linha.grupoId, linha.posicao]),
+      ),
+      evento,
+      conversaoPorColocacao: new Map(
+        conversoes.map((item) => [item.colocacao, item.pontoExtra]),
       ),
     };
   }

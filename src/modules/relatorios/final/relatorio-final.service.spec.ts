@@ -16,6 +16,7 @@ describe('RelatorioFinalService', () => {
     diaEvento: { findMany: vi.fn() },
     participante: { findMany: vi.fn() },
     conversaoPontoExtra: { findMany: vi.fn() },
+    fatorPresenca: { findMany: vi.fn() },
     $queryRaw: vi.fn(),
   };
   const eventos = { buscarPorId: vi.fn() };
@@ -29,8 +30,14 @@ describe('RelatorioFinalService', () => {
     eventos.buscarPorId.mockResolvedValue({
       id: 1,
       nome: 'Arena',
+      quantidadeDias: 2,
       temResultado: true,
     });
+    prisma.fatorPresenca.findMany.mockResolvedValue([
+      { diasPresentes: 0 },
+      { diasPresentes: 1 },
+      { diasPresentes: 2 },
+    ]);
     parcial.calcularClassificacaoParcial.mockResolvedValue({
       dados: [
         { grupoId: 10, posicao: 1 },
@@ -176,6 +183,33 @@ describe('RelatorioFinalService', () => {
     });
   });
 
+  it('bloqueia quando falta a conversão de uma colocação, em vez de dar ponto extra 0', async () => {
+    prisma.conversaoPontoExtra.findMany.mockResolvedValue([
+      { colocacao: 1, pontoExtra: new Prisma.Decimal('1') },
+    ]);
+    await expect(service.gerarPrevia(1, {})).rejects.toMatchObject({
+      status: 409,
+      message: 'Falta a conversão da 2ª colocação na configuração do evento.',
+    });
+    await expect(
+      service.gerarRelatorioFinal(1, FormatoRelatorio.XLSX),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma.participante.findMany).not.toHaveBeenCalled();
+    expect(xlsx.gerarBuffer).not.toHaveBeenCalled();
+  });
+
+  it('bloqueia quando falta o fator de uma quantidade de dias', async () => {
+    prisma.fatorPresenca.findMany.mockResolvedValue([
+      { diasPresentes: 1 },
+      { diasPresentes: 2 },
+    ]);
+    await expect(service.gerarPrevia(1, {})).rejects.toMatchObject({
+      status: 409,
+      message: 'Falta o fator para 0 dias presentes na configuração do evento.',
+    });
+    expect(prisma.participante.findMany).not.toHaveBeenCalled();
+  });
+
   it('consome a colocação resultante do desempate manual vigente', async () => {
     parcial.calcularClassificacaoParcial.mockResolvedValueOnce({
       dados: [
@@ -213,6 +247,7 @@ describe('RelatorioFinalService', () => {
       ]);
       prisma.conversaoPontoExtra.findMany.mockResolvedValueOnce([
         { colocacao: 1, pontoExtra: new Prisma.Decimal('0.3') },
+        { colocacao: 2, pontoExtra: new Prisma.Decimal('0.8') },
       ]);
 
       const previa = await service.gerarPrevia(1, { busca: 'Ana' });
@@ -235,12 +270,15 @@ describe('RelatorioFinalService', () => {
     prisma.conversaoPontoExtra.findMany
       .mockResolvedValueOnce([
         { colocacao: 1, pontoExtra: new Prisma.Decimal('0.1') },
+        { colocacao: 2, pontoExtra: new Prisma.Decimal('0.8') },
       ])
       .mockResolvedValueOnce([
         { colocacao: 1, pontoExtra: new Prisma.Decimal('1') },
+        { colocacao: 2, pontoExtra: new Prisma.Decimal('0.8') },
       ])
       .mockResolvedValueOnce([
         { colocacao: 1, pontoExtra: new Prisma.Decimal('1') },
+        { colocacao: 2, pontoExtra: new Prisma.Decimal('0.8') },
       ]);
 
     await expect(
@@ -264,6 +302,8 @@ describe('RelatorioFinalService', () => {
     });
     expect(pdf.gerarBuffer).toHaveBeenCalledOnce();
     expect(xlsx.gerarBuffer).not.toHaveBeenCalled();
+    // O evento vem da checagem inicial, sem uma segunda consulta.
+    expect(eventos.buscarPorId).toHaveBeenCalledOnce();
 
     await service.gerarRelatorioFinal(1, FormatoRelatorio.XLSX);
     expect(xlsx.gerarBuffer).toHaveBeenCalledOnce();

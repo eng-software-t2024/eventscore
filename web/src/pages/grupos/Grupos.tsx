@@ -29,6 +29,8 @@ export default function Grupos() {
   const [editando, setEditando] = useState<Grupo>();
   const [nome, setNome] = useState('');
   const [cor, setCor] = useState(PALETA[0]);
+  // Aviso de revisão depois de criar ou excluir grupo, com o evento em que vale: trocar de evento o esconde.
+  const [revisar, setRevisar] = useState<{ base: string; acao: 'criado' | 'excluído' }>();
 
   const base = eventoAtivo ? `/eventos/${eventoAtivo.id}` : '';
 
@@ -77,6 +79,7 @@ export default function Grupos() {
   async function salvar(e: FormEvent) {
     e.preventDefault();
     setErro('');
+    setRevisar(undefined);
     setSalvando(true);
     try {
       const corpo = JSON.stringify({ nome: nome.trim(), cor });
@@ -84,11 +87,26 @@ export default function Grupos() {
       else await api(`${base}/grupos`, { method: 'POST', body: corpo });
       limpar();
       carregar();
+      // Grupo novo com desafios já cadastrados: as tabelas de pontos e a conversão ficam uma linha curtas.
+      if (!editando) avisarRevisao('criado');
     } catch (err) {
       setErro((err as Error).message);
     } finally {
       setSalvando(false);
     }
+  }
+
+  /**
+   * Criar ou excluir grupo muda o número de linhas que a tabela de pontos de cada desafio e a conversão
+   * em ponto extra precisam ter. Avisa só se já houver desafio ou conversão cadastrados.
+   */
+  function avisarRevisao(acao: 'criado' | 'excluído') {
+    setRevisar(undefined);
+    Promise.all([api<unknown[]>(`${base}/desafios`), api<{ conversaoPontoExtra: unknown[] }>(`${base}/configuracao`)])
+      .then(([desafios, config]) => {
+        if (desafios.length > 0 || config.conversaoPontoExtra.length > 0) setRevisar({ base, acao });
+      })
+      .catch(() => {});
   }
 
   async function excluir(grupo: Grupo) {
@@ -98,6 +116,7 @@ export default function Grupos() {
       await api(`${base}/grupos/${grupo.id}`, { method: 'DELETE' });
       if (editando?.id === grupo.id) limpar();
       carregar();
+      avisarRevisao('excluído');
     } catch (err) {
       setErro((err as Error).message);
     }
@@ -116,6 +135,12 @@ export default function Grupos() {
         </div>
       </header>
 
+      {revisar?.base === base && !travado && (
+        <p className="cartao aviso" role="status">
+          Grupo {revisar.acao}. Revise a tabela de pontos em <Link to="/desafios">Desafios</Link> e a conversão em ponto extra na{' '}
+          <Link to={`/evento/${eventoAtivo.id}/configuracao`}>Configuração</Link>: as duas precisam de uma linha por grupo.
+        </p>
+      )}
       {travado ? (
         <p className="cartao aviso">
           Este evento já tem resultado lançado. Os grupos não podem mais ser criados, editados nem excluídos (RF03).

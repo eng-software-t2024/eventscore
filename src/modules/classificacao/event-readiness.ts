@@ -53,3 +53,14 @@ export function getMissingConfiguration(
   }
   return null;
 }
+
+/** Mensagem única para a apuração e o relatório final. */
+export function describeMissingConfiguration(
+  missing: MissingConfiguration,
+): string {
+  if (missing.kind === 'conversion') {
+    return `Falta a conversão da ${missing.value}ª colocação na configuração do evento.`;
+  }
+  const dias = missing.value === 1 ? 'dia presente' : 'dias presentes';
+  return `Falta o fator para ${missing.value} ${dias} na configuração do evento.`;
+}
