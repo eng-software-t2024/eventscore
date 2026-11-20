@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { camposAlterados, montarDesafio, paraFormulario, type Desafio } from './regras.ts';
+import { camposAlterados, desafiosDesatualizados, montarDesafio, paraFormulario, type Desafio } from './regras.ts';
 
 const hackathon: Desafio = {
   id: 3,
@@ -60,4 +60,11 @@ test('PATCH leva só os campos alterados e a tabela inteira quando ela muda', ()
     { colocacao: 2, pontos: 70 },
   ];
   assert.deepEqual(camposAlterados(hackathon, { ...dados, diaId: 1, pontosColocacao: novaTabela }), { diaId: 1, pontosColocacao: novaTabela });
+});
+
+test('aponta desafios cuja tabela não tem uma linha por grupo', () => {
+  assert.deepEqual(desafiosDesatualizados([hackathon], 2), []);
+  assert.deepEqual(desafiosDesatualizados([hackathon], 3), [hackathon]);
+  assert.deepEqual(desafiosDesatualizados([hackathon], 1), [hackathon]);
+  assert.deepEqual(desafiosDesatualizados([hackathon], 0), []);
 });

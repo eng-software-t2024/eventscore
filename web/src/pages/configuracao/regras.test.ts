@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { criteriosValidos, montarConfiguracao, paraFormulario, type Configuracao } from './regras.ts';
+import { criteriosValidos, montarConfiguracao, paraFormulario, pendenciaConfiguracao, type Configuracao } from './regras.ts';
 
 const exemplo: Configuracao = {
   conversaoPontoExtra: [
@@ -66,4 +66,16 @@ test('critério de tipo que saiu do contrato é descartado', () => {
     paraFormulario(antiga, 2, 2).criterios.map((c) => c.tipo),
     ['MAIOR_PONTUACAO_DESAFIO', 'MENOR_PENALIDADE'],
   );
+});
+
+test('aponta o que falta na configuração salva para os grupos e dias atuais', () => {
+  // exemplo: conversão para 2 colocações; fatores conforme o objeto de exemplo.
+  const completa = { ...exemplo, fatoresPresenca: [0, 1, 2].map((d) => ({ diasPresentes: d, fator: d / 2 })) };
+  assert.equal(pendenciaConfiguracao(completa, 2, 2), null);
+  assert.match(pendenciaConfiguracao(completa, 3, 2) ?? '', /falta a conversão da 3ª colocação\./);
+  assert.match(pendenciaConfiguracao(completa, 2, 3) ?? '', /falta o fator para 3 dias presentes\./);
+  const semFator1 = { ...completa, fatoresPresenca: completa.fatoresPresenca.filter((f) => f.diasPresentes !== 1) };
+  assert.match(pendenciaConfiguracao(semFator1, 3, 2) ?? '', /falta a conversão da 3ª colocação e o fator para 1 dia presente\./);
+  const nuncaSalva = { ...completa, conversaoPontoExtra: [], fatoresPresenca: [] };
+  assert.match(pendenciaConfiguracao(nuncaSalva, 2, 1) ?? '', /1ª, 2ª colocação e o fator para 0, 1 dias presentes/);
 });

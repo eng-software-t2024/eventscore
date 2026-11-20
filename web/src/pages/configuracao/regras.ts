@@ -29,6 +29,23 @@ export type Formulario = {
   criterios: { tipo: TipoCriterio; desafioId: number | null }[];
 };
 
+/**
+ * O que falta na configuração salva para cobrir os grupos e os dias atuais, ou null se nada falta.
+ * Acontece quando a configuração nunca foi salva ou quando um grupo ou dia foi cadastrado depois.
+ * Sem isso, a apuração individual e o relatório final respondem 409.
+ */
+export function pendenciaConfiguracao(config: Configuracao, grupos: number, quantidadeDias: number): string | null {
+  const colocacoes = new Set(config.conversaoPontoExtra.map((c) => c.colocacao));
+  const dias = new Set(config.fatoresPresenca.map((f) => f.diasPresentes));
+  const faltas: string[] = [];
+  const semConversao = Array.from({ length: grupos }, (_, i) => i + 1).filter((c) => !colocacoes.has(c));
+  const semFator = Array.from({ length: quantidadeDias + 1 }, (_, d) => d).filter((d) => !dias.has(d));
+  if (semConversao.length) faltas.push(`a conversão da ${semConversao.map((c) => `${c}ª`).join(', ')} colocação`);
+  if (semFator.length) faltas.push(`o fator para ${semFator.join(', ')} ${semFator.length === 1 && semFator[0] === 1 ? 'dia presente' : 'dias presentes'}`);
+  if (!faltas.length) return null;
+  return `A configuração salva não cobre os grupos e dias atuais: falta ${faltas.join(' e ')}. Preencha os campos e salve; sem isso a apuração individual e o relatório final ficam bloqueados.`;
+}
+
 /** Critérios com tipo que a tela ainda aceita; um tipo que saiu do contrato é descartado ao salvar. */
 export const criteriosValidos = (config: Configuracao) => config.criteriosDesempate.filter((c) => c.tipo in TIPOS_CRITERIO);
 

@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 import { api, type Schemas } from '../../api/client';
-import { criteriosValidos, montarConfiguracao, paraFormulario, TIPOS_CRITERIO, type Configuracao as Config, type Formulario, type TipoCriterio } from './regras.ts';
+import { criteriosValidos, montarConfiguracao, paraFormulario, pendenciaConfiguracao, TIPOS_CRITERIO, type Configuracao as Config, type Formulario, type TipoCriterio } from './regras.ts';
 import './Configuracao.css';
 
 type Desafio = { id: number; nome: string };
@@ -17,6 +17,7 @@ export default function Configuracao() {
   const [salvo, setSalvo] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [descartados, setDescartados] = useState(0);
+  const [pendencia, setPendencia] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -30,6 +31,7 @@ export default function Configuracao() {
         setDesafios(des);
         setForm(paraFormulario(config, grupos.length, ev.quantidadeDias));
         setDescartados(config.criteriosDesempate.length - criteriosValidos(config).length);
+        if (grupos.length > 0) setPendencia(pendenciaConfiguracao(config, grupos.length, ev.quantidadeDias));
       })
       .catch((e: Error) => setErro(e.message));
   }, [base]);
@@ -49,6 +51,8 @@ export default function Configuracao() {
     try {
       await api(`${base}/configuracao`, { method: 'PUT', body: JSON.stringify(resultado.dados) });
       setSalvo(true);
+      // O formulário tem uma linha por grupo e por dia, então o que foi salvo cobre tudo.
+      setPendencia(null);
     } catch (err) {
       setErro((err as Error).message);
     } finally {
@@ -91,6 +95,11 @@ export default function Configuracao() {
       {salvo && (
         <p className="sucesso" role="status">
           Configurações salvas.
+        </p>
+      )}
+      {pendencia && (
+        <p className="cartao aviso" role="status">
+          {pendencia}
         </p>
       )}
       {!form && !erro && <p className="cartao">Carregando...</p>}

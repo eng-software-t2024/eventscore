@@ -29,6 +29,7 @@ export default function Grupos() {
   const [editando, setEditando] = useState<Grupo>();
   const [nome, setNome] = useState('');
   const [cor, setCor] = useState(PALETA[0]);
+  const [revisar, setRevisar] = useState(false);
 
   const base = eventoAtivo ? `/eventos/${eventoAtivo.id}` : '';
 
@@ -84,6 +85,12 @@ export default function Grupos() {
       else await api(`${base}/grupos`, { method: 'POST', body: corpo });
       limpar();
       carregar();
+      // Grupo novo com desafios já cadastrados: as tabelas de pontos e a conversão ficam uma linha curtas.
+      if (!editando) {
+        api<unknown[]>(`${base}/desafios`)
+          .then((desafios) => setRevisar(desafios.length > 0))
+          .catch(() => {});
+      }
     } catch (err) {
       setErro((err as Error).message);
     } finally {
@@ -116,6 +123,12 @@ export default function Grupos() {
         </div>
       </header>
 
+      {revisar && !travado && (
+        <p className="cartao aviso" role="status">
+          Grupo criado. Como o evento já tem desafios, revise a tabela de pontos em <Link to="/desafios">Desafios</Link> e a conversão em ponto
+          extra na <Link to={`/evento/${eventoAtivo.id}/configuracao`}>Configuração</Link>: as duas precisam de uma linha por grupo.
+        </p>
+      )}
       {travado ? (
         <p className="cartao aviso">
           Este evento já tem resultado lançado. Os grupos não podem mais ser criados, editados nem excluídos (RF03).

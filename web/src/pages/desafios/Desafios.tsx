@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
 import { api, type Schemas } from '../../api/client';
 import { useLayout } from '../../components/Layout';
-import { camposAlterados, MAX_DESCRICAO, MAX_NOME, montarDesafio, paraFormulario, type Desafio, type FormDesafio } from './regras.ts';
+import { camposAlterados, desafiosDesatualizados, MAX_DESCRICAO, MAX_NOME, montarDesafio, paraFormulario, type Desafio, type FormDesafio } from './regras.ts';
 import './Desafios.css';
 
 type Dia = Schemas['DiaEventoDto'];
@@ -53,6 +53,7 @@ export default function Desafios() {
   const valores = form.pontos.map((t) => Number(t.replace(',', '.')) || 0);
   const maximo = Math.max(1, ...valores);
   const total = valores.reduce((a, b) => a + b, 0);
+  const desatualizados = desafiosDesatualizados(desafios ?? [], grupos);
 
   function novo() {
     setEditando(undefined);
@@ -119,6 +120,13 @@ export default function Desafios() {
       {erro && (
         <p className="erro" role="alert">
           {erro}
+        </p>
+      )}
+      {desatualizados.length > 0 && (
+        <p className="cartao aviso" role="status">
+          {desatualizados.length === 1 ? 'O desafio' : 'Os desafios'} {desatualizados.map((d) => d.nome).join(', ')}{' '}
+          {desatualizados.length === 1 ? 'tem' : 'têm'} a tabela de pontos com número de linhas diferente dos {grupos} grupos do evento. Edite e salve
+          para completar a tabela; sem isso não dá para lançar as colocações.
         </p>
       )}
 
@@ -235,6 +243,7 @@ export default function Desafios() {
                   <tr key={d.id}>
                     <td>
                       <strong>{d.nome}</strong>
+                      {desatualizados.includes(d) && <small className="sub erro">Tabela de pontos incompleta</small>}
                       {d.descricao && <small className="sub">{d.descricao}</small>}
                     </td>
                     <td>{nomeDoDia(d.diaId)}</td>
