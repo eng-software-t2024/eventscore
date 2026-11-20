@@ -31,7 +31,7 @@ export class ApuracaoController {
   @ApiOperation({
     summary: 'Consultar apuração individual de ponto extra (RF16)',
     description:
-      'Calcula na consulta ROUND(pontoExtraGrupo * fator, 2) para cada participante. Um empate pendente impede a apuração.',
+      'Calcula na consulta ROUND(pontoExtraGrupo * fator, 2) para cada participante. Exige resultados de todos os desafios para todos os grupos, configuração completa de conversões e fatores, e desempates resolvidos.',
     operationId: 'consultarApuracaoIndividual',
   })
   @ApiOkResponse({ type: ApuracaoEnvelopeDto })
@@ -49,7 +49,7 @@ export class ApuracaoController {
     type: ErroPadraoDto,
   })
   @ApiConflictResponse({
-    description: 'Classificação com empate pendente.',
+    description: 'Resultados ou configuração incompletos, ou empate pendente.',
     type: ErroPadraoDto,
   })
   getResults(
