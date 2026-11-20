@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
 import { api } from '../../api/client';
 import type { Configuracao } from '../configuracao/regras.ts';
-import { PontoCor, type Grupo } from './comum';
+import { ListaHistorico, PontoCor, type Grupo } from './comum';
 import { bonusPendente, tipoDeFalha } from './pendentes.ts';
-import { montarBonificacao, montarPenalidade, type Bonificacao, type Penalidade } from './regras.ts';
+import { juntarHistoricos, montarBonificacao, montarPenalidade, type Auditoria, type Bonificacao, type Penalidade } from './regras.ts';
 import type { EnviosPendentes } from './useEnviosPendentes.ts';
 
 const PENALIDADE_VAZIA = { grupoId: '', pontos: '', descricao: '', justificativa: '' };
@@ -25,6 +25,8 @@ export default function AbaBonusPenalidades({ eventoId, grupos, envios }: { even
   const [editando, setEditando] = useState<Penalidade>();
   const [ocupado, setOcupado] = useState<string>();
   const [aviso, setAviso] = useState<{ tipo: 'erro' | 'sucesso' | 'aviso'; texto: string }>();
+  // Histórico aberto (RF18): `bonus-<grupoId>` ou `penalidade-<id>`; sem `itens`, ainda carregando.
+  const [historico, setHistorico] = useState<{ chave: string; itens?: (Auditoria & { rotulo?: string })[] }>();
 
   const carregar = useCallback(() => {
     Promise.all([api<Configuracao>(`${base}/configuracao`), api<Bonificacao[]>(`${base}/bonificacoes`), api<Penalidade[]>(`${base}/penalidades`)])
@@ -70,7 +72,11 @@ export default function AbaBonusPenalidades({ eventoId, grupos, envios }: { even
         setAviso({ tipo: 'erro', texto: `${r.erro.message} O bônus de ${nome(grupoId)} ficou guardado neste navegador e será reenviado.` });
       else if (r.status === 'guardado')
         setAviso({ tipo: 'aviso', texto: `Sem conexão com o servidor: o bônus de ${nome(grupoId)} ficou guardado e será enviado quando a conexão voltar.` });
-      else if (r.status === 'salvo') setAviso({ tipo: 'sucesso', texto: `Bônus de ${nome(grupoId)} registrado.` });
+      else if (r.status === 'salvo') {
+        setAviso({ tipo: 'sucesso', texto: `Bônus de ${nome(grupoId)} registrado.` });
+        // O histórico aberto ficaria sem a alteração que acabou de ser feita.
+        fecharHistorico(`bonus-${grupoId}`);
+      }
     } finally {
       setOcupado(undefined);
     }
@@ -86,6 +92,7 @@ export default function AbaBonusPenalidades({ eventoId, grupos, envios }: { even
       if (editando) await api(`${base}/penalidades/${editando.id}`, { method: 'PATCH', body: corpo });
       else await api(`${base}/penalidades`, { method: 'POST', body: corpo });
       setAviso({ tipo: 'sucesso', texto: editando ? 'Penalidade corrigida.' : `Penalidade aplicada a ${nome(resultado.dados.grupoId)}.` });
+      if (editando) fecharHistorico(`penalidade-${editando.id}`);
       cancelarEdicao();
       carregar();
     } catch (err) {
@@ -98,6 +105,41 @@ export default function AbaBonusPenalidades({ eventoId, grupos, envios }: { even
       setOcupado(undefined);
     }
   }
+
+  /** Fecha o histórico de um lançamento, se for o que está aberto. */
+  const fecharHistorico = (chave: string) => setHistorico((h) => (h?.chave === chave ? undefined : h));
+
+  /** Abre ou fecha o histórico; a resposta de um histórico que já foi fechado ou trocado é ignorada. */
+  async function abrirHistorico(chave: string, buscar: () => Promise<(Auditoria & { rotulo?: string })[]>) {
+    if (historico?.chave === chave) return setHistorico(undefined);
+    setHistorico({ chave });
+    try {
+      const itens = await buscar();
+      setHistorico((h) => (h?.chave === chave ? { chave, itens } : h));
+    } catch (e) {
+      setHistorico((h) => (h?.chave === chave ? undefined : h));
+      setAviso({ tipo: 'erro', texto: (e as Error).message });
+    }
+  }
+
+  // Os ids dos itens vêm de uma consulta nova: o bônus pode ter sido salvo agora (ou pela fila) e ganhado id.
+  const historicoBonus = (grupoId: number) =>
+    abrirHistorico(`bonus-${grupoId}`, async () => {
+      const lista = await api<Bonificacao[]>(`${base}/bonificacoes`);
+      const itens = lista.find((b) => b.grupoId === grupoId)?.itens ?? [];
+      const nomeItem = (id: number) => config!.itensBonificacao.find((i) => i.id === id)?.nome ?? `item ${id}`;
+      return juntarHistoricos(
+        await Promise.all(
+          itens.map(async (i) => ({
+            rotulo: nomeItem(i.itemBonificacaoId),
+            itens: await api<Auditoria[]>(`/auditoria?entidade=BONIFICACAO_GRUPO&registroId=${i.id}`),
+          })),
+        ),
+      );
+    });
+
+  const historicoPenalidade = (id: number) =>
+    abrirHistorico(`penalidade-${id}`, () => api<Auditoria[]>(`/auditoria?entidade=PENALIDADE&registroId=${id}`));
 
   function editar(p: Penalidade) {
     setEditando(p);
@@ -155,33 +197,50 @@ export default function AbaBonusPenalidades({ eventoId, grupos, envios }: { even
               </thead>
               <tbody>
                 {grupos.map((g) => (
-                  <tr key={g.id}>
-                    <td>
-                      <span className="pessoa">
-                        <PontoCor cor={g.cor} />
-                        {g.nome}
-                      </span>
-                    </td>
-                    {config.itensBonificacao.map((item) => (
-                      <td key={item.id}>
-                        <input
-                          className="campo-tabela"
-                          inputMode="numeric"
-                          value={bonus[g.id]?.[item.id ?? -1] ?? ''}
-                          onChange={(e) => setBonus({ ...bonus, [g.id]: { ...bonus[g.id], [item.id ?? -1]: e.target.value } })}
-                          aria-label={`${item.nome} de ${g.nome}`}
-                        />
+                  <Fragment key={g.id}>
+                    <tr>
+                      <td>
+                        <span className="pessoa">
+                          <PontoCor cor={g.cor} />
+                          {g.nome}
+                        </span>
                       </td>
-                    ))}
-                    <td>
-                      <strong>{totalBonus(g.id)}</strong>
-                    </td>
-                    <td>
-                      <button className="btn btn-pequeno" onClick={() => registrarBonus(g.id)} disabled={ocupado === `bonus-${g.id}`}>
-                        Registrar
-                      </button>
-                    </td>
-                  </tr>
+                      {config.itensBonificacao.map((item) => (
+                        <td key={item.id}>
+                          <input
+                            className="campo-tabela"
+                            inputMode="numeric"
+                            value={bonus[g.id]?.[item.id ?? -1] ?? ''}
+                            onChange={(e) => setBonus({ ...bonus, [g.id]: { ...bonus[g.id], [item.id ?? -1]: e.target.value } })}
+                            aria-label={`${item.nome} de ${g.nome}`}
+                          />
+                        </td>
+                      ))}
+                      <td>
+                        <strong>{totalBonus(g.id)}</strong>
+                      </td>
+                      <td className="desafio-linha-acoes">
+                        <button className="btn btn-pequeno" onClick={() => registrarBonus(g.id)} disabled={ocupado === `bonus-${g.id}`}>
+                          Registrar
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-contorno btn-pequeno"
+                          onClick={() => historicoBonus(g.id)}
+                          aria-expanded={historico?.chave === `bonus-${g.id}`}
+                        >
+                          Histórico
+                        </button>
+                      </td>
+                    </tr>
+                    {historico?.chave === `bonus-${g.id}` && (
+                      <tr className="historico">
+                        <td colSpan={config.itensBonificacao.length + 3}>
+                          <ListaHistorico itens={historico.itens} />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
@@ -256,20 +315,37 @@ export default function AbaBonusPenalidades({ eventoId, grupos, envios }: { even
               </thead>
               <tbody>
                 {penalidades.map((p) => (
-                  <tr key={p.id}>
-                    <td>{nome(p.grupoId)}</td>
-                    <td>−{p.pontos}</td>
-                    <td>{p.descricao}</td>
-                    <td>{p.justificativa}</td>
-                    <td className="desafio-linha-acoes">
-                      <button className="btn btn-contorno btn-pequeno" onClick={() => editar(p)}>
-                        Corrigir
-                      </button>
-                      <button className="btn-excluir" onClick={() => remover(p)} aria-label={`Remover penalidade de ${nome(p.grupoId)}`}>
-                        ×
-                      </button>
-                    </td>
-                  </tr>
+                  <Fragment key={p.id}>
+                    <tr>
+                      <td>{nome(p.grupoId)}</td>
+                      <td>−{p.pontos}</td>
+                      <td>{p.descricao}</td>
+                      <td>{p.justificativa}</td>
+                      <td className="desafio-linha-acoes">
+                        <button className="btn btn-contorno btn-pequeno" onClick={() => editar(p)}>
+                          Corrigir
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-contorno btn-pequeno"
+                          onClick={() => historicoPenalidade(p.id)}
+                          aria-expanded={historico?.chave === `penalidade-${p.id}`}
+                        >
+                          Histórico
+                        </button>
+                        <button className="btn-excluir" onClick={() => remover(p)} aria-label={`Remover penalidade de ${nome(p.grupoId)}`}>
+                          ×
+                        </button>
+                      </td>
+                    </tr>
+                    {historico?.chave === `penalidade-${p.id}` && (
+                      <tr className="historico">
+                        <td colSpan={5}>
+                          <ListaHistorico itens={historico.itens} />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>

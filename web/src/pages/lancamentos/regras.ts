@@ -2,7 +2,7 @@ import { lerNumero } from '../../numero.ts';
 
 // Formatos do contrato v0.3 (lançamentos); ainda fora do OpenAPI oficial.
 export type Resultado = { id: number | null; grupoId: number; colocacao: number | null; ausente: boolean; pontos: number };
-export type Bonificacao = { grupoId: number; itens: { itemBonificacaoId: number; valor: number }[]; total: number };
+export type Bonificacao = { grupoId: number; itens: { id: number; itemBonificacaoId: number; valor: number }[]; total: number };
 export type Penalidade = { id: number; grupoId: number; pontos: number; descricao: string; justificativa: string };
 export type LinhaClassificacao = {
   posicao: number;
@@ -20,6 +20,16 @@ export type Classificacao = {
   resumo: { desafiosLancados: number; desafiosTotais: number; empatesPendentes: number[][] };
 };
 export type Auditoria = { dataHora: string; usuario: string; operacao: string; valorAnterior: string | null; valorNovo: string | null };
+
+/**
+ * RF18: o bônus de um grupo tem um registro por item, cada um com o próprio histórico. Junta os
+ * históricos em ordem de data (a mais antiga primeiro, como a API devolve), marcando de qual item é cada um.
+ */
+export function juntarHistoricos(listas: { rotulo: string; itens: Auditoria[] }[]): (Auditoria & { rotulo: string })[] {
+  return listas
+    .flatMap(({ rotulo, itens }) => itens.map((h) => ({ ...h, rotulo })))
+    .sort((a, b) => Date.parse(a.dataHora) - Date.parse(b.dataHora));
+}
 
 type Lancamento = { grupoId: number; colocacao: number | null; ausente: boolean };
 
