@@ -24,7 +24,7 @@ A versão **`v0.3.0`** acrescenta o `id` de cada item de bonificação na respos
 |---|---|---|---|
 | `v0.1.0` | Baseline Sprint 01 (17 operações: Auth, Eventos, Dias e Grupos) | **Luiz Meneses** (Frontend Lead) | Publicado e Aprovado |
 | `v0.2.0` | Contrato completo Sprints 01 + 02 (44 operações em 12 módulos), ADR 0003 (V12 sem `MAIOR_PRESENCA`), Participantes (PR #29), Desafios `#245` (PR #31) e Resultados `#223` (PR #35) | **Luiz Meneses** (Frontend Lead — T06, PR #31 e `#223`), **Saylon** (Revisor Backend — PR #31 e PR #35) e **ADR 0003** | Publicado e Consolidado |
-| `v0.3.0` | `id` dos itens em `BonificacaoItemResumoDto` (histórico de bônus, RF18 — PR #51) | Revisão do PR #51 (mudança compatível, sem aceite prévio do front) | Publicado |
+| `v0.3.0` | `id` dos itens em `BonificacaoItemResumoDto` (histórico de bônus, RF18 — PR #51) | Revisão do PR #51 (mudança compatível, sem aceite prévio do front — seção 3.1) | Proposto |
 
 ### Escopo Completo de Endpoints (`v0.3.0` — 44 operações):
 | Módulo | Método | Rota | Descrição |
@@ -123,14 +123,17 @@ A versão **`v0.3.0`** acrescenta o `id` de cada item de bonificação na respos
 Adotamos os princípios de **Versionamento Semântico (SemVer)** adaptados para contratos de API REST (`vMAJOR.MINOR.PATCH`), aliados a um fluxo estrito de governança **Contract-First**.
 
 ### 3.1. Regra de Governança
-Qualquer alteração em **paths**, **parâmetros**, **schemas** ou **status codes** exige obrigatoriamente um **Pull Request (PR) de atualização do contrato** com **revisão e aprovação explícita do Frontend** antes do início ou merge da implementação no Backend.
+Qualquer alteração em **paths**, **parâmetros**, **schemas** ou **status codes** exige obrigatoriamente um **Pull Request (PR) de atualização do contrato**, com o bump de versão da seção 3.2.
+
+- **Mudanças compatíveis (*non-breaking*):** basta a revisão do PR. Não exigem aceite prévio do Frontend, porque não quebram nenhum consumidor.
+- **Mudanças incompatíveis (*breaking*):** exigem **aprovação explícita do Frontend** antes do início ou merge da implementação no Backend.
 
 ### 3.2. Classificação de Mudanças
 - **Compatíveis (*Non-breaking*):**
   - Adição de novos endpoints e recursos.
   - Adição de campos opcionais em requisições (`requestBody` ou `query`).
   - Adição de novos campos em respostas (`response`).
-  - **Ação de versão:** Bump de `MINOR` (ou `PATCH` para ajustes documentais/exemplos sem mudança estrutural).
+  - **Ação de versão:** Bump de `MINOR` (ou `PATCH` para ajustes documentais/exemplos sem mudança estrutural), com revisão do PR e sem aceite prévio do Frontend.
 - **Incompatíveis (*Breaking*):**
   - Remoção ou renomeação de rotas ou campos existentes.
   - Alteração de tipos de dados (ex.: `string` para `number`, ou remoção/renomeação de valores de `enum`).
@@ -162,7 +165,7 @@ Qualquer alteração em **paths**, **parâmetros**, **schemas** ou **status code
 1. **Identificação da Necessidade:** Qualquer membro do Backend ou Frontend abre o apontamento no canal de integração do projeto.
 2. **Alinhamento e Registro (ADR / Workshop):** Mudanças estruturais ou incompatíveis são registradas em ADR (`docs/adr/`) e/ou ata de contrato (`docs/contrato-api-t06.md`).
 3. **Atualização do OpenAPI:** O arquivo `docs/openapi/openapi-v0.1.yaml` (ou nova versão) é atualizado em branch dedicada.
-4. **Revisão Cruzada Obrigatória (Pull Request):** O PR de alteração do contrato precisa obrigatoriamente de aprovação explícita do **Frontend Lead (Luiz Meneses)** e revisão do Backend antes da implementação no código.
+4. **Revisão Cruzada Obrigatória (Pull Request):** Todo PR de alteração do contrato precisa de revisão do Backend. Se a mudança for incompatível, precisa também de aprovação explícita do **Frontend Lead (Luiz Meneses)** antes da implementação no código.
 
 ---
 
