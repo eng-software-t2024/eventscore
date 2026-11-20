@@ -3,9 +3,9 @@ import { Link } from 'react-router';
 import { api } from '../../api/client';
 import type { Desafio } from '../desafios/regras.ts';
 import { PontoCor, type Grupo } from './comum';
-import type { EnviosPendentes } from './Lancamentos';
-import { aplicarColocacoesPendentes, lerPendentes, semConexao } from './pendentes.ts';
+import { aplicarColocacoesPendentes, lerPendentes } from './pendentes.ts';
 import { corpoColocacoes, pontosDaColocacao, validarColocacoes, type Auditoria, type Resultado } from './regras.ts';
+import type { EnviosPendentes } from './useEnviosPendentes.ts';
 
 type Linha = { id: number | null; grupoId: number; colocacao: number | null; ausente: boolean };
 
@@ -21,7 +21,7 @@ export default function AbaColocacao({ eventoId, grupos, envios }: { eventoId: n
   const [linhas, setLinhas] = useState<{ desafioId: number; dados: Linha[] }>();
   const [historico, setHistorico] = useState<{ id: number; itens?: Auditoria[] }>();
   const [erro, setErro] = useState('');
-  const [salvo, setSalvo] = useState(false);
+  const [salvo, setSalvo] = useState<'salvo' | 'guardado'>();
   const [salvando, setSalvando] = useState(false);
 
   useEffect(() => {
@@ -60,7 +60,7 @@ export default function AbaColocacao({ eventoId, grupos, envios }: { eventoId: n
   const maximo = Math.max(1, ...(desafio?.pontosColocacao.map((p) => p.pontos) ?? []));
 
   function mudar(grupoId: number, valor: string) {
-    setSalvo(false);
+    setSalvo(undefined);
     setLinhas(
       (l) =>
         l && {
@@ -81,20 +81,15 @@ export default function AbaColocacao({ eventoId, grupos, envios }: { eventoId: n
     const caminho = caminhoResultados(desafioId);
     const corpo = corpoColocacoes(dados);
     try {
-      const resposta = await api<Resultado[] | undefined>(caminho, {
-        method: 'PUT',
-        body: JSON.stringify(corpo),
-      });
-      // Este envio é mais recente que um guardado do mesmo desafio.
-      envios.descartar(caminho);
-      // O PUT mantém o id de cada linha; com ele o botão "Histórico" passa a funcionar.
-      if (Array.isArray(resposta)) {
-        setLinhas({ desafioId, dados: dados.map((l) => ({ ...l, id: resposta.find((r) => r.grupoId === l.grupoId)?.id ?? l.id })) });
+      // Passa pela fila: se a conexão cair, o envio fica guardado e sai em ordem depois (RNF04).
+      const resultado = await envios.enviar({ caminho, corpo, descricao: `colocações de ${desafio?.nome ?? 'um desafio'}` });
+      if (resultado.status === 'recusado') return setErro(resultado.erro.message);
+      setSalvo(resultado.status);
+      if (resultado.status === 'salvo') {
+        // O PUT mantém o id de cada linha; com ele o botão "Histórico" passa a funcionar.
+        const salvos = await api<Resultado[]>(caminho).catch(() => undefined);
+        if (salvos) setLinhas({ desafioId, dados: dados.map((l) => ({ ...l, id: salvos.find((r) => r.grupoId === l.grupoId)?.id ?? l.id })) });
       }
-      setSalvo(true);
-    } catch (e) {
-      if (semConexao(e)) envios.guardar({ caminho, corpo, descricao: `colocações de ${desafio?.nome ?? 'um desafio'}` });
-      else setErro((e as Error).message);
     } finally {
       setSalvando(false);
     }
@@ -140,9 +135,14 @@ export default function AbaColocacao({ eventoId, grupos, envios }: { eventoId: n
           {erro}
         </p>
       )}
-      {salvo && (
+      {salvo === 'salvo' && (
         <p className="sucesso" role="status">
           Colocações salvas. A classificação já considera este lançamento.
+        </p>
+      )}
+      {salvo === 'guardado' && (
+        <p className="aviso" role="status">
+          Sem conexão com o servidor: as colocações ficaram guardadas neste navegador e serão enviadas quando a conexão voltar.
         </p>
       )}
 

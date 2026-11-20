@@ -29,7 +29,8 @@ export default function Grupos() {
   const [editando, setEditando] = useState<Grupo>();
   const [nome, setNome] = useState('');
   const [cor, setCor] = useState(PALETA[0]);
-  const [revisar, setRevisar] = useState(false);
+  // Evento em que o aviso de revisão vale: trocar de evento esconde o aviso.
+  const [revisarEm, setRevisarEm] = useState<string>();
 
   const base = eventoAtivo ? `/eventos/${eventoAtivo.id}` : '';
 
@@ -78,6 +79,7 @@ export default function Grupos() {
   async function salvar(e: FormEvent) {
     e.preventDefault();
     setErro('');
+    setRevisarEm(undefined);
     setSalvando(true);
     try {
       const corpo = JSON.stringify({ nome: nome.trim(), cor });
@@ -87,8 +89,10 @@ export default function Grupos() {
       carregar();
       // Grupo novo com desafios já cadastrados: as tabelas de pontos e a conversão ficam uma linha curtas.
       if (!editando) {
-        api<unknown[]>(`${base}/desafios`)
-          .then((desafios) => setRevisar(desafios.length > 0))
+        Promise.all([api<unknown[]>(`${base}/desafios`), api<{ conversaoPontoExtra: unknown[] }>(`${base}/configuracao`)])
+          .then(([desafios, config]) => {
+            if (desafios.length > 0 || config.conversaoPontoExtra.length > 0) setRevisarEm(base);
+          })
           .catch(() => {});
       }
     } catch (err) {
@@ -123,10 +127,10 @@ export default function Grupos() {
         </div>
       </header>
 
-      {revisar && !travado && (
+      {revisarEm === base && !travado && (
         <p className="cartao aviso" role="status">
-          Grupo criado. Como o evento já tem desafios, revise a tabela de pontos em <Link to="/desafios">Desafios</Link> e a conversão em ponto
-          extra na <Link to={`/evento/${eventoAtivo.id}/configuracao`}>Configuração</Link>: as duas precisam de uma linha por grupo.
+          Grupo criado. Revise a tabela de pontos em <Link to="/desafios">Desafios</Link> e a conversão em ponto extra na{' '}
+          <Link to={`/evento/${eventoAtivo.id}/configuracao`}>Configuração</Link>: as duas precisam de uma linha por grupo.
         </p>
       )}
       {travado ? (

@@ -31,7 +31,7 @@ export default function Configuracao() {
         setDesafios(des);
         setForm(paraFormulario(config, grupos.length, ev.quantidadeDias));
         setDescartados(config.criteriosDesempate.length - criteriosValidos(config).length);
-        if (grupos.length > 0) setPendencia(pendenciaConfiguracao(config, grupos.length, ev.quantidadeDias));
+        setPendencia(pendenciaConfiguracao(config, grupos.length, ev.quantidadeDias));
       })
       .catch((e: Error) => setErro(e.message));
   }, [base]);
