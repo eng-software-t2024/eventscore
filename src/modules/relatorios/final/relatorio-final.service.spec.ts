@@ -302,6 +302,8 @@ describe('RelatorioFinalService', () => {
     });
     expect(pdf.gerarBuffer).toHaveBeenCalledOnce();
     expect(xlsx.gerarBuffer).not.toHaveBeenCalled();
+    // O evento vem da checagem inicial, sem uma segunda consulta.
+    expect(eventos.buscarPorId).toHaveBeenCalledOnce();
 
     await service.gerarRelatorioFinal(1, FormatoRelatorio.XLSX);
     expect(xlsx.gerarBuffer).toHaveBeenCalledOnce();

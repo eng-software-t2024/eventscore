@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 import { api } from '../../api/client';
 import type { Configuracao } from '../configuracao/regras.ts';
 import { PontoCor, type Grupo } from './comum';
-import { bonusPendente, lerPendentes, tipoDeFalha } from './pendentes.ts';
+import { bonusPendente, tipoDeFalha } from './pendentes.ts';
 import { montarBonificacao, montarPenalidade, type Bonificacao, type Penalidade } from './regras.ts';
 import type { EnviosPendentes } from './useEnviosPendentes.ts';
 
@@ -12,6 +12,7 @@ const PENALIDADE_VAZIA = { grupoId: '', pontos: '', descricao: '', justificativa
 /** Aba 2 (RF10, RF11): bonificação por item com teto e penalidade com justificativa. */
 export default function AbaBonusPenalidades({ eventoId, grupos, envios }: { eventoId: number; grupos: Grupo[]; envios: EnviosPendentes }) {
   const base = `/eventos/${eventoId}`;
+  const { guardados } = envios;
   const [config, setConfig] = useState<Configuracao>();
   // Valor digitado por grupo e item: grupoId -> itemBonificacaoId -> texto.
   const [bonus, setBonus] = useState<Record<number, Record<number, string>>>({});
@@ -25,7 +26,7 @@ export default function AbaBonusPenalidades({ eventoId, grupos, envios }: { even
     Promise.all([api<Configuracao>(`${base}/configuracao`), api<Bonificacao[]>(`${base}/bonificacoes`), api<Penalidade[]>(`${base}/penalidades`)])
       .then(([cfg, bonificacoes, pens]) => {
         setConfig(cfg);
-        const guardados = lerPendentes(eventoId);
+        const fila = guardados();
         // Por grupo do evento: a API só devolve grupos que já têm bônus, e um bônus guardado sem
         // conexão pode ser de um grupo que ainda não tem. O guardado aparece por cima do que veio da API.
         setBonus(
@@ -34,7 +35,7 @@ export default function AbaBonusPenalidades({ eventoId, grupos, envios }: { even
               const daApi = bonificacoes.find((b) => b.grupoId === g.id);
               return [
                 g.id,
-                bonusPendente(guardados[`${base}/bonificacoes/${g.id}`]) ??
+                bonusPendente(fila[`${base}/bonificacoes/${g.id}`]) ??
                   Object.fromEntries((daApi?.itens ?? []).map((i) => [i.itemBonificacaoId, String(i.valor)])),
               ];
             }),
@@ -43,7 +44,7 @@ export default function AbaBonusPenalidades({ eventoId, grupos, envios }: { even
         setPenalidades(pens);
       })
       .catch((e: Error) => setAviso({ tipo: 'erro', texto: e.message }));
-  }, [base, eventoId, grupos]);
+  }, [base, grupos, guardados]);
 
   useEffect(carregar, [carregar]);
 
@@ -61,9 +62,11 @@ export default function AbaBonusPenalidades({ eventoId, grupos, envios }: { even
       // Passa pela fila: se a conexão cair, o envio fica guardado e sai em ordem depois (RNF04).
       const r = await envios.enviar({ caminho: `${base}/bonificacoes/${grupoId}`, corpo: resultado.dados, descricao: `bônus de ${nome(grupoId)}` });
       if (r.status === 'recusado') setAviso({ tipo: 'erro', texto: r.erro.message });
+      else if (r.status === 'erro-servidor')
+        setAviso({ tipo: 'erro', texto: `${r.erro.message} O bônus de ${nome(grupoId)} ficou guardado neste navegador e será reenviado.` });
       else if (r.status === 'guardado')
         setAviso({ tipo: 'aviso', texto: `Sem conexão com o servidor: o bônus de ${nome(grupoId)} ficou guardado e será enviado quando a conexão voltar.` });
-      else setAviso({ tipo: 'sucesso', texto: `Bônus de ${nome(grupoId)} registrado.` });
+      else if (r.status === 'salvo') setAviso({ tipo: 'sucesso', texto: `Bônus de ${nome(grupoId)} registrado.` });
     } finally {
       setOcupado(undefined);
     }

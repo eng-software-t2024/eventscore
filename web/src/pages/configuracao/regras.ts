@@ -29,6 +29,9 @@ export type Formulario = {
   criterios: { tipo: TipoCriterio; desafioId: number | null }[];
 };
 
+/** "a", "a e b", "a, b e c". */
+const listar = (itens: string[]) => (itens.length < 2 ? itens.join('') : `${itens.slice(0, -1).join(', ')} e ${itens[itens.length - 1]}`);
+
 /**
  * O que falta na configuração salva para cobrir os grupos e os dias atuais, ou null se nada falta.
  * Acontece quando a configuração nunca foi salva ou quando um grupo ou dia foi cadastrado depois.
@@ -40,8 +43,10 @@ export function pendenciaConfiguracao(config: Configuracao, grupos: number, quan
   const faltas: string[] = [];
   const semConversao = Array.from({ length: grupos }, (_, i) => i + 1).filter((c) => !colocacoes.has(c));
   const semFator = Array.from({ length: quantidadeDias + 1 }, (_, d) => d).filter((d) => !dias.has(d));
-  if (semConversao.length) faltas.push(`a conversão da ${semConversao.map((c) => `${c}ª`).join(', ')} colocação`);
-  if (semFator.length) faltas.push(`o fator para ${semFator.join(', ')} ${semFator.length === 1 && semFator[0] === 1 ? 'dia presente' : 'dias presentes'}`);
+  if (semConversao.length === 1) faltas.push(`a conversão da ${semConversao[0]}ª colocação`);
+  else if (semConversao.length > 1) faltas.push(`a conversão das ${listar(semConversao.map((c) => `${c}ª`))} colocações`);
+  if (semFator.length === 1) faltas.push(`o fator para ${semFator[0]} ${semFator[0] === 1 ? 'dia presente' : 'dias presentes'}`);
+  else if (semFator.length > 1) faltas.push(`os fatores para ${listar(semFator.map(String))} dias presentes`);
   if (!faltas.length) return null;
   return `A configuração salva não cobre os grupos e dias atuais: falta ${faltas.join(' e ')}. Preencha os campos e salve; sem isso a apuração individual e o relatório final ficam bloqueados.`;
 }

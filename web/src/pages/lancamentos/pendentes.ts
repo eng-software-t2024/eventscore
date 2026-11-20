@@ -1,33 +1,44 @@
 import { ApiError } from '../../api/client.ts';
 
 /**
- * RNF04: lançamento que não chega à API fica guardado no navegador, por evento, e é reenviado depois.
+ * RNF04: lançamento que não chega à API fica guardado no navegador e é reenviado depois.
  * Só entram os PUT (colocações e bônus), que são idempotentes: reenviar não duplica nada. A chave é o
  * caminho, então um envio novo para o mesmo recurso substitui o anterior; o `id` distingue os dois.
  */
-export type EnvioPendente = { id: string; caminho: string; corpo: unknown; descricao: string };
+export type EnvioPendente = { id: string; caminho: string; corpo: unknown; descricao: string; criadoEm: string };
 export type Pendentes = Record<string, EnvioPendente>;
 
-const chave = (eventoId: number) => `eventscore.lancamentos.${eventoId}`;
+/**
+ * Uma fila por evento e por usuário: num computador compartilhado, quem entra depois não reenvia
+ * (com o próprio token, em nome próprio na auditoria) o que outra pessoa guardou.
+ */
+export type Fila = { eventoId: number; usuarioId: number };
+export const chaveDaFila = (fila: Fila) => `eventscore.lancamentos.${fila.eventoId}.${fila.usuarioId}`;
+
+/** Envio guardado há mais tempo que isso não é reenviado sozinho: pode sobrescrever uma correção feita depois. */
+export const LIMITE_REENVIO_AUTOMATICO_MS = 2 * 60 * 60 * 1000;
+export const envioAntigo = (envio: EnvioPendente, agora: number) => agora - Date.parse(envio.criadoEm) > LIMITE_REENVIO_AUTOMATICO_MS;
 
 // Sem armazenamento (aba anônima, cota cheia), a fila fica só na memória enquanto a página estiver aberta.
-const memoria = new Map<number, Pendentes>();
+const memoria = new Map<string, Pendentes>();
 let semArmazenamento = false;
 
-export function lerPendentes(eventoId: number): Pendentes {
-  if (semArmazenamento) return memoria.get(eventoId) ?? {};
+export function lerPendentes(fila: Fila): Pendentes {
+  const chave = chaveDaFila(fila);
+  if (semArmazenamento) return memoria.get(chave) ?? {};
   try {
-    return JSON.parse(localStorage.getItem(chave(eventoId)) ?? '{}') as Pendentes;
+    return JSON.parse(localStorage.getItem(chave) ?? '{}') as Pendentes;
   } catch {
-    return memoria.get(eventoId) ?? {};
+    return memoria.get(chave) ?? {};
   }
 }
 
-export function gravarPendentes(eventoId: number, pendentes: Pendentes) {
-  memoria.set(eventoId, pendentes);
+export function gravarPendentes(fila: Fila, pendentes: Pendentes) {
+  const chave = chaveDaFila(fila);
+  memoria.set(chave, pendentes);
   try {
-    if (Object.keys(pendentes).length) localStorage.setItem(chave(eventoId), JSON.stringify(pendentes));
-    else localStorage.removeItem(chave(eventoId));
+    if (Object.keys(pendentes).length) localStorage.setItem(chave, JSON.stringify(pendentes));
+    else localStorage.removeItem(chave);
   } catch {
     semArmazenamento = true;
   }
@@ -47,7 +58,7 @@ export function semPendente(pendentes: Pendentes, envio: Pick<EnvioPendente, 'ca
 
 /**
  * O que fazer quando um envio falha:
- * - `conexao`: não chegou ao servidor (status 0); fica na fila.
+ * - `conexao`: não chegou ao servidor (status 0); fica na fila e a tentativa para.
  * - `recusado`: a API recusou o conteúdo (400, 404, 409, 422); sai da fila e a mensagem aparece.
  * - `depois`: sessão expirada (401) ou servidor com problema (5xx); fica na fila para tentar de novo.
  */

@@ -80,7 +80,19 @@ export class RelatorioFinalService {
     eventoId: number,
     query: PreviaRelatorioFinalQueryDto,
   ): Promise<TurmaRelatorioFinal[]> {
-    const { classificacao, conversaoPorColocacao } =
+    const { turmas } = await this.montarPrevia(eventoId, query);
+    return turmas;
+  }
+
+  /** Prévia junto com o evento, que a exportação usa no cabeçalho sem buscar de novo. */
+  private async montarPrevia(
+    eventoId: number,
+    query: PreviaRelatorioFinalQueryDto,
+  ): Promise<{
+    evento: { nome: string };
+    turmas: TurmaRelatorioFinal[];
+  }> {
+    const { evento, classificacao, conversaoPorColocacao } =
       await this.obterBaseFinal(eventoId);
     const dias = await this.prisma.diaEvento.findMany({
       where: { eventoId },
@@ -141,19 +153,19 @@ export class RelatorioFinalService {
       porTurma.set(linha.turma, grupo);
     }
 
-    return [...porTurma.entries()].map(([turma, itens]) => ({
+    const turmas = [...porTurma.entries()].map(([turma, itens]) => ({
       turma,
       totalParticipantes: itens.length,
       participantes: itens,
     }));
+    return { evento, turmas };
   }
 
   async gerarRelatorioFinal(
     eventoId: number,
     formato: FormatoRelatorio,
   ): Promise<ArquivoRelatorioGerado> {
-    const evento = await this.eventosService.buscarPorId(eventoId);
-    const previa = await this.gerarPrevia(eventoId, {});
+    const { evento, turmas: previa } = await this.montarPrevia(eventoId, {});
     const dias = [
       ...new Set(
         previa.flatMap((turma) =>
@@ -226,6 +238,7 @@ export class RelatorioFinalService {
   private async obterBaseFinal(eventoId: number): Promise<{
     classificacao: Map<number, number>;
     conversaoPorColocacao: Map<number, Prisma.Decimal>;
+    evento: { nome: string };
   }> {
     const evento = await this.eventosService.buscarPorId(eventoId);
     const [grupos, desafios, conversoes, fatores] = await Promise.all([
@@ -275,6 +288,7 @@ export class RelatorioFinalService {
       classificacao: new Map(
         calculada.dados.map((linha) => [linha.grupoId, linha.posicao]),
       ),
+      evento,
       conversaoPorColocacao: new Map(
         conversoes.map((item) => [item.colocacao, item.pontoExtra]),
       ),

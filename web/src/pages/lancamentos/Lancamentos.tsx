@@ -6,8 +6,11 @@ import AbaBonusPenalidades from './AbaBonusPenalidades';
 import AbaClassificacao from './AbaClassificacao';
 import AbaColocacao from './AbaColocacao';
 import type { Grupo } from './comum';
+import { envioAntigo } from './pendentes.ts';
 import { useEnviosPendentes } from './useEnviosPendentes.ts';
 import './Lancamentos.css';
+
+const formatarHora = (iso: string) => new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
 const ABAS = {
   colocacao: ['Colocação por desafio', 'Registre a colocação de cada equipe no desafio.'],
@@ -19,13 +22,21 @@ type Aba = keyof typeof ABAS;
 // "Homologar", "Reverter" e o hash do mock saíram: não estão nos requisitos nem no DER (contrato v0.3).
 // Corrigir um lançamento é enviar de novo; a API recalcula tudo e grava na auditoria (RNF05, RF18).
 export default function Lancamentos() {
-  const { eventoAtivo } = useLayout();
+  const { eventoAtivo, usuarioId } = useLayout();
   const [params, setParams] = useSearchParams();
   const aba: Aba = (params.get('aba') as Aba) in ABAS ? (params.get('aba') as Aba) : 'colocacao';
   const [grupos, setGrupos] = useState<Grupo[]>();
   const [erro, setErro] = useState('');
-  const envios = useEnviosPendentes(eventoAtivo?.id);
+  const envios = useEnviosPendentes(eventoAtivo?.id, usuarioId);
   const listaPendentes = Object.values(envios.pendentes);
+  // Momento em que a página abriu: basta para marcar como antigo o que já estava guardado havia horas.
+  const [agora] = useState(() => Date.now());
+
+  function reenviarAgora() {
+    const antigos = listaPendentes.filter((p) => envioAntigo(p, Date.now()));
+    if (antigos.length && !window.confirm('Há lançamentos guardados há mais de 2 horas. Reenviá-los pode desfazer correções feitas depois em outro computador. Reenviar mesmo assim?')) return;
+    envios.reenviarTodos();
+  }
 
   useEffect(() => {
     if (!eventoAtivo) return;
@@ -75,11 +86,25 @@ export default function Lancamentos() {
       {listaPendentes.length > 0 && (
         <div className="cartao pendentes" role="status">
           <p>
-            {listaPendentes.length === 1 ? '1 lançamento ainda não foi salvo' : `${listaPendentes.length} lançamentos ainda não foram salvos`} por falta de
-            conexão: {listaPendentes.map((p) => p.descricao).join('; ')}. Eles estão guardados neste navegador e são enviados quando a conexão voltar. A
-            classificação só passa a considerá-los depois disso.
+            {listaPendentes.length === 1 ? '1 lançamento ainda não foi salvo' : `${listaPendentes.length} lançamentos ainda não foram salvos`}. Eles estão
+            guardados neste navegador e são enviados quando o servidor voltar a responder; a classificação só passa a considerá-los depois disso.
           </p>
-          <button className="btn" onClick={envios.reenviar} disabled={envios.reenviando}>
+          <ul>
+            {listaPendentes.map((p) => (
+              <li key={p.caminho}>
+                {p.descricao}, guardado às {formatarHora(p.criadoEm)}
+                {envioAntigo(p, agora) && <strong> · antigo, não é reenviado sozinho: confira antes de reenviar</strong>}{' '}
+                <button
+                  type="button"
+                  className="btn btn-contorno btn-pequeno"
+                  onClick={() => window.confirm(`Descartar ${p.descricao}? O que foi digitado não será enviado.`) && envios.descartar(p.caminho)}
+                >
+                  Descartar
+                </button>
+              </li>
+            ))}
+          </ul>
+          <button className="btn" onClick={reenviarAgora} disabled={envios.reenviando}>
             {envios.reenviando ? 'Reenviando...' : 'Reenviar agora'}
           </button>
         </div>

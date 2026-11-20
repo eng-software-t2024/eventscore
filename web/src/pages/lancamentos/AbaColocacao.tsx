@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 import { api } from '../../api/client';
 import type { Desafio } from '../desafios/regras.ts';
 import { PontoCor, type Grupo } from './comum';
-import { aplicarColocacoesPendentes, lerPendentes } from './pendentes.ts';
+import { aplicarColocacoesPendentes } from './pendentes.ts';
 import { corpoColocacoes, pontosDaColocacao, validarColocacoes, type Auditoria, type Resultado } from './regras.ts';
 import type { EnviosPendentes } from './useEnviosPendentes.ts';
 
@@ -22,6 +22,9 @@ export default function AbaColocacao({ eventoId, grupos, envios }: { eventoId: n
   const [historico, setHistorico] = useState<{ id: number; itens?: Auditoria[] }>();
   const [erro, setErro] = useState('');
   const [salvo, setSalvo] = useState<'salvo' | 'guardado'>();
+  const { guardados } = envios;
+  // Muda quando o envio deste desafio entra ou sai da fila: ao sair (enviado), a tela recarrega com os ids novos.
+  const pendenteId = desafioId ? envios.pendentes[caminhoResultados(desafioId)]?.id : undefined;
   const [salvando, setSalvando] = useState(false);
 
   useEffect(() => {
@@ -36,8 +39,11 @@ export default function AbaColocacao({ eventoId, grupos, envios }: { eventoId: n
   useEffect(() => {
     if (!desafioId) return;
     const caminho = `${base}/desafios/${desafioId}/resultados`;
+    // Resposta de uma carga que já foi substituída (outro desafio, envio entrou ou saiu da fila) é ignorada.
+    let atual = true;
     api<Resultado[]>(caminho)
-      .then((resultados) =>
+      .then((resultados) => {
+        if (!atual) return;
         setLinhas({
           desafioId,
           // Uma linha por grupo do evento, mesmo que a API ainda não tenha resultado para ele.
@@ -47,12 +53,15 @@ export default function AbaColocacao({ eventoId, grupos, envios }: { eventoId: n
               return { id: r?.id ?? null, grupoId: g.id, colocacao: r?.colocacao ?? null, ausente: r?.ausente ?? false };
             }),
             // O que ficou guardado sem conexão aparece por cima do que veio da API.
-            lerPendentes(eventoId)[caminho],
+            guardados()[caminho],
           ),
-        }),
-      )
-      .catch((e: Error) => setErro(e.message));
-  }, [base, eventoId, desafioId, grupos]);
+        });
+      })
+      .catch((e: Error) => atual && setErro(e.message));
+    return () => {
+      atual = false;
+    };
+  }, [base, desafioId, grupos, guardados, pendenteId]);
 
   const desafio = desafios?.find((d) => d.id === desafioId);
   const dados = linhas?.desafioId === desafioId ? linhas?.dados : undefined;
@@ -84,12 +93,11 @@ export default function AbaColocacao({ eventoId, grupos, envios }: { eventoId: n
       // Passa pela fila: se a conexão cair, o envio fica guardado e sai em ordem depois (RNF04).
       const resultado = await envios.enviar({ caminho, corpo, descricao: `colocações de ${desafio?.nome ?? 'um desafio'}` });
       if (resultado.status === 'recusado') return setErro(resultado.erro.message);
+      if (resultado.status === 'erro-servidor')
+        return setErro(`${resultado.erro.message} As colocações ficaram guardadas neste navegador e serão reenviadas.`);
+      if (resultado.status === 'substituido') return;
+      // Ao sair da fila, a tela recarrega os resultados (efeito acima), e os ids novos ativam o "Histórico".
       setSalvo(resultado.status);
-      if (resultado.status === 'salvo') {
-        // O PUT mantém o id de cada linha; com ele o botão "Histórico" passa a funcionar.
-        const salvos = await api<Resultado[]>(caminho).catch(() => undefined);
-        if (salvos) setLinhas({ desafioId, dados: dados.map((l) => ({ ...l, id: salvos.find((r) => r.grupoId === l.grupoId)?.id ?? l.id })) });
-      }
     } finally {
       setSalvando(false);
     }
@@ -140,7 +148,7 @@ export default function AbaColocacao({ eventoId, grupos, envios }: { eventoId: n
           Colocações salvas. A classificação já considera este lançamento.
         </p>
       )}
-      {salvo === 'guardado' && (
+      {salvo === 'guardado' && pendenteId && (
         <p className="aviso" role="status">
           Sem conexão com o servidor: as colocações ficaram guardadas neste navegador e serão enviadas quando a conexão voltar.
         </p>

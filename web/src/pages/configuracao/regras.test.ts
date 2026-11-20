@@ -74,8 +74,9 @@ test('aponta o que falta na configuração salva para os grupos e dias atuais', 
   assert.equal(pendenciaConfiguracao(completa, 2, 2), null);
   assert.match(pendenciaConfiguracao(completa, 3, 2) ?? '', /falta a conversão da 3ª colocação\./);
   assert.match(pendenciaConfiguracao(completa, 2, 3) ?? '', /falta o fator para 3 dias presentes\./);
+  assert.match(pendenciaConfiguracao(completa, 5, 2) ?? '', /falta a conversão das 3ª, 4ª e 5ª colocações\./);
   const semFator1 = { ...completa, fatoresPresenca: completa.fatoresPresenca.filter((f) => f.diasPresentes !== 1) };
   assert.match(pendenciaConfiguracao(semFator1, 3, 2) ?? '', /falta a conversão da 3ª colocação e o fator para 1 dia presente\./);
   const nuncaSalva = { ...completa, conversaoPontoExtra: [], fatoresPresenca: [] };
-  assert.match(pendenciaConfiguracao(nuncaSalva, 2, 1) ?? '', /1ª, 2ª colocação e o fator para 0, 1 dias presentes/);
+  assert.match(pendenciaConfiguracao(nuncaSalva, 2, 1) ?? '', /falta a conversão das 1ª e 2ª colocações e os fatores para 0 e 1 dias presentes\./);
 });
