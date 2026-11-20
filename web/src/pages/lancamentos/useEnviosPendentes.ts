@@ -7,6 +7,7 @@ import {
   gravarPendentes,
   lerPendentes,
   novoId,
+  pendentesDeOutraAba,
   semPendente,
   tipoDeFalha,
   type EnvioPendente,
@@ -185,6 +186,22 @@ export function useEnviosPendentes(eventoId: number | undefined, usuarioId: numb
   );
 
   const descartar = useCallback((caminho: string) => fila && mudar(fila, (atual) => semPendente(atual, { caminho, id: atual[caminho]?.id ?? '' })), [fila, mudar]);
+
+  // Outra aba (mesmo usuário e evento) enviou, guardou ou descartou algo: a tela passa a mostrar a fila
+  // como ficou. Se ela esvaziou, o aviso de envio guardado não vale mais.
+  useEffect(() => {
+    if (!fila) return;
+    const k = chaveDaFila(fila);
+    const aoMudarEmOutraAba = (e: StorageEvent) => {
+      if (e.storageArea !== localStorage) return;
+      const novo = pendentesDeOutraAba(e, fila);
+      if (!novo) return;
+      const vazia = Object.keys(novo).length === 0;
+      setEstado((atual) => (atual.chave === k ? { ...atual, pendentes: novo, falha: vazia ? '' : atual.falha } : atual));
+    };
+    window.addEventListener('storage', aoMudarEmOutraAba);
+    return () => window.removeEventListener('storage', aoMudarEmOutraAba);
+  }, [fila]);
 
   const temPendentes = Object.keys(estado.pendentes).length > 0;
   useEffect(() => {

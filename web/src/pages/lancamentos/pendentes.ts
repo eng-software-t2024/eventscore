@@ -44,6 +44,28 @@ export function gravarPendentes(fila: Fila, pendentes: Pendentes) {
   }
 }
 
+/**
+ * Outra aba do mesmo usuário e evento mexeu na fila (evento `storage`): devolve a fila como ficou, para
+ * a tela não continuar mostrando um envio que a outra aba já mandou. `undefined` quando a mudança é de
+ * outra chave ou veio ilegível; `key` nulo é `localStorage.clear()`, que esvazia todas as filas.
+ */
+export function pendentesDeOutraAba(evento: { key: string | null; newValue: string | null }, fila: Fila): Pendentes | undefined {
+  const chave = chaveDaFila(fila);
+  if (evento.key !== null && evento.key !== chave) return undefined;
+  const novo: Pendentes = {};
+  if (evento.key === null || !evento.newValue) {
+    memoria.set(chave, novo);
+    return novo;
+  }
+  try {
+    const lido = JSON.parse(evento.newValue) as Pendentes;
+    memoria.set(chave, lido);
+    return lido;
+  } catch {
+    return undefined;
+  }
+}
+
 export const novoId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
 export const comPendente = (pendentes: Pendentes, envio: EnvioPendente): Pendentes => ({ ...pendentes, [envio.caminho]: envio });

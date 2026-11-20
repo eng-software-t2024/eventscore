@@ -8,6 +8,7 @@ import {
   comPendente,
   envioAntigo,
   LIMITE_REENVIO_AUTOMATICO_MS,
+  pendentesDeOutraAba,
   semPendente,
   tipoDeFalha,
   type EnvioPendente,
@@ -80,4 +81,31 @@ test('colocações guardadas aparecem por cima do que veio da API', () => {
 test('bônus guardado volta no formato da tela', () => {
   assert.deepEqual(bonusPendente(envio('a', { caminho: '/eventos/1/bonificacoes/7', corpo: [{ itemBonificacaoId: 4, valor: 8 }] })), { 4: '8' });
   assert.equal(bonusPendente(undefined), undefined);
+});
+
+test('aba sem conexão vê a fila esvaziar quando outra aba envia o lançamento', () => {
+  const fila = { eventoId: 1, usuarioId: 7 };
+  const chave = chaveDaFila(fila);
+  // Aba A guardou um bônus sem conexão; aba B enviou e apagou a chave (removeItem: newValue nulo).
+  const naAbaA: Pendentes = comPendente({}, envio('bonus'));
+  assert.equal(Object.keys(naAbaA).length, 1);
+  assert.deepEqual(pendentesDeOutraAba({ key: chave, newValue: null }, fila), {});
+});
+
+test('aba recebe o que outra aba guardou na mesma fila', () => {
+  const fila = { eventoId: 1, usuarioId: 7 };
+  const guardado = comPendente({}, envio('b'));
+  assert.deepEqual(pendentesDeOutraAba({ key: chaveDaFila(fila), newValue: JSON.stringify(guardado) }, fila), guardado);
+});
+
+test('mudança na fila de outro usuário ou evento não mexe na fila da tela', () => {
+  const fila = { eventoId: 1, usuarioId: 7 };
+  const outra = JSON.stringify(comPendente({}, envio('x')));
+  assert.equal(pendentesDeOutraAba({ key: chaveDaFila({ eventoId: 1, usuarioId: 8 }), newValue: outra }, fila), undefined);
+  assert.equal(pendentesDeOutraAba({ key: chaveDaFila({ eventoId: 2, usuarioId: 7 }), newValue: outra }, fila), undefined);
+  assert.equal(pendentesDeOutraAba({ key: chaveDaFila(fila), newValue: '{quebrado' }, fila), undefined);
+});
+
+test('localStorage.clear() em outra aba esvazia a fila da tela', () => {
+  assert.deepEqual(pendentesDeOutraAba({ key: null, newValue: null }, { eventoId: 1, usuarioId: 7 }), {});
 });
