@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { aplicarPendentes, diaInicial, filtrar, resumo, type Presenca } from './presencas.ts';
+import { ApiError } from '../../api/client.ts';
+import { aplicarPendentes, diaInicial, filtrar, guardarAoFalhar, resumo, type Presenca } from './presencas.ts';
 
 const p = (participanteId: number, nome: string, grupoId: number, presente: boolean): Presenca => ({
   participanteId,
@@ -50,4 +51,9 @@ test('abre no dia de hoje quando ele é dia do evento', () => {
   assert.equal(diaInicial(dias, '2026-11-24')?.id, 2);
   assert.equal(diaInicial(dias, '2026-11-08')?.id, 1);
   assert.equal(diaInicial([], '2026-11-08'), undefined);
+});
+
+test('falha que passa sozinha guarda a marcação; recusa de conteúdo desfaz', () => {
+  for (const status of [0, 401, 408, 429, 500, 502, 503]) assert.equal(guardarAoFalhar(new ApiError(status, 'x')), true, `status ${status}`);
+  for (const status of [400, 403, 404, 409, 422]) assert.equal(guardarAoFalhar(new ApiError(status, 'x')), false, `status ${status}`);
 });

@@ -1,3 +1,5 @@
+import { tipoDeFalha } from '../lancamentos/pendentes.ts';
+
 // Formato do contrato v0.3 (frequência); ainda fora do OpenAPI oficial.
 export type Presenca = {
   participanteId: number;
@@ -34,6 +36,13 @@ export function gravarPendentes(eventoId: number, diaId: number, pendentes: Pend
     // Sem armazenamento (aba anônima, cota cheia): as pendências ficam só na memória da tela.
   }
 }
+
+/**
+ * Mesma regra dos Lançamentos: sem conexão, sessão expirada (401), tempo esgotado (408), excesso de
+ * requisições (429) e servidor com problema (5xx) passam sozinhos, então a marcação fica guardada e é
+ * reenviada. Só a recusa de conteúdo (demais 4xx, ex.: participante de outro evento) desfaz a marcação.
+ */
+export const guardarAoFalhar = (erro: unknown) => tipoDeFalha(erro) !== 'recusado';
 
 /** Mostra a marcação pendente por cima do que veio da API, já que ela é a mais recente. */
 export const aplicarPendentes = (dados: Presenca[], pendentes: Pendentes): Presenca[] =>

@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { api, ApiError, type Schemas } from '../../api/client';
 import { useLayout } from '../../components/Layout';
 import { iniciais } from '../../texto';
-import { aplicarPendentes, diaInicial, filtrar, gravarPendentes, lerPendentes, resumo, type Pendentes, type Presenca } from './presencas.ts';
+import { aplicarPendentes, diaInicial, filtrar, gravarPendentes, guardarAoFalhar, lerPendentes, resumo, type Pendentes, type Presenca } from './presencas.ts';
 import './Frequencia.css';
 
 type Dia = Schemas['DiaEventoDto'];
@@ -76,8 +76,11 @@ export default function Frequencia() {
         atualizarPendentes((atual) => sem(atual, participanteId));
         return true;
       } catch (e) {
-        if (e instanceof ApiError && e.status === 0) {
+        if (guardarAoFalhar(e)) {
           atualizarPendentes((atual) => ({ ...atual, [participanteId]: presente }));
+          // Sem conexão o aviso de pendentes já explica; com o servidor respondendo erro, mostra o motivo.
+          const semConexao = e instanceof ApiError && e.status === 0;
+          if (!semConexao) setErro(`${(e as Error).message} A marcação ficou guardada e será reenviada.`);
         } else {
           // Recusa da API (ex.: participante de outro evento): desfaz a marcação e mostra o motivo.
           atualizarPendentes((atual) => sem(atual, participanteId));
@@ -96,16 +99,47 @@ export default function Frequencia() {
     [eventoId, diaId, atualizarPendentes],
   );
 
-  const reenviar = useCallback(async () => {
-    setErro('');
-    for (const [id, presente] of Object.entries(pendentes)) await enviar(Number(id), presente);
-  }, [pendentes, enviar]);
-
-  // Volta a conexão: reenvia sozinho o que ficou pendente.
+  // O reenvio lê a pendência atual na hora de enviar: se a pessoa foi remarcada enquanto o reenvio
+  // passava pelas outras, sai o valor novo (ou nada, se ele já foi salvo), nunca o antigo por cima.
+  const pendentesRef = useRef(pendentes);
   useEffect(() => {
-    window.addEventListener('online', reenviar);
-    return () => window.removeEventListener('online', reenviar);
-  }, [reenviar]);
+    pendentesRef.current = pendentes;
+  }, [pendentes]);
+
+  // Um reenvio por vez: o intervalo, a volta da conexão e o botão podem disparar juntos.
+  const reenviando = useRef(false);
+  const reenviar = useCallback(async () => {
+    if (reenviando.current) return;
+    reenviando.current = true;
+    setErro('');
+    try {
+      for (const id of Object.keys(pendentesRef.current).map(Number)) {
+        const presente = pendentesRef.current[id];
+        if (presente !== undefined) await enviar(id, presente);
+      }
+    } finally {
+      reenviando.current = false;
+    }
+  }, [enviar]);
+
+  // Com algo pendente, reenvia sozinho quando a conexão volta, quando a aba fica visível e a cada 30 s
+  // (com o servidor fora do ar o navegador continua online, e só o intervalo tenta de novo).
+  const temPendentes = Object.keys(pendentes).length > 0;
+  useEffect(() => {
+    if (!temPendentes) return;
+    const tentar = () => void reenviar();
+    const aoVoltarParaAba = () => {
+      if (document.visibilityState === 'visible') tentar();
+    };
+    const intervalo = setInterval(tentar, 30_000);
+    window.addEventListener('online', tentar);
+    document.addEventListener('visibilitychange', aoVoltarParaAba);
+    return () => {
+      clearInterval(intervalo);
+      window.removeEventListener('online', tentar);
+      document.removeEventListener('visibilitychange', aoVoltarParaAba);
+    };
+  }, [temPendentes, reenviar]);
 
   if (eventoAtivo === undefined) return <p className="cartao">Carregando...</p>;
   if (eventoAtivo === null) {
@@ -174,8 +208,8 @@ export default function Frequencia() {
       {qtdPendentes > 0 && (
         <div className="cartao pendentes" role="status">
           <span>
-            {qtdPendentes === 1 ? '1 marcação ainda não foi salva' : `${qtdPendentes} marcações ainda não foram salvas`} por falta de conexão.
-            Elas ficam guardadas neste navegador e são reenviadas quando a conexão voltar.
+            {qtdPendentes === 1 ? '1 marcação ainda não foi salva' : `${qtdPendentes} marcações ainda não foram salvas`}: a conexão caiu ou o
+            servidor não respondeu. Elas ficam guardadas neste navegador e são reenviadas sozinhas.
           </span>
           <button className="btn" onClick={reenviar} disabled={salvando.size > 0}>
             Reenviar agora
