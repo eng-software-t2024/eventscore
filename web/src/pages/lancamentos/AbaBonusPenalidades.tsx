@@ -3,12 +3,14 @@ import { Link } from 'react-router';
 import { api } from '../../api/client';
 import type { Configuracao } from '../configuracao/regras.ts';
 import { PontoCor, type Grupo } from './comum';
+import type { EnviosPendentes } from './Lancamentos';
+import { bonusPendente, lerPendentes, semConexao } from './pendentes.ts';
 import { montarBonificacao, montarPenalidade, type Bonificacao, type Penalidade } from './regras.ts';
 
 const PENALIDADE_VAZIA = { grupoId: '', pontos: '', descricao: '', justificativa: '' };
 
 /** Aba 2 (RF10, RF11): bonificação por item com teto e penalidade com justificativa. */
-export default function AbaBonusPenalidades({ eventoId, grupos }: { eventoId: number; grupos: Grupo[] }) {
+export default function AbaBonusPenalidades({ eventoId, grupos, envios }: { eventoId: number; grupos: Grupo[]; envios: EnviosPendentes }) {
   const base = `/eventos/${eventoId}`;
   const [config, setConfig] = useState<Configuracao>();
   // Valor digitado por grupo e item: grupoId -> itemBonificacaoId -> texto.
@@ -23,11 +25,21 @@ export default function AbaBonusPenalidades({ eventoId, grupos }: { eventoId: nu
     Promise.all([api<Configuracao>(`${base}/configuracao`), api<Bonificacao[]>(`${base}/bonificacoes`), api<Penalidade[]>(`${base}/penalidades`)])
       .then(([cfg, bonificacoes, pens]) => {
         setConfig(cfg);
-        setBonus(Object.fromEntries(bonificacoes.map((b) => [b.grupoId, Object.fromEntries(b.itens.map((i) => [i.itemBonificacaoId, String(i.valor)]))])));
+        const guardados = lerPendentes(eventoId);
+        setBonus(
+          Object.fromEntries(
+            bonificacoes.map((b) => [
+              b.grupoId,
+              // O que ficou guardado sem conexão aparece por cima do que veio da API.
+              bonusPendente(guardados[`${base}/bonificacoes/${b.grupoId}`]) ??
+                Object.fromEntries(b.itens.map((i) => [i.itemBonificacaoId, String(i.valor)])),
+            ]),
+          ),
+        );
         setPenalidades(pens);
       })
       .catch((e: Error) => setAviso({ tipo: 'erro', texto: e.message }));
-  }, [base]);
+  }, [base, eventoId]);
 
   useEffect(carregar, [carregar]);
 
@@ -41,11 +53,17 @@ export default function AbaBonusPenalidades({ eventoId, grupos }: { eventoId: nu
     const resultado = montarBonificacao(bonus[grupoId] ?? {}, config!.itensBonificacao);
     if ('erro' in resultado) return setAviso({ tipo: 'erro', texto: `${nome(grupoId)} · ${resultado.erro}` });
     setOcupado(`bonus-${grupoId}`);
+    const caminho = `${base}/bonificacoes/${grupoId}`;
     try {
-      await api(`${base}/bonificacoes/${grupoId}`, { method: 'PUT', body: JSON.stringify(resultado.dados) });
+      await api(caminho, { method: 'PUT', body: JSON.stringify(resultado.dados) });
+      // Este envio é mais recente que um guardado do mesmo grupo.
+      envios.descartar(caminho);
       setAviso({ tipo: 'sucesso', texto: `Bônus de ${nome(grupoId)} registrado.` });
     } catch (e) {
-      setAviso({ tipo: 'erro', texto: (e as Error).message });
+      if (semConexao(e)) {
+        envios.guardar({ caminho, corpo: resultado.dados, descricao: `bônus de ${nome(grupoId)}` });
+        setAviso(undefined);
+      } else setAviso({ tipo: 'erro', texto: (e as Error).message });
     } finally {
       setOcupado(undefined);
     }
@@ -64,7 +82,11 @@ export default function AbaBonusPenalidades({ eventoId, grupos }: { eventoId: nu
       cancelarEdicao();
       carregar();
     } catch (err) {
-      setAviso({ tipo: 'erro', texto: (err as Error).message });
+      // Penalidade é POST, que não é idempotente: reenviar sozinho poderia aplicá-la duas vezes.
+      const texto = semConexao(err)
+        ? 'Sem conexão: a penalidade pode não ter sido registrada. O formulário continua preenchido; quando a conexão voltar, confira a lista abaixo antes de enviar de novo.'
+        : (err as Error).message;
+      setAviso({ tipo: 'erro', texto });
     } finally {
       setOcupado(undefined);
     }

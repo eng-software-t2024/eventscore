@@ -3,6 +3,8 @@ import { Link } from 'react-router';
 import { api } from '../../api/client';
 import type { Desafio } from '../desafios/regras.ts';
 import { PontoCor, type Grupo } from './comum';
+import type { EnviosPendentes } from './Lancamentos';
+import { aplicarColocacoesPendentes, lerPendentes, semConexao } from './pendentes.ts';
 import { corpoColocacoes, pontosDaColocacao, validarColocacoes, type Auditoria, type Resultado } from './regras.ts';
 
 type Linha = { id: number | null; grupoId: number; colocacao: number | null; ausente: boolean };
@@ -11,8 +13,9 @@ const formatarDataHora = (iso: string) =>
   new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
 /** Aba 1 (RF08, RF09): colocação de cada grupo no desafio, salva de uma vez com PUT idempotente. */
-export default function AbaColocacao({ eventoId, grupos }: { eventoId: number; grupos: Grupo[] }) {
+export default function AbaColocacao({ eventoId, grupos, envios }: { eventoId: number; grupos: Grupo[]; envios: EnviosPendentes }) {
   const base = `/eventos/${eventoId}`;
+  const caminhoResultados = (id: number) => `${base}/desafios/${id}/resultados`;
   const [desafios, setDesafios] = useState<Desafio[]>();
   const [desafioId, setDesafioId] = useState<number>();
   const [linhas, setLinhas] = useState<{ desafioId: number; dados: Linha[] }>();
@@ -32,19 +35,24 @@ export default function AbaColocacao({ eventoId, grupos }: { eventoId: number; g
 
   useEffect(() => {
     if (!desafioId) return;
-    api<Resultado[]>(`${base}/desafios/${desafioId}/resultados`)
+    const caminho = `${base}/desafios/${desafioId}/resultados`;
+    api<Resultado[]>(caminho)
       .then((resultados) =>
         setLinhas({
           desafioId,
           // Uma linha por grupo do evento, mesmo que a API ainda não tenha resultado para ele.
-          dados: grupos.map((g) => {
-            const r = resultados.find((x) => x.grupoId === g.id);
-            return { id: r?.id ?? null, grupoId: g.id, colocacao: r?.colocacao ?? null, ausente: r?.ausente ?? false };
-          }),
+          dados: aplicarColocacoesPendentes(
+            grupos.map((g) => {
+              const r = resultados.find((x) => x.grupoId === g.id);
+              return { id: r?.id ?? null, grupoId: g.id, colocacao: r?.colocacao ?? null, ausente: r?.ausente ?? false };
+            }),
+            // O que ficou guardado sem conexão aparece por cima do que veio da API.
+            lerPendentes(eventoId)[caminho],
+          ),
         }),
       )
       .catch((e: Error) => setErro(e.message));
-  }, [base, desafioId, grupos]);
+  }, [base, eventoId, desafioId, grupos]);
 
   const desafio = desafios?.find((d) => d.id === desafioId);
   const dados = linhas?.desafioId === desafioId ? linhas?.dados : undefined;
@@ -70,18 +78,23 @@ export default function AbaColocacao({ eventoId, grupos }: { eventoId: number; g
     if (problema) return setErro(problema);
     setErro('');
     setSalvando(true);
+    const caminho = caminhoResultados(desafioId);
+    const corpo = corpoColocacoes(dados);
     try {
-      const resposta = await api<Resultado[] | undefined>(`${base}/desafios/${desafioId}/resultados`, {
+      const resposta = await api<Resultado[] | undefined>(caminho, {
         method: 'PUT',
-        body: JSON.stringify(corpoColocacoes(dados)),
+        body: JSON.stringify(corpo),
       });
+      // Este envio é mais recente que um guardado do mesmo desafio.
+      envios.descartar(caminho);
       // O PUT mantém o id de cada linha; com ele o botão "Histórico" passa a funcionar.
       if (Array.isArray(resposta)) {
         setLinhas({ desafioId, dados: dados.map((l) => ({ ...l, id: resposta.find((r) => r.grupoId === l.grupoId)?.id ?? l.id })) });
       }
       setSalvo(true);
     } catch (e) {
-      setErro((e as Error).message);
+      if (semConexao(e)) envios.guardar({ caminho, corpo, descricao: `colocações de ${desafio?.nome ?? 'um desafio'}` });
+      else setErro((e as Error).message);
     } finally {
       setSalvando(false);
     }
