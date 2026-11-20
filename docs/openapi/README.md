@@ -4,17 +4,19 @@ Este diretório contém as especificações formais **OpenAPI 3.0.3** da API RES
 
 ---
 
-## 1. Versão Atual do Contrato: `v0.2.0` (Contrato Completo — Sprints 01 e 02)
+## 1. Versão Atual do Contrato: `v0.3.0` (Contrato Completo — Sprints 01 e 02)
 
 A versão **`v0.1.0`** documentou o escopo fechado e aprovado da **Sprint 01 (S1)**, formalizado no documento [docs/contrato-api-t06.md](../contrato-api-t06.md) e alinhado com a versão **v0.3** do contrato do Frontend (aprovada formalmente em 29/10/2026 por **Luiz Meneses** — Frontend Lead).
 
 A versão **`v0.2.0`** consolida **100% da API RESTful do EventScore** (**44 operações em 30 rotas** distribuídas em 12 módulos/tags), incorporando as decisões do [ADR 0003](../adr/0003-divergencias-banco-contrato.md) (migração V12 sem `MAIOR_PRESENCA`), do [ADR 0004](../adr/0004-auditoria-lancamentos.md) (auditoria), o contrato aprovado de **Desafios** (**US #202 / #245**, [PR #31](https://github.com/hanrrysantos/event-score/pull/31)) e todos os endpoints de **Configuração (`#199`)**, **Participantes (`#203`)**, **Frequência (`#205`)**, **Resultados e Lançamentos (`#223` / `#206`)**, **Auditoria (`RF18`)**, **Classificação e Desempates (`#206 pt 3`)**, **Apuração Individual (`#204`)** e **Relatórios (`#207` / `#228` / `#229`)**.
 
-> **Compatibilidade de Referências (`$ref`) e Scripts:** A especificação oficial `v0.2.0` é publicada em [`docs/openapi/openapi-v0.2.yaml`](./openapi-v0.2.yaml) e mantida **100% idêntica e sincronizada** em [`docs/openapi/openapi-v0.1.yaml`](./openapi-v0.1.yaml), garantindo compatibilidade imediata com os scripts do Frontend (`web/package.json` `api:tipos`), o mock (`web/mock/openapi-mock.yaml`) e os recortes de proposta em `docs/openapi/propostas/`.
+A versão **`v0.3.0`** acrescenta o `id` de cada item de bonificação na resposta de `GET /eventos/{eventoId}/bonificacoes` e de `PUT /eventos/{eventoId}/bonificacoes/{grupoId}` (`BonificacaoItemResumoDto`). É o `registroId` usado em `GET /auditoria?entidade=BONIFICACAO_GRUPO` para o histórico do bônus (RF18, [PR #51](https://github.com/hanrrysantos/event-score/pull/51)). Mudança compatível (seção 3.2): campo novo só na resposta, o corpo do `PUT` não muda. O arquivo continua com o nome `openapi-v0.2.yaml` para não quebrar as referências abaixo.
+
+> **Compatibilidade de Referências (`$ref`) e Scripts:** A especificação oficial `v0.3.0` é publicada em [`docs/openapi/openapi-v0.2.yaml`](./openapi-v0.2.yaml) e mantida **100% idêntica e sincronizada** em [`docs/openapi/openapi-v0.1.yaml`](./openapi-v0.1.yaml), garantindo compatibilidade imediata com os scripts do Frontend (`web/package.json` `api:tipos`), o mock (`web/mock/openapi-mock.yaml`) e os recortes de proposta em `docs/openapi/propostas/`.
 
 ### Links de Consumo para o Frontend:
 - **Swagger UI Local (Runtime NestJS):** `http://localhost:3000/api/docs` (especificação JSON em `http://localhost:3000/api/docs-json`)
-- **OpenAPI Spec Estática (`v0.2.0`):** [`docs/openapi/openapi-v0.2.yaml`](./openapi-v0.2.yaml) (sincronizada em [`docs/openapi/openapi-v0.1.yaml`](./openapi-v0.1.yaml))
+- **OpenAPI Spec Estática (`v0.3.0`):** [`docs/openapi/openapi-v0.2.yaml`](./openapi-v0.2.yaml) (sincronizada em [`docs/openapi/openapi-v0.1.yaml`](./openapi-v0.1.yaml))
 - **Mock Local via Prism:** `npx @stoplight/prism-cli mock docs/openapi/openapi-v0.2.yaml -p 4010`
 
 ### Registro de Aprovação e Histórico de Versões:
@@ -22,8 +24,9 @@ A versão **`v0.2.0`** consolida **100% da API RESTful do EventScore** (**44 ope
 |---|---|---|---|
 | `v0.1.0` | Baseline Sprint 01 (17 operações: Auth, Eventos, Dias e Grupos) | **Luiz Meneses** (Frontend Lead) | Publicado e Aprovado |
 | `v0.2.0` | Contrato completo Sprints 01 + 02 (44 operações em 12 módulos), ADR 0003 (V12 sem `MAIOR_PRESENCA`), Participantes (PR #29), Desafios `#245` (PR #31) e Resultados `#223` (PR #35) | **Luiz Meneses** (Frontend Lead — T06, PR #31 e `#223`), **Saylon** (Revisor Backend — PR #31 e PR #35) e **ADR 0003** | Publicado e Consolidado |
+| `v0.3.0` | `id` dos itens em `BonificacaoItemResumoDto` (histórico de bônus, RF18 — PR #51) | Aguardando aceite do **Frontend Lead (Luiz Meneses)** | Em revisão |
 
-### Escopo Completo de Endpoints (`v0.2.0` — 44 operações):
+### Escopo Completo de Endpoints (`v0.3.0` — 44 operações):
 | Módulo | Método | Rota | Descrição |
 |---|---|---|---|
 | **Auth** | `POST` | `/api/v1/auth/login` | Autenticação com e-mail/senha, retornando JWT e `expiraEm` UTC |
