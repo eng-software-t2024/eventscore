@@ -3,7 +3,8 @@ import { Link } from 'react-router';
 import { api } from '../../api/client';
 import type { Configuracao } from '../configuracao/regras.ts';
 import { ListaHistorico, PontoCor, type Grupo } from './comum';
-import { bonusPendente, tipoDeFalha } from './pendentes.ts';
+import { tipoDeFalha } from '../../api/falhas.ts';
+import { bonusPendente, telaMostraRecusado } from './pendentes.ts';
 import { juntarHistoricos, montarBonificacao, montarPenalidade, type Auditoria, type Bonificacao, type Penalidade } from './regras.ts';
 import type { EnviosPendentes } from './useEnviosPendentes.ts';
 
@@ -53,6 +54,42 @@ export default function AbaBonusPenalidades({ eventoId, grupos, envios }: { even
   }, [base, grupos]);
 
   useEffect(carregar, [carregar]);
+
+  // RNF04: a API recusou no reenvio automático o bônus de um grupo. Se a linha ainda mostra exatamente o
+  // que foi recusado, volta ao que está salvo; o motivo aparece no aviso da fila, acima das abas.
+  const recusasTratadas = useRef(new Set<string>());
+  useEffect(() => {
+    if (!config) return;
+    const mostraRecusado = (grupoId: number, valores: Record<number, string> | undefined) => {
+      const recusado = envios.recusados[`${base}/bonificacoes/${grupoId}`];
+      const naTela = montarBonificacao(valores ?? {}, config.itensBonificacao);
+      return !!recusado && 'dados' in naTela && telaMostraRecusado(naTela.dados, recusado);
+    };
+    const voltar = grupos
+      .filter((g) => {
+        const recusado = envios.recusados[`${base}/bonificacoes/${g.id}`];
+        if (!recusado || recusasTratadas.current.has(recusado.id)) return false;
+        recusasTratadas.current.add(recusado.id);
+        return mostraRecusado(g.id, bonus[g.id]);
+      })
+      .map((g) => g.id);
+    if (!voltar.length) return;
+    api<Bonificacao[]>(`${base}/bonificacoes`)
+      .then((bonificacoes) =>
+        setBonus((atual) => {
+          const novo = { ...atual };
+          for (const grupoId of voltar) {
+            // O usuário mexeu na linha enquanto a busca acontecia: o que ele digitou fica.
+            if (!mostraRecusado(grupoId, atual[grupoId])) continue;
+            const daApi = bonificacoes.find((b) => b.grupoId === grupoId);
+            novo[grupoId] = Object.fromEntries((daApi?.itens ?? []).map((i) => [i.itemBonificacaoId, String(i.valor)]));
+          }
+          return novo;
+        }),
+      )
+      // Se falhar, a linha continua com o valor recusado, como antes; a próxima carga da aba corrige.
+      .catch(() => {});
+  }, [envios.recusados, config, grupos, base, bonus]);
 
   if (!config) return aviso ? <p className="erro">{aviso.texto}</p> : <p className="cartao">Carregando...</p>;
 

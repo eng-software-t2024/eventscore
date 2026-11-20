@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../../api/client';
+import { tipoDeFalha } from '../../api/falhas.ts';
 import {
   chaveDaFila,
   comPendente,
@@ -9,7 +10,6 @@ import {
   novoId,
   pendentesDeOutraAba,
   semPendente,
-  tipoDeFalha,
   type EnvioPendente,
   type Fila,
   type Pendentes,
@@ -32,6 +32,11 @@ export type EnviosPendentes = {
   /** Fila atual lida do navegador, para a aba sobrepor ao carregar sem recarregar a cada mudança. */
   guardados: () => Pendentes;
   enviar: (envio: Pick<EnvioPendente, 'caminho' | 'corpo' | 'descricao'>) => Promise<ResultadoEnvio>;
+  /**
+   * Último envio de cada caminho que a API recusou num reenvio automático (o envio feito pela própria aba
+   * já recebe a recusa no `enviar`). A aba usa para tirar da tela o valor que não foi aceito.
+   */
+  recusados: Pendentes;
 };
 
 /** O que aconteceu com cada envio numa execução da fila. */
@@ -50,7 +55,11 @@ export function useEnviosPendentes(eventoId: number | undefined, usuarioId: numb
   const fila = useMemo<Fila | undefined>(() => (eventoId && usuarioId ? { eventoId, usuarioId } : undefined), [eventoId, usuarioId]);
   const chave = fila ? chaveDaFila(fila) : undefined;
 
-  const [estado, setEstado] = useState<{ chave?: string; pendentes: Pendentes; falha: string }>({ pendentes: {}, falha: '' });
+  const [estado, setEstado] = useState<{ chave?: string; pendentes: Pendentes; falha: string; recusados: Pendentes }>({
+    pendentes: {},
+    falha: '',
+    recusados: {},
+  });
   const [reenviando, setReenviando] = useState(false);
   const execucoes = useRef(new Map<string, Promise<Execucao>>());
   // Filas cuja execução em andamento já inclui os envios antigos.
@@ -59,7 +68,7 @@ export function useEnviosPendentes(eventoId: number | undefined, usuarioId: numb
   const diretos = useRef(new Set<string>());
 
   // Trocou o evento ou o usuário: passa a mostrar a fila deles, sem a mensagem da fila anterior.
-  if (estado.chave !== chave) setEstado({ chave, pendentes: fila ? lerPendentes(fila) : {}, falha: '' });
+  if (estado.chave !== chave) setEstado({ chave, pendentes: fila ? lerPendentes(fila) : {}, falha: '', recusados: {} });
 
   // As atualizações só valem para a fila que está na tela; uma execução de outra fila não mexe nela.
   const mudar = useCallback((alvo: Fila, alterar: (atual: Pendentes) => Pendentes) => {
@@ -69,6 +78,9 @@ export function useEnviosPendentes(eventoId: number | undefined, usuarioId: numb
   }, []);
   const avisar = useCallback((alvo: Fila, falha: string) => {
     setEstado((e) => (e.chave === chaveDaFila(alvo) ? { ...e, falha } : e));
+  }, []);
+  const registrarRecusa = useCallback((alvo: Fila, envio: EnvioPendente) => {
+    setEstado((e) => (e.chave === chaveDaFila(alvo) ? { ...e, recusados: { ...e.recusados, [envio.caminho]: envio } } : e));
   }, []);
 
   const reenviar = useCallback(
@@ -114,7 +126,10 @@ export function useEnviosPendentes(eventoId: number | undefined, usuarioId: numb
               if (tipo === 'recusado') {
                 mudar(alvo, (atual) => semPendente(atual, envio));
                 r.recusados.set(envio.id, erro);
-                if (!diretos.current.has(envio.id)) avisar(alvo, `${envio.descricao} não foi aceito: ${erro.message}`);
+                if (!diretos.current.has(envio.id)) {
+                  avisar(alvo, `${envio.descricao} não foi aceito: ${erro.message}`);
+                  registrarRecusa(alvo, envio);
+                }
                 continue;
               }
               // Erro do servidor: este envio fica e os outros seguem, para um envio com problema não travar a fila.
@@ -145,7 +160,7 @@ export function useEnviosPendentes(eventoId: number | undefined, usuarioId: numb
       execucoes.current.set(k, execucao);
       return execucao;
     },
-    [fila, mudar, avisar],
+    [fila, mudar, avisar, registrarRecusa],
   );
 
   const enviar = useCallback(
@@ -228,6 +243,7 @@ export function useEnviosPendentes(eventoId: number | undefined, usuarioId: numb
     pendentes: estado.pendentes,
     guardados,
     falha: estado.falha,
+    recusados: estado.recusados,
     reenviando,
     enviar,
     descartar,

@@ -1,4 +1,4 @@
-import { ApiError } from '../../api/client.ts';
+import { guardadoHaMuito } from '../../api/falhas.ts';
 
 /**
  * RNF04: lançamento que não chega à API fica guardado no navegador e é reenviado depois.
@@ -15,9 +15,8 @@ export type Pendentes = Record<string, EnvioPendente>;
 export type Fila = { eventoId: number; usuarioId: number };
 export const chaveDaFila = (fila: Fila) => `eventscore.lancamentos.${fila.eventoId}.${fila.usuarioId}`;
 
-/** Envio guardado há mais tempo que isso não é reenviado sozinho: pode sobrescrever uma correção feita depois. */
-export const LIMITE_REENVIO_AUTOMATICO_MS = 2 * 60 * 60 * 1000;
-export const envioAntigo = (envio: EnvioPendente, agora: number) => agora - Date.parse(envio.criadoEm) > LIMITE_REENVIO_AUTOMATICO_MS;
+export { LIMITE_REENVIO_AUTOMATICO_MS } from '../../api/falhas.ts';
+export const envioAntigo = (envio: EnvioPendente, agora: number) => guardadoHaMuito(envio.criadoEm, agora);
 
 // Sem armazenamento (aba anônima, cota cheia), a fila fica só na memória enquanto a página estiver aberta.
 const memoria = new Map<string, Pendentes>();
@@ -78,22 +77,6 @@ export function semPendente(pendentes: Pendentes, envio: Pick<EnvioPendente, 'ca
   return resto;
 }
 
-/**
- * O que fazer quando um envio falha:
- * - `conexao`: não chegou ao servidor (status 0); fica na fila e a tentativa para.
- * - `recusado`: erro 4xx que não passa sozinho (400, 403, 404, 409, 413, 422...); sai da fila e a mensagem aparece.
- * - `depois`: sessão expirada (401), tempo esgotado (408), excesso de requisições (429) ou servidor
- *   com problema (5xx); fica na fila para tentar de novo.
- */
-const PASSAM_SOZINHOS = new Set([401, 408, 429]);
-
-export function tipoDeFalha(erro: unknown): 'conexao' | 'recusado' | 'depois' {
-  if (!(erro instanceof ApiError)) return 'depois';
-  if (erro.status === 0) return 'conexao';
-  if (erro.status >= 400 && erro.status < 500 && !PASSAM_SOZINHOS.has(erro.status)) return 'recusado';
-  return 'depois';
-}
-
 /** Colocações guardadas por cima do que veio da API, já que elas são o lançamento mais recente. */
 export function aplicarColocacoesPendentes<T extends { grupoId: number; colocacao: number | null; ausente: boolean }>(
   linhas: T[],
@@ -112,3 +95,9 @@ export function bonusPendente(pendente: EnvioPendente | undefined): Record<numbe
   if (!pendente || !Array.isArray(pendente.corpo)) return undefined;
   return Object.fromEntries((pendente.corpo as { itemBonificacaoId: number; valor: number }[]).map((i) => [i.itemBonificacaoId, String(i.valor)]));
 }
+
+/**
+ * A tela ainda mostra exatamente o que a API recusou num reenvio automático? Então ela volta ao que
+ * está salvo; se o usuário já mudou algo depois, o que ele digitou fica.
+ */
+export const telaMostraRecusado = (naTela: unknown, recusado: Pick<EnvioPendente, 'corpo'>) => JSON.stringify(naTela) === JSON.stringify(recusado.corpo);
