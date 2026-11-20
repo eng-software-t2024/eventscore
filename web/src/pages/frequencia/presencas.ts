@@ -110,6 +110,71 @@ export const guardarAoFalhar = (erro: unknown) => tipoDeFalha(erro) !== 'recusad
 export const aplicarPendentes = (dados: Presenca[], pendentes: Pendentes): Presenca[] =>
   dados.map((p) => (p.participanteId in pendentes ? { ...p, presente: pendentes[p.participanteId].presente } : p));
 
+/**
+ * Lista do dia na tela: `dados` é o que aparece (com marcações ainda não salvas) e `salvos` é o último
+ * valor que a API confirmou para cada participante. A tela volta para `salvos`, e não para o valor
+ * anterior dela, quando uma marcação é recusada ou descartada: o anterior pode ser uma pendência que
+ * nunca chegou ao servidor.
+ */
+export type ListaDoDia = { diaId: number; dados: Presenca[]; salvos: Record<number, boolean> };
+
+const salvosDaApi = (daApi: Presenca[]) => Object.fromEntries(daApi.map((p) => [p.participanteId, p.presente]));
+const comValor = (dados: Presenca[], id: number, presente: boolean) =>
+  dados.map((p) => (p.participanteId === id ? { ...p, presente } : p));
+
+export const novaListaDoDia = (diaId: number, daApi: Presenca[], pendentes: Pendentes): ListaDoDia => ({
+  diaId,
+  dados: aplicarPendentes(daApi, pendentes),
+  salvos: salvosDaApi(daApi),
+});
+
+/** O usuário marcou: aparece na hora, antes de a API responder. */
+export const marcarNaLista = (l: ListaDoDia, id: number, presente: boolean): ListaDoDia => ({ ...l, dados: comValor(l.dados, id, presente) });
+
+/** A API salvou: passa a ser o valor confirmado. */
+export const confirmarNaLista = (l: ListaDoDia, id: number, presente: boolean): ListaDoDia => ({
+  ...l,
+  salvos: { ...l.salvos, [id]: presente },
+});
+
+/** A API recusou: a linha volta ao último valor confirmado. */
+export const recusarNaLista = (l: ListaDoDia, id: number, enviado: boolean): ListaDoDia => ({
+  ...l,
+  dados: comValor(l.dados, id, l.salvos[id] ?? !enviado),
+});
+
+/**
+ * As pendências mudaram em outra aba: quem ganhou pendência mostra o valor guardado, e quem deixou de ter
+ * volta ao último valor confirmado (pendência descartada ou recusada lá). Se a outra aba salvou, a
+ * recarga da lista (`recarregarLista`) traz o valor novo do servidor.
+ */
+export function sincronizarLista(l: ListaDoDia, antes: Pendentes, depois: Pendentes): ListaDoDia {
+  return {
+    ...l,
+    dados: l.dados.map((p) => {
+      const id = p.participanteId;
+      if (id in depois) return { ...p, presente: depois[id].presente };
+      if (id in antes && id in l.salvos) return { ...p, presente: l.salvos[id] };
+      return p;
+    }),
+  };
+}
+
+/**
+ * Lista recarregada da API com a tela em uso: o servidor vira o confirmado; aparece o que está pendente
+ * e, para quem tem marcação a caminho (`aCaminho`), fica o que está na tela até a resposta chegar.
+ */
+export function recarregarLista(l: ListaDoDia, daApi: Presenca[], pendentes: Pendentes, aCaminho: Set<number>): ListaDoDia {
+  const naTela = new Map(l.dados.map((p) => [p.participanteId, p.presente]));
+  return {
+    ...l,
+    salvos: salvosDaApi(daApi),
+    dados: aplicarPendentes(daApi, pendentes).map((p) =>
+      aCaminho.has(p.participanteId) && naTela.has(p.participanteId) ? { ...p, presente: naTela.get(p.participanteId)! } : p,
+    ),
+  };
+}
+
 export function filtrar(dados: Presenca[], grupoId: string, busca: string): Presenca[] {
   const termo = busca.trim().toLocaleLowerCase('pt-BR');
   return dados.filter(

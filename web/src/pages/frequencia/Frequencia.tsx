@@ -5,7 +5,7 @@ import { paraOReenvio } from '../../api/falhas.ts';
 import { useLayout } from '../../components/Layout';
 import { iniciais } from '../../texto';
 import {
-  aplicarPendentes,
+  confirmarNaLista,
   descartarFormatoAntigo,
   diaInicial,
   filtrar,
@@ -13,9 +13,15 @@ import {
   guardarAoFalhar,
   lerPendentes,
   marcacaoAntiga,
+  marcarNaLista,
+  novaListaDoDia,
   pendentesDeOutraAba,
+  recarregarLista,
+  recusarNaLista,
   resumo,
+  sincronizarLista,
   type Alvo,
+  type ListaDoDia,
   type Marcacao,
   type Pendentes,
   type Presenca,
@@ -41,13 +47,18 @@ export default function Frequencia() {
   const [dias, setDias] = useState<Dia[]>();
   const [diaId, setDiaId] = useState<number>();
   // A lista guarda de qual dia ela é; ao trocar de dia, a anterior deixa de valer até a nova chegar.
-  const [lista, setLista] = useState<{ diaId: number; dados: Presenca[] }>();
+  const [lista, setLista] = useState<ListaDoDia>();
+  /** Muda a lista só se ela ainda for a do dia indicado. */
+  const mudarLista = useCallback((dia: number, f: (l: ListaDoDia) => ListaDoDia) => setLista((l) => (l && l.diaId === dia ? f(l) : l)), []);
   const dados = lista && lista.diaId === diaId ? lista.dados : undefined;
   const [pendentes, setPendentes] = useState<Pendentes>({});
   const [salvando, setSalvando] = useState<Set<number>>(new Set());
   const [grupoId, setGrupoId] = useState('');
   const [busca, setBusca] = useState('');
-  const [erro, setErro] = useState('');
+  // `guardada`: aviso de falha passageira ("ficou guardada e será reenviada"), que some quando as
+  // pendências do dia acabam; uma recusa continua na tela.
+  const [erro, setErroNaTela] = useState<{ texto: string; guardada?: boolean }>();
+  const setErro = useCallback((texto: string, guardada = false) => setErroNaTela(texto ? { texto, guardada } : undefined), []);
   useEffect(descartarFormatoAntigo, []);
   // Relógio da tela, atualizado a cada minuto: uma marcação pode passar de 2 h com a página aberta.
   const [agora, setAgora] = useState(() => Date.now());
@@ -65,7 +76,15 @@ export default function Frequencia() {
         setDiaId(diaInicial(ordenados, new Date().toLocaleDateString('sv-SE'))?.id);
       })
       .catch((e: Error) => setErro(e.message));
-  }, [eventoId]);
+  }, [eventoId, setErro]);
+
+  // Pendências do dia na tela. Sem nenhuma, o aviso de falha passageira não vale mais.
+  const pendentesRef = useRef(pendentes);
+  const mostrarPendentes = useCallback((novo: Pendentes) => {
+    pendentesRef.current = novo;
+    setPendentes(novo);
+    if (Object.keys(novo).length === 0) setErroNaTela((e) => (e?.guardada ? undefined : e));
+  }, []);
 
   useEffect(() => {
     if (!eventoId || !diaId) return;
@@ -76,14 +95,14 @@ export default function Frequencia() {
       .then((r) => {
         if (!atual) return;
         const guardadas = usuarioId ? lerPendentes({ eventoId, usuarioId, diaId }) : {};
-        setPendentes(guardadas);
-        setLista({ diaId, dados: aplicarPendentes(r.dados, guardadas) });
+        mostrarPendentes(guardadas);
+        setLista(novaListaDoDia(diaId, r.dados, guardadas));
       })
       .catch((e: Error) => atual && setErro(e.message));
     return () => {
       atual = false;
     };
-  }, [eventoId, usuarioId, diaId]);
+  }, [eventoId, usuarioId, diaId, mostrarPendentes, setErro]);
 
   // Evento, usuário e dia na tela agora. Um envio guarda para qual dia ele foi feito: se a pessoa trocar de
   // dia enquanto ele está a caminho, o resultado mexe só nas pendências e na lista daquele dia.
@@ -97,8 +116,8 @@ export default function Frequencia() {
   const atualizarPendentes = useCallback((alvo: Alvo, mudar: (atual: Pendentes) => Pendentes) => {
     const novo = mudar(lerPendentes(alvo));
     gravarPendentes(alvo, novo);
-    if (estaNaTela(alvo)) setPendentes(novo);
-  }, []);
+    if (estaNaTela(alvo)) mostrarPendentes(novo);
+  }, [mostrarPendentes]);
 
   // Marcações a caminho (`diaId:participanteId`): o reenvio não manda outra da mesma pessoa junto, para um
   // valor antigo não chegar depois do novo.
@@ -121,21 +140,18 @@ export default function Frequencia() {
           body: JSON.stringify({ presente }),
         });
         if (fila) atualizarPendentes(fila, (atual) => sem(atual, participanteId));
+        mudarLista(alvo.diaId, (l) => confirmarNaLista(l, participanteId, presente));
         return undefined;
       } catch (e) {
         if (fila && guardarAoFalhar(e)) {
           atualizarPendentes(fila, (atual) => ({ ...atual, [participanteId]: marcacao }));
           // Sem conexão o aviso de pendentes já explica; com o servidor respondendo erro, mostra o motivo.
           const semConexao = e instanceof ApiError && e.status === 0;
-          if (!semConexao && estaNaTela(alvo)) setErro(`${(e as Error).message} A marcação ficou guardada e será reenviada.`);
+          if (!semConexao && estaNaTela(alvo)) setErro(`${(e as Error).message} A marcação ficou guardada e será reenviada.`, true);
         } else {
-          // Recusa da API (ex.: participante de outro evento): desfaz a marcação e mostra o motivo.
+          // Recusa da API (ex.: participante de outro evento): a linha volta ao valor salvo e o motivo aparece.
           if (fila) atualizarPendentes(fila, (atual) => sem(atual, participanteId));
-          setLista((l) =>
-            l && l.diaId === alvo.diaId
-              ? { ...l, dados: l.dados.map((p) => (p.participanteId === participanteId ? { ...p, presente: !presente } : p)) }
-              : l,
-          );
+          mudarLista(alvo.diaId, (l) => recusarNaLista(l, participanteId, presente));
           if (estaNaTela(alvo)) setErro((e as Error).message);
         }
         return e;
@@ -148,7 +164,7 @@ export default function Frequencia() {
         });
       }
     },
-    [atualizarPendentes],
+    [atualizarPendentes, mudarLista, setErro],
   );
 
   // Um reenvio por vez: o intervalo, a volta da conexão e o botão podem disparar juntos. Ele relê as
@@ -169,7 +185,7 @@ export default function Frequencia() {
       }
       reenviando.current = true;
       // Outra aba pode ter enviado (ou guardado) algo: a tela passa a mostrar o que está no navegador.
-      setPendentes(lerPendentes(alvo));
+      mostrarPendentes(lerPendentes(alvo));
       try {
         const tentados = new Set<number>();
         for (;;) {
@@ -195,7 +211,7 @@ export default function Frequencia() {
         if (proximo !== undefined) void reenviarDia(proximo);
       }
     },
-    [enviar],
+    [enviar, mostrarPendentes],
   );
 
   // Com algo pendente, reenvia sozinho ao abrir o dia, quando a conexão volta, quando a aba fica visível e
@@ -223,16 +239,32 @@ export default function Frequencia() {
   useEffect(() => {
     if (!eventoId || !usuarioId || !diaId) return;
     const alvo = { eventoId, usuarioId, diaId };
+    let ativo = true;
     const aoMudarEmOutraAba = (e: StorageEvent) => {
       if (e.storageArea !== localStorage) return;
       const novo = pendentesDeOutraAba(e, alvo);
       if (!novo) return;
-      setPendentes(novo);
-      setLista((l) => (l && l.diaId === diaId ? { ...l, dados: aplicarPendentes(l.dados, novo) } : l));
+      const antes = pendentesRef.current;
+      mostrarPendentes(novo);
+      mudarLista(diaId, (l) => sincronizarLista(l, antes, novo));
+      // Quem deixou de estar pendente pode ter sido salvo lá (o servidor tem o valor novo) ou descartado
+      // (vale o salvo): a lista é recarregada para mostrar o que o servidor tem.
+      if (!Object.keys(antes).some((id) => !(id in novo))) return;
+      api<{ dados: Presenca[] }>(`/eventos/${eventoId}/dias/${diaId}/presencas`)
+        .then((r) => {
+          if (!ativo) return;
+          const aCaminho = new Set(r.dados.map((p) => p.participanteId).filter((id) => emEnvio.current.has(`${diaId}:${id}`)));
+          mudarLista(diaId, (l) => recarregarLista(l, r.dados, lerPendentes(alvo), aCaminho));
+        })
+        // Sem resposta, fica o último valor confirmado que a tela conhece.
+        .catch(() => {});
     };
     window.addEventListener('storage', aoMudarEmOutraAba);
-    return () => window.removeEventListener('storage', aoMudarEmOutraAba);
-  }, [eventoId, usuarioId, diaId]);
+    return () => {
+      ativo = false;
+      window.removeEventListener('storage', aoMudarEmOutraAba);
+    };
+  }, [eventoId, usuarioId, diaId, mostrarPendentes, mudarLista]);
 
   const qtdAntigas = Object.values(pendentes).filter((m) => marcacaoAntiga(m, agora)).length;
 
@@ -260,7 +292,7 @@ export default function Frequencia() {
   function marcar(p: Presenca, presente: boolean) {
     setErro('');
     if (!eventoId || !diaId) return;
-    setLista((l) => l && { ...l, dados: l.dados.map((x) => (x.participanteId === p.participanteId ? { ...x, presente } : x)) });
+    mudarLista(diaId, (l) => marcarNaLista(l, p.participanteId, presente));
     void enviar({ eventoId, usuarioId, diaId }, p.participanteId, { presente, criadoEm: new Date().toISOString() });
   }
 
@@ -336,7 +368,7 @@ export default function Frequencia() {
 
       {erro && (
         <p className="erro" role="alert">
-          {erro}
+          {erro.texto}
         </p>
       )}
 

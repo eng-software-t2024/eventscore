@@ -5,6 +5,7 @@ import { LIMITE_REENVIO_AUTOMATICO_MS } from '../../api/falhas.ts';
 import {
   aplicarPendentes,
   chaveDasPendentes,
+  confirmarNaLista,
   descartarFormatoAntigo,
   diaInicial,
   filtrar,
@@ -12,8 +13,13 @@ import {
   guardarAoFalhar,
   lerPendentes,
   marcacaoAntiga,
+  marcarNaLista,
+  novaListaDoDia,
   pendentesDeOutraAba,
+  recarregarLista,
+  recusarNaLista,
   resumo,
+  sincronizarLista,
   type Presenca,
 } from './presencas.ts';
 
@@ -125,4 +131,44 @@ test('pendências do formato antigo (sem usuário) são descartadas; as novas fi
   };
   descartarFormatoAntigo(armazenamento);
   assert.deepEqual([...dados.keys()], ['eventscore.presencas.5.1.3', 'eventscore.lancamentos.5.1']);
+});
+
+// Sofia (2) está ausente na API em todos os casos abaixo.
+const valorDe = (l: { dados: Presenca[] }, id: number) => l.dados.find((x) => x.participanteId === id)?.presente;
+
+test('recusa depois de uma pendência volta ao valor salvo na API, não ao anterior da tela (503 → nova marcação → 422)', () => {
+  let l = novaListaDoDia(1, dados, {});
+  // Marca presente; a API responde 503 e a marcação fica pendente (a lista não muda).
+  l = marcarNaLista(l, 2, true);
+  // Desmarca; a API responde 422.
+  l = marcarNaLista(l, 2, false);
+  l = recusarNaLista(l, 2, false);
+  assert.equal(valorDe(l, 2), false, 'a API continua com ausente');
+  // Ao contrário: presente salvo, nova marcação recusada volta para presente.
+  l = confirmarNaLista(marcarNaLista(l, 2, true), 2, true);
+  l = recusarNaLista(marcarNaLista(l, 2, false), 2, false);
+  assert.equal(valorDe(l, 2), true);
+});
+
+test('pendência descartada em outra aba volta ao valor salvo; pendência nova de lá aparece', () => {
+  const antes = { 2: m(true) };
+  let l = novaListaDoDia(1, dados, antes);
+  assert.equal(valorDe(l, 2), true, 'presente, não salvo');
+  l = sincronizarLista(l, antes, {});
+  assert.equal(valorDe(l, 2), false, 'descartada: volta para ausente, como na API');
+  l = sincronizarLista(l, {}, { 3: m(true) });
+  assert.equal(valorDe(l, 3), true, 'guardada na outra aba');
+  assert.equal(valorDe(l, 1), true, 'quem não mudou fica igual');
+});
+
+test('lista recarregada traz o servidor, mantém pendências e o que está a caminho', () => {
+  let l = novaListaDoDia(1, dados, {});
+  l = marcarNaLista(l, 1, false); // a caminho
+  const daApi = dados.map((x) => (x.participanteId === 2 ? { ...x, presente: true } : x)); // a outra aba salvou Sofia
+  l = recarregarLista(l, daApi, { 3: m(true) }, new Set([1]));
+  assert.equal(valorDe(l, 1), false, 'a caminho: fica o da tela');
+  assert.equal(valorDe(l, 2), true, 'salvo pela outra aba');
+  assert.equal(valorDe(l, 3), true, 'pendente');
+  assert.equal(l.salvos[2], true);
+  assert.equal(l.salvos[1], true, 'confirmado continua o do servidor até a resposta chegar');
 });
