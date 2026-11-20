@@ -1,6 +1,7 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { Prisma } from '../../../generated/prisma/client.js';
 import { PrismaService } from '../../../prisma/prisma.service.js';
+import { getIncompleteEventReason } from '../../classificacao/event-readiness.js';
 import { EventosService } from '../../eventos/eventos.service.js';
 import { FormatoRelatorio } from '../enums/formato-relatorio.enum.js';
 import { RelatorioParcialService } from '../parcial/relatorio-parcial.service.js';
@@ -239,23 +240,12 @@ export class RelatorioFinalService {
         },
       }),
     ]);
-    if (grupos.length === 0) throw new ConflictException(MENSAGEM_SEM_GRUPOS);
-    if (desafios.length === 0)
+    const incompleteReason = getIncompleteEventReason(grupos, desafios);
+    if (incompleteReason === 'groups')
+      throw new ConflictException(MENSAGEM_SEM_GRUPOS);
+    if (incompleteReason === 'challenges')
       throw new ConflictException(MENSAGEM_SEM_DESAFIOS);
-    const gruposExigiveis = new Set(grupos.map(({ id }) => id));
-    const resultadosCompletos = desafios.every((desafio) => {
-      const gruposLancados = new Set(
-        desafio.resultados
-          .filter(
-            (resultado) => resultado.ausente || resultado.colocacao !== null,
-          )
-          .map((resultado) => resultado.grupoId),
-      );
-      return [...gruposExigiveis].every((grupoId) =>
-        gruposLancados.has(grupoId),
-      );
-    });
-    if (!resultadosCompletos)
+    if (incompleteReason === 'results')
       throw new ConflictException(MENSAGEM_RESULTADOS_PENDENTES);
     const calculada =
       await this.relatorioParcialService.calcularClassificacaoParcial(eventoId);

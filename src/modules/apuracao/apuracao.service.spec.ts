@@ -6,9 +6,13 @@ import { ApuracaoService } from './apuracao.service.js';
 
 function mocks() {
   const prisma = {
+    evento: { findUnique: vi.fn() },
+    grupo: { findMany: vi.fn() },
+    desafio: { findMany: vi.fn() },
     participante: { findMany: vi.fn() },
     diaEvento: { count: vi.fn() },
     conversaoPontoExtra: { findMany: vi.fn() },
+    fatorPresenca: { findMany: vi.fn() },
     $queryRaw: vi.fn(),
   };
   const classificacao = { consultar: vi.fn() };
@@ -19,6 +23,21 @@ function mocks() {
     ],
     resumo: { empatesPendentes: [] },
   });
+  prisma.evento.findUnique.mockResolvedValue({ quantidadeDias: 2 });
+  prisma.grupo.findMany.mockResolvedValue([{ id: 1 }, { id: 2 }]);
+  prisma.desafio.findMany.mockResolvedValue([
+    {
+      resultados: [
+        { grupoId: 1, colocacao: 1, ausente: false },
+        { grupoId: 2, colocacao: 2, ausente: false },
+      ],
+    },
+  ]);
+  prisma.fatorPresenca.findMany.mockResolvedValue([
+    { diasPresentes: 0 },
+    { diasPresentes: 1 },
+    { diasPresentes: 2 },
+  ]);
   prisma.participante.findMany.mockResolvedValue([
     {
       id: 1,
@@ -123,5 +142,61 @@ describe('ApuracaoService', () => {
     await expect(
       service.getResults(99, { pagina: 1, tamanho: 20 }),
     ).rejects.toThrow(NotFoundException);
+  });
+
+  it.each([
+    [
+      'sem grupos',
+      'grupo',
+      (prisma: ReturnType<typeof mocks>['prisma']) =>
+        prisma.grupo.findMany.mockResolvedValue([]),
+    ],
+    [
+      'sem desafios',
+      'desafio',
+      (prisma: ReturnType<typeof mocks>['prisma']) =>
+        prisma.desafio.findMany.mockResolvedValue([]),
+    ],
+    [
+      'resultado ausente',
+      'resultados pendentes',
+      (prisma: ReturnType<typeof mocks>['prisma']) =>
+        prisma.desafio.findMany.mockResolvedValue([
+          { resultados: [{ grupoId: 1, colocacao: 1, ausente: false }] },
+        ]),
+    ],
+  ])(
+    'recusa evento %s antes de consultar participantes',
+    async (_case, message, change) => {
+      const { prisma, service } = mocks();
+      change(prisma);
+      await expect(
+        service.getResults(5, { pagina: 1, tamanho: 20 }),
+      ).rejects.toThrow(message);
+      expect(prisma.participante.findMany).not.toHaveBeenCalled();
+    },
+  );
+
+  it('recusa conversão incompleta com 409', async () => {
+    const { prisma, service } = mocks();
+    prisma.conversaoPontoExtra.findMany.mockResolvedValue([
+      { colocacao: 1, pontoExtra: new Prisma.Decimal(1) },
+    ]);
+    await expect(
+      service.getResults(5, { pagina: 1, tamanho: 20 }),
+    ).rejects.toThrow(ConflictException);
+    expect(prisma.participante.findMany).not.toHaveBeenCalled();
+  });
+
+  it('recusa fator ausente inclusive para zero dias', async () => {
+    const { prisma, service } = mocks();
+    prisma.fatorPresenca.findMany.mockResolvedValue([
+      { diasPresentes: 1 },
+      { diasPresentes: 2 },
+    ]);
+    await expect(
+      service.getResults(5, { pagina: 1, tamanho: 20 }),
+    ).rejects.toThrow('Falta o fator para 0 dias presentes');
+    expect(prisma.participante.findMany).not.toHaveBeenCalled();
   });
 });
