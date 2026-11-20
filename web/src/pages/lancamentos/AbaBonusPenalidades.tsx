@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
 import { api } from '../../api/client';
 import type { Configuracao } from '../configuracao/regras.ts';
@@ -12,7 +12,11 @@ const PENALIDADE_VAZIA = { grupoId: '', pontos: '', descricao: '', justificativa
 /** Aba 2 (RF10, RF11): bonificação por item com teto e penalidade com justificativa. */
 export default function AbaBonusPenalidades({ eventoId, grupos, envios }: { eventoId: number; grupos: Grupo[]; envios: EnviosPendentes }) {
   const base = `/eventos/${eventoId}`;
-  const { guardados } = envios;
+  // Lida por ref: a fila mudar (ou o usuário carregar) não pode recarregar os valores que estão sendo digitados.
+  const guardadosRef = useRef(envios.guardados);
+  useEffect(() => {
+    guardadosRef.current = envios.guardados;
+  }, [envios.guardados]);
   const [config, setConfig] = useState<Configuracao>();
   // Valor digitado por grupo e item: grupoId -> itemBonificacaoId -> texto.
   const [bonus, setBonus] = useState<Record<number, Record<number, string>>>({});
@@ -26,7 +30,7 @@ export default function AbaBonusPenalidades({ eventoId, grupos, envios }: { even
     Promise.all([api<Configuracao>(`${base}/configuracao`), api<Bonificacao[]>(`${base}/bonificacoes`), api<Penalidade[]>(`${base}/penalidades`)])
       .then(([cfg, bonificacoes, pens]) => {
         setConfig(cfg);
-        const fila = guardados();
+        const fila = guardadosRef.current();
         // Por grupo do evento: a API só devolve grupos que já têm bônus, e um bônus guardado sem
         // conexão pode ser de um grupo que ainda não tem. O guardado aparece por cima do que veio da API.
         setBonus(
@@ -44,7 +48,7 @@ export default function AbaBonusPenalidades({ eventoId, grupos, envios }: { even
         setPenalidades(pens);
       })
       .catch((e: Error) => setAviso({ tipo: 'erro', texto: e.message }));
-  }, [base, grupos, guardados]);
+  }, [base, grupos]);
 
   useEffect(carregar, [carregar]);
 

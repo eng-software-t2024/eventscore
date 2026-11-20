@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
-import { api } from '../../api/client';
+import { api, idDoUsuarioNoToken, token } from '../../api/client';
 import { useLayout } from '../../components/Layout';
 import AbaBonusPenalidades from './AbaBonusPenalidades';
 import AbaClassificacao from './AbaClassificacao';
@@ -22,15 +22,21 @@ type Aba = keyof typeof ABAS;
 // "Homologar", "Reverter" e o hash do mock saíram: não estão nos requisitos nem no DER (contrato v0.3).
 // Corrigir um lançamento é enviar de novo; a API recalcula tudo e grava na auditoria (RNF05, RF18).
 export default function Lancamentos() {
-  const { eventoAtivo, usuarioId } = useLayout();
+  const { eventoAtivo } = useLayout();
   const [params, setParams] = useSearchParams();
   const aba: Aba = (params.get('aba') as Aba) in ABAS ? (params.get('aba') as Aba) : 'colocacao';
   const [grupos, setGrupos] = useState<Grupo[]>();
   const [erro, setErro] = useState('');
+  // Do token, para a fila não depender do GET /auth/me responder.
+  const [usuarioId] = useState(() => idDoUsuarioNoToken(token.ler()));
   const envios = useEnviosPendentes(eventoAtivo?.id, usuarioId);
   const listaPendentes = Object.values(envios.pendentes);
-  // Momento em que a página abriu: basta para marcar como antigo o que já estava guardado havia horas.
-  const [agora] = useState(() => Date.now());
+  // Relógio da tela, atualizado a cada minuto: um envio pode passar de 2 h com a página aberta.
+  const [agora, setAgora] = useState(() => Date.now());
+  useEffect(() => {
+    const relogio = setInterval(() => setAgora(Date.now()), 60_000);
+    return () => clearInterval(relogio);
+  }, []);
 
   function reenviarAgora() {
     const antigos = listaPendentes.filter((p) => envioAntigo(p, Date.now()));

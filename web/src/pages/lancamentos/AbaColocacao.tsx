@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { api } from '../../api/client';
 import type { Desafio } from '../desafios/regras.ts';
@@ -22,10 +22,14 @@ export default function AbaColocacao({ eventoId, grupos, envios }: { eventoId: n
   const [historico, setHistorico] = useState<{ id: number; itens?: Auditoria[] }>();
   const [erro, setErro] = useState('');
   const [salvo, setSalvo] = useState<'salvo' | 'guardado'>();
-  const { guardados } = envios;
-  // Muda quando o envio deste desafio entra ou sai da fila: ao sair (enviado), a tela recarrega com os ids novos.
-  const pendenteId = desafioId ? envios.pendentes[caminhoResultados(desafioId)]?.id : undefined;
   const [salvando, setSalvando] = useState(false);
+  // Envio deste desafio que está na fila. A fila nunca recarrega o formulário (apagaria o que está sendo
+  // digitado); quando o envio sai dela, só os ids das linhas são atualizados, para o "Histórico".
+  const pendenteId = desafioId ? envios.pendentes[caminhoResultados(desafioId)]?.id : undefined;
+  const guardadosRef = useRef(envios.guardados);
+  useEffect(() => {
+    guardadosRef.current = envios.guardados;
+  }, [envios.guardados]);
 
   useEffect(() => {
     api<Desafio[]>(`${base}/desafios`)
@@ -39,11 +43,12 @@ export default function AbaColocacao({ eventoId, grupos, envios }: { eventoId: n
   useEffect(() => {
     if (!desafioId) return;
     const caminho = `${base}/desafios/${desafioId}/resultados`;
-    // Resposta de uma carga que já foi substituída (outro desafio, envio entrou ou saiu da fila) é ignorada.
+    // Resposta de uma carga que já foi substituída (trocou o desafio) é ignorada.
     let atual = true;
     api<Resultado[]>(caminho)
       .then((resultados) => {
         if (!atual) return;
+        setErro('');
         setLinhas({
           desafioId,
           // Uma linha por grupo do evento, mesmo que a API ainda não tenha resultado para ele.
@@ -53,7 +58,7 @@ export default function AbaColocacao({ eventoId, grupos, envios }: { eventoId: n
               return { id: r?.id ?? null, grupoId: g.id, colocacao: r?.colocacao ?? null, ausente: r?.ausente ?? false };
             }),
             // O que ficou guardado sem conexão aparece por cima do que veio da API.
-            guardados()[caminho],
+            guardadosRef.current()[caminho],
           ),
         });
       })
@@ -61,7 +66,30 @@ export default function AbaColocacao({ eventoId, grupos, envios }: { eventoId: n
     return () => {
       atual = false;
     };
-  }, [base, desafioId, grupos, guardados, pendenteId]);
+  }, [base, desafioId, grupos]);
+
+  // O envio deste desafio saiu da fila (enviado ou recusado): busca só os ids, sem tocar nas colocações.
+  const pendenteAnterior = useRef(pendenteId);
+  useEffect(() => {
+    const saiu = pendenteAnterior.current !== undefined && pendenteId === undefined;
+    pendenteAnterior.current = pendenteId;
+    if (!saiu || !desafioId) return;
+    let atual = true;
+    api<Resultado[]>(`${base}/desafios/${desafioId}/resultados`)
+      .then((resultados) => {
+        if (!atual) return;
+        setLinhas((l) =>
+          l?.desafioId === desafioId
+            ? { ...l, dados: l.dados.map((x) => ({ ...x, id: resultados.find((r) => r.grupoId === x.grupoId)?.id ?? x.id })) }
+            : l,
+        );
+      })
+      // Só os ids do "Histórico": se falhar, eles chegam na próxima carga do desafio.
+      .catch(() => {});
+    return () => {
+      atual = false;
+    };
+  }, [base, desafioId, pendenteId]);
 
   const desafio = desafios?.find((d) => d.id === desafioId);
   const dados = linhas?.desafioId === desafioId ? linhas?.dados : undefined;

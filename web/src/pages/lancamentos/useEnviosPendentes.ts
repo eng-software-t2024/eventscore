@@ -52,6 +52,8 @@ export function useEnviosPendentes(eventoId: number | undefined, usuarioId: numb
   const [estado, setEstado] = useState<{ chave?: string; pendentes: Pendentes; falha: string }>({ pendentes: {}, falha: '' });
   const [reenviando, setReenviando] = useState(false);
   const execucoes = useRef(new Map<string, Promise<Execucao>>());
+  // Filas cuja execução em andamento já inclui os envios antigos.
+  const antigosNaExecucao = useRef(new Set<string>());
   // Envios feitos pela própria aba: a recusa aparece na aba, não no aviso geral.
   const diretos = useRef(new Set<string>());
 
@@ -69,13 +71,18 @@ export function useEnviosPendentes(eventoId: number | undefined, usuarioId: numb
   }, []);
 
   const reenviar = useCallback(
-    (incluirAntigos: boolean): Promise<Execucao> => {
+    // Função nomeada para a execução encadeada chamar a si mesma.
+    function reenviarFila(incluirAntigos: boolean): Promise<Execucao> {
       if (!fila) return Promise.resolve(execucaoVazia());
       const alvo = fila;
       const k = chaveDaFila(alvo);
-      // Já está rodando: a execução atual relê a fila e leva o que acabou de entrar.
+      // Já está rodando: a execução atual relê a fila e leva o que acabou de entrar. Se ela pula os
+      // antigos e o pedido é para incluí-los ("Reenviar agora"), roda de novo logo depois dela.
       const emAndamento = execucoes.current.get(k);
-      if (emAndamento) return emAndamento;
+      if (emAndamento) {
+        if (!incluirAntigos || antigosNaExecucao.current.has(k)) return emAndamento;
+        return emAndamento.then(() => reenviarFila(true));
+      }
 
       const rodar = async () => {
         const r = execucaoVazia();
@@ -124,7 +131,8 @@ export function useEnviosPendentes(eventoId: number | undefined, usuarioId: numb
         return r;
       };
 
-      const execucao = rodar();
+      if (incluirAntigos) antigosNaExecucao.current.add(k);
+      const execucao = rodar().finally(() => antigosNaExecucao.current.delete(k));
       execucoes.current.set(k, execucao);
       return execucao;
     },

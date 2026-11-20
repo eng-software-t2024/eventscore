@@ -16,12 +16,12 @@ const ABAS = [
 type Evento = Schemas['EventoResumoDto'];
 
 /** undefined = carregando; null = nenhum evento ativo. */
-export type ContextoLayout = { eventoAtivo: Evento | null | undefined; recarregarEventoAtivo: () => void; usuarioId: number | undefined };
+export type ContextoLayout = { eventoAtivo: Evento | null | undefined; recarregarEventoAtivo: () => void };
 export const useLayout = () => useOutletContext<ContextoLayout>();
 
 export default function Layout() {
   const [eventoAtivo, setEventoAtivo] = useState<Evento | null>();
-  const [usuario, setUsuario] = useState<{ id: number; nome: string }>();
+  const [usuario, setUsuario] = useState<string>();
   const logado = Boolean(token.ler());
 
   const [erroEvento, setErroEvento] = useState('');
@@ -46,7 +46,7 @@ export default function Layout() {
     recarregarEventoAtivo();
     // Contrato v0.3: o cabeçalho mostra quem está logado (GET /auth/me). Token vencido cai no 401 do cliente.
     api<Schemas['UsuarioResumoDto']>('/auth/me')
-      .then((u) => setUsuario({ id: u.id, nome: u.nome }))
+      .then((u) => setUsuario(u.nome))
       .catch(() => setUsuario(undefined));
   }, [logado, recarregarEventoAtivo]);
 
@@ -66,8 +66,8 @@ export default function Layout() {
             {nome}
           </NavLink>
         ))}
-        {usuario && <span className="nav-usuario">{usuario.nome}</span>}
-        <button type="button" onClick={sair} aria-label={usuario ? `Sair (${usuario.nome})` : 'Sair'}>
+        {usuario && <span className="nav-usuario">{usuario}</span>}
+        <button type="button" onClick={sair} aria-label={usuario ? `Sair (${usuario})` : 'Sair'}>
           Sair
         </button>
       </nav>
@@ -79,7 +79,7 @@ export default function Layout() {
           </button>
         </div>
       )}
-      <Outlet context={{ eventoAtivo, recarregarEventoAtivo, usuarioId: usuario?.id } satisfies ContextoLayout} />
+      <Outlet context={{ eventoAtivo, recarregarEventoAtivo } satisfies ContextoLayout} />
     </div>
   );
 }

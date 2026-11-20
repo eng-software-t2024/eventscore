@@ -243,7 +243,7 @@ export default function Desafios() {
                   <tr key={d.id}>
                     <td>
                       <strong>{d.nome}</strong>
-                      {desatualizados.includes(d) && <small className="sub erro">Tabela de pontos incompleta</small>}
+                      {desatualizados.includes(d) && <small className="sub erro">Tabela de pontos desatualizada</small>}
                       {d.descricao && <small className="sub">{d.descricao}</small>}
                     </td>
                     <td>{nomeDoDia(d.diaId)}</td>
