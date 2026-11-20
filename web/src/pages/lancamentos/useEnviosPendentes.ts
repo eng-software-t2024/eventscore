@@ -106,7 +106,8 @@ export function useEnviosPendentes(eventoId: number | undefined, usuarioId: numb
               const tipo = tipoDeFalha(e);
               if (tipo === 'conexao') {
                 parouSemConexao = true;
-                avisar(alvo, 'Ainda sem conexão com o servidor. Os lançamentos continuam guardados.');
+                // Envio feito agora pela aba: ela já mostra o aviso de guardado; o geral não repete.
+                if (!diretos.current.has(envio.id)) avisar(alvo, 'Ainda sem conexão com o servidor. Os lançamentos continuam guardados.');
                 break;
               }
               if (tipo === 'recusado') {
@@ -117,7 +118,8 @@ export function useEnviosPendentes(eventoId: number | undefined, usuarioId: numb
               }
               // Erro do servidor: este envio fica e os outros seguem, para um envio com problema não travar a fila.
               r.adiados.set(envio.id, erro);
-              avisar(alvo, `O servidor não aceitou ${envio.descricao} agora (${erro.message}). Ele continua guardado e será reenviado.`);
+              if (!diretos.current.has(envio.id))
+                avisar(alvo, `O servidor não aceitou ${envio.descricao} agora (${erro.message}). Ele continua guardado e será reenviado.`);
               // Sessão expirada: todos falhariam, e o cliente já levou para o login.
               if (e instanceof ApiError && e.status === 401) break;
             }
@@ -126,13 +128,19 @@ export function useEnviosPendentes(eventoId: number | undefined, usuarioId: numb
           if (!parouSemConexao && r.adiados.size === 0 && !naoAvisados) avisar(alvo, '');
         } finally {
           setReenviando(false);
-          execucoes.current.delete(k);
         }
         return r;
       };
 
       if (incluirAntigos) antigosNaExecucao.current.add(k);
-      const execucao = rodar().finally(() => antigosNaExecucao.current.delete(k));
+      // A limpeza fica no `finally` da promessa, que sempre roda depois do `set` abaixo. Dentro de `rodar`,
+      // uma execução sem nada a enviar terminava antes do `set` e deixava na lista uma execução já
+      // encerrada: as tentativas seguintes devolviam essa execução sem enviar nada, e "Reenviar agora"
+      // encadeava nela sem fim, travando a página.
+      const execucao: Promise<Execucao> = rodar().finally(() => {
+        antigosNaExecucao.current.delete(k);
+        if (execucoes.current.get(k) === execucao) execucoes.current.delete(k);
+      });
       execucoes.current.set(k, execucao);
       return execucao;
     },
