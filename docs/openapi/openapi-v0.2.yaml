@@ -1,11 +1,13 @@
 openapi: 3.0.3
 info:
   title: "EventScore API (Arena Comp 2026)"
-  version: "0.2.0"
+  version: "0.3.0"
   description: |
     Especificação formal completa da API RESTful do **EventScore**, desenvolvida para a competição acadêmica **Arena Comp 2026**.
 
     A versão **v0.2.0** consolida 100% do contrato da aplicação (Sprints 01 e 02 — 44 operações distribuídas em 30 rotas), alinhada ao Contrato v0.3 aprovado pelo Frontend, às decisões arquiteturais do **ADR 0003** (migração V12) e **ADR 0004** (auditoria), e aos recortes homologados de Participantes (`#203`), Frequência (`#205`), Desafios (`#202` / `#245` — PR #31), Resultados (`#223` — PR #35), Bonificações/Penalidades/Classificação (`#206`), Configuração (`#199`), Apuração (`#204`) e Relatórios (`#207` / `#228` / `#229`).
+
+    A versão **v0.3.0** acrescenta o `id` de cada item em `BonificacaoItemResumoDto` (resposta de `GET /eventos/{eventoId}/bonificacoes` e de `PUT /eventos/{eventoId}/bonificacoes/{grupoId}`), usado como `registroId` em `GET /auditoria?entidade=BONIFICACAO_GRUPO` (RF18, PR #51). Mudança compatível: o corpo do PUT não muda.
 
     ### Principais Decisões de Contrato:
     - **Prefixo base:** `/api/v1` (definido nos servidores).
@@ -3067,6 +3069,25 @@ components:
           minimum: 0
           example: 10
 
+    BonificacaoItemResumoDto:
+      type: object
+      required:
+        - id
+        - itemBonificacaoId
+        - valor
+      properties:
+        id:
+          type: integer
+          example: 21
+          description: "Id do lançamento, usado como registroId em GET /auditoria?entidade=BONIFICACAO_GRUPO (RF18)."
+        itemBonificacaoId:
+          type: integer
+          example: 1
+        valor:
+          type: integer
+          minimum: 0
+          example: 10
+
     BonificacaoGrupoResumoDto:
       type: object
       required:
@@ -3080,7 +3101,7 @@ components:
         itens:
           type: array
           items:
-            $ref: '#/components/schemas/ItemBonificacaoLancamentoDto'
+            $ref: '#/components/schemas/BonificacaoItemResumoDto'
         total:
           type: integer
           example: 18

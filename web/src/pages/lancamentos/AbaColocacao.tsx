@@ -2,15 +2,12 @@ import { Fragment, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { api } from '../../api/client';
 import type { Desafio } from '../desafios/regras.ts';
-import { PontoCor, type Grupo } from './comum';
+import { ListaHistorico, PontoCor, type Grupo } from './comum';
 import { aplicarColocacoesPendentes } from './pendentes.ts';
 import { corpoColocacoes, pontosDaColocacao, validarColocacoes, type Auditoria, type Resultado } from './regras.ts';
 import type { EnviosPendentes } from './useEnviosPendentes.ts';
 
 type Linha = { id: number | null; grupoId: number; colocacao: number | null; ausente: boolean };
-
-const formatarDataHora = (iso: string) =>
-  new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
 /** Aba 1 (RF08, RF09): colocação de cada grupo no desafio, salva de uma vez com PUT idempotente. */
 export default function AbaColocacao({ eventoId, grupos, envios }: { eventoId: number; grupos: Grupo[]; envios: EnviosPendentes }) {
@@ -249,15 +246,7 @@ export default function AbaColocacao({ eventoId, grupos, envios }: { eventoId: n
                       {historico?.id === l.id && l.id !== null && (
                         <tr className="historico">
                           <td colSpan={4}>
-                            {!historico.itens && 'Carregando histórico...'}
-                            {historico.itens?.length === 0 && 'Sem alterações registradas.'}
-                            <ul>
-                              {historico.itens?.map((h, i) => (
-                                <li key={i}>
-                                  {formatarDataHora(h.dataHora)} · {h.usuario} · {h.operacao}: {h.valorAnterior ?? '—'} → {h.valorNovo ?? '—'}
-                                </li>
-                              ))}
-                            </ul>
+                            <ListaHistorico itens={historico.itens} />
                           </td>
                         </tr>
                       )}

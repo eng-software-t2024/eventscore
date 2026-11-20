@@ -1719,10 +1719,21 @@ export interface components {
             /** @example 10 */
             valor: number;
         };
+        BonificacaoItemResumoDto: {
+            /**
+             * @description Id do lançamento, usado como registroId em GET /auditoria?entidade=BONIFICACAO_GRUPO (RF18).
+             * @example 21
+             */
+            id: number;
+            /** @example 1 */
+            itemBonificacaoId: number;
+            /** @example 10 */
+            valor: number;
+        };
         BonificacaoGrupoResumoDto: {
             /** @example 1 */
             grupoId: number;
-            itens: components["schemas"]["ItemBonificacaoLancamentoDto"][];
+            itens: components["schemas"]["BonificacaoItemResumoDto"][];
             /** @example 18 */
             total: number;
         };

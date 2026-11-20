@@ -4,17 +4,19 @@ Este diretório contém as especificações formais **OpenAPI 3.0.3** da API RES
 
 ---
 
-## 1. Versão Atual do Contrato: `v0.2.0` (Contrato Completo — Sprints 01 e 02)
+## 1. Versão Atual do Contrato: `v0.3.0` (Contrato Completo — Sprints 01 e 02)
 
 A versão **`v0.1.0`** documentou o escopo fechado e aprovado da **Sprint 01 (S1)**, formalizado no documento [docs/contrato-api-t06.md](../contrato-api-t06.md) e alinhado com a versão **v0.3** do contrato do Frontend (aprovada formalmente em 29/10/2026 por **Luiz Meneses** — Frontend Lead).
 
 A versão **`v0.2.0`** consolida **100% da API RESTful do EventScore** (**44 operações em 30 rotas** distribuídas em 12 módulos/tags), incorporando as decisões do [ADR 0003](../adr/0003-divergencias-banco-contrato.md) (migração V12 sem `MAIOR_PRESENCA`), do [ADR 0004](../adr/0004-auditoria-lancamentos.md) (auditoria), o contrato aprovado de **Desafios** (**US #202 / #245**, [PR #31](https://github.com/hanrrysantos/event-score/pull/31)) e todos os endpoints de **Configuração (`#199`)**, **Participantes (`#203`)**, **Frequência (`#205`)**, **Resultados e Lançamentos (`#223` / `#206`)**, **Auditoria (`RF18`)**, **Classificação e Desempates (`#206 pt 3`)**, **Apuração Individual (`#204`)** e **Relatórios (`#207` / `#228` / `#229`)**.
 
-> **Compatibilidade de Referências (`$ref`) e Scripts:** A especificação oficial `v0.2.0` é publicada em [`docs/openapi/openapi-v0.2.yaml`](./openapi-v0.2.yaml) e mantida **100% idêntica e sincronizada** em [`docs/openapi/openapi-v0.1.yaml`](./openapi-v0.1.yaml), garantindo compatibilidade imediata com os scripts do Frontend (`web/package.json` `api:tipos`), o mock (`web/mock/openapi-mock.yaml`) e os recortes de proposta em `docs/openapi/propostas/`.
+A versão **`v0.3.0`** acrescenta o `id` de cada item de bonificação na resposta de `GET /eventos/{eventoId}/bonificacoes` e de `PUT /eventos/{eventoId}/bonificacoes/{grupoId}` (`BonificacaoItemResumoDto`). É o `registroId` usado em `GET /auditoria?entidade=BONIFICACAO_GRUPO` para o histórico do bônus (RF18, [PR #51](https://github.com/hanrrysantos/event-score/pull/51)). Mudança compatível (seção 3.2): campo novo só na resposta, o corpo do `PUT` não muda. O arquivo continua com o nome `openapi-v0.2.yaml` para não quebrar as referências abaixo.
+
+> **Compatibilidade de Referências (`$ref`) e Scripts:** A especificação oficial `v0.3.0` é publicada em [`docs/openapi/openapi-v0.2.yaml`](./openapi-v0.2.yaml) e mantida **100% idêntica e sincronizada** em [`docs/openapi/openapi-v0.1.yaml`](./openapi-v0.1.yaml), garantindo compatibilidade imediata com os scripts do Frontend (`web/package.json` `api:tipos`), o mock (`web/mock/openapi-mock.yaml`) e os recortes de proposta em `docs/openapi/propostas/`.
 
 ### Links de Consumo para o Frontend:
 - **Swagger UI Local (Runtime NestJS):** `http://localhost:3000/api/docs` (especificação JSON em `http://localhost:3000/api/docs-json`)
-- **OpenAPI Spec Estática (`v0.2.0`):** [`docs/openapi/openapi-v0.2.yaml`](./openapi-v0.2.yaml) (sincronizada em [`docs/openapi/openapi-v0.1.yaml`](./openapi-v0.1.yaml))
+- **OpenAPI Spec Estática (`v0.3.0`):** [`docs/openapi/openapi-v0.2.yaml`](./openapi-v0.2.yaml) (sincronizada em [`docs/openapi/openapi-v0.1.yaml`](./openapi-v0.1.yaml))
 - **Mock Local via Prism:** `npx @stoplight/prism-cli mock docs/openapi/openapi-v0.2.yaml -p 4010`
 
 ### Registro de Aprovação e Histórico de Versões:
@@ -22,8 +24,9 @@ A versão **`v0.2.0`** consolida **100% da API RESTful do EventScore** (**44 ope
 |---|---|---|---|
 | `v0.1.0` | Baseline Sprint 01 (17 operações: Auth, Eventos, Dias e Grupos) | **Luiz Meneses** (Frontend Lead) | Publicado e Aprovado |
 | `v0.2.0` | Contrato completo Sprints 01 + 02 (44 operações em 12 módulos), ADR 0003 (V12 sem `MAIOR_PRESENCA`), Participantes (PR #29), Desafios `#245` (PR #31) e Resultados `#223` (PR #35) | **Luiz Meneses** (Frontend Lead — T06, PR #31 e `#223`), **Saylon** (Revisor Backend — PR #31 e PR #35) e **ADR 0003** | Publicado e Consolidado |
+| `v0.3.0` | `id` dos itens em `BonificacaoItemResumoDto` (histórico de bônus, RF18 — PR #51) | Revisão do PR #51 (mudança compatível, sem aceite prévio do front — seção 3.1) | Proposto |
 
-### Escopo Completo de Endpoints (`v0.2.0` — 44 operações):
+### Escopo Completo de Endpoints (`v0.3.0` — 44 operações):
 | Módulo | Método | Rota | Descrição |
 |---|---|---|---|
 | **Auth** | `POST` | `/api/v1/auth/login` | Autenticação com e-mail/senha, retornando JWT e `expiraEm` UTC |
@@ -120,14 +123,17 @@ A versão **`v0.2.0`** consolida **100% da API RESTful do EventScore** (**44 ope
 Adotamos os princípios de **Versionamento Semântico (SemVer)** adaptados para contratos de API REST (`vMAJOR.MINOR.PATCH`), aliados a um fluxo estrito de governança **Contract-First**.
 
 ### 3.1. Regra de Governança
-Qualquer alteração em **paths**, **parâmetros**, **schemas** ou **status codes** exige obrigatoriamente um **Pull Request (PR) de atualização do contrato** com **revisão e aprovação explícita do Frontend** antes do início ou merge da implementação no Backend.
+Qualquer alteração em **paths**, **parâmetros**, **schemas** ou **status codes** exige obrigatoriamente um **Pull Request (PR) de atualização do contrato**, com o bump de versão da seção 3.2.
+
+- **Mudanças compatíveis (*non-breaking*):** basta a revisão do PR. Não exigem aceite prévio do Frontend, porque não quebram nenhum consumidor.
+- **Mudanças incompatíveis (*breaking*):** exigem **aprovação explícita do Frontend** antes do início ou merge da implementação no Backend.
 
 ### 3.2. Classificação de Mudanças
 - **Compatíveis (*Non-breaking*):**
   - Adição de novos endpoints e recursos.
   - Adição de campos opcionais em requisições (`requestBody` ou `query`).
   - Adição de novos campos em respostas (`response`).
-  - **Ação de versão:** Bump de `MINOR` (ou `PATCH` para ajustes documentais/exemplos sem mudança estrutural).
+  - **Ação de versão:** Bump de `MINOR` (ou `PATCH` para ajustes documentais/exemplos sem mudança estrutural), com revisão do PR e sem aceite prévio do Frontend.
 - **Incompatíveis (*Breaking*):**
   - Remoção ou renomeação de rotas ou campos existentes.
   - Alteração de tipos de dados (ex.: `string` para `number`, ou remoção/renomeação de valores de `enum`).
@@ -159,7 +165,7 @@ Qualquer alteração em **paths**, **parâmetros**, **schemas** ou **status code
 1. **Identificação da Necessidade:** Qualquer membro do Backend ou Frontend abre o apontamento no canal de integração do projeto.
 2. **Alinhamento e Registro (ADR / Workshop):** Mudanças estruturais ou incompatíveis são registradas em ADR (`docs/adr/`) e/ou ata de contrato (`docs/contrato-api-t06.md`).
 3. **Atualização do OpenAPI:** O arquivo `docs/openapi/openapi-v0.1.yaml` (ou nova versão) é atualizado em branch dedicada.
-4. **Revisão Cruzada Obrigatória (Pull Request):** O PR de alteração do contrato precisa obrigatoriamente de aprovação explícita do **Frontend Lead (Luiz Meneses)** e revisão do Backend antes da implementação no código.
+4. **Revisão Cruzada Obrigatória (Pull Request):** Todo PR de alteração do contrato precisa de revisão do Backend. Se a mudança for incompatível, precisa também de aprovação explícita do **Frontend Lead (Luiz Meneses)** antes da implementação no código.
 
 ---
 
