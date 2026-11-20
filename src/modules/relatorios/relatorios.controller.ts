@@ -145,7 +145,7 @@ export class RelatoriosController {
       },
     },
     description:
-      'Relatório final indisponível: evento sem grupos, sem desafios, com resultados pendentes ou empate pendente.',
+      'Relatório final indisponível: evento sem grupos, sem desafios, com resultados pendentes, empate pendente ou configuração incompleta (falta conversão de alguma colocação ou fator de alguma quantidade de dias).',
   })
   previa(
     @Param() params: EventoIdParamsDto,
@@ -194,7 +194,7 @@ export class RelatoriosController {
       },
     },
     description:
-      'Relatório final indisponível: evento sem grupos, sem desafios, com resultados pendentes ou empate pendente.',
+      'Relatório final indisponível: evento sem grupos, sem desafios, com resultados pendentes, empate pendente ou configuração incompleta (falta conversão de alguma colocação ou fator de alguma quantidade de dias).',
   })
   async exportarFinal(
     @Param() params: EventoIdParamsDto,

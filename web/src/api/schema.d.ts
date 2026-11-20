@@ -770,7 +770,13 @@ export interface paths {
         /**
          * Registrar decisão manual de desempate (RF14)
          * @description Registra em transação única uma nova versão de apuração, o snapshot da classificação e as decisões manuais de desempate para todos os empates pendentes (ADR 0003).
-         *     Um novo envio substitui as decisões anteriores enquanto os grupos empatados mantiverem os mesmos pontos.
+         *     Um novo envio substitui as decisões anteriores dos mesmos grupos. A decisão vale enquanto os grupos empatados mantiverem os mesmos pontos.
+         *
+         *     Regras do envio:
+         *     - Só é aceito depois que todos os desafios do evento forem lançados (`desafiosLancados == desafiosTotais` no `GET /classificacao`); antes disso responde `422`. O front deve esconder o formulário até lá.
+         *     - Cada empate vem inteiro, com as posições que ele ocupa (empate no 2º lugar entre dois grupos: posições 2 e 3), e todos os empates pendentes vão no mesmo envio (`422`).
+         *     - Grupo repetido ou fora de um empate responde `422`; grupo de outro evento responde `404`.
+         *     - Reenviar a mesma decisão (mesmas posições e justificativa) não grava de novo e devolve a decisão vigente (RNF04).
          */
         post: operations["registrarDesempateManual"];
         delete?: never;
@@ -795,7 +801,7 @@ export interface paths {
         /**
          * Consultar apuração individual de ponto extra (RF16)
          * @description Calcula na consulta o ponto extra individual de cada participante (`ROUND(pontoExtraGrupo * fator, 2)`) a partir da colocação do grupo e dos dias presentes.
-         *     Retorna `409 Conflict` caso a classificação possua empate pendente ainda não resolvido.
+         *     Retorna `409 Conflict` se faltarem grupos, desafios, resultados de alguma combinação desafio/grupo, conversões das colocações de 1 até a quantidade de grupos, fatores de 0 até a quantidade de dias ou se houver empate pendente.
          */
         get: operations["consultarApuracaoIndividual"];
         put?: never;
@@ -857,7 +863,7 @@ export interface paths {
         };
         /**
          * Consultar prévia do relatório final por participante
-         * @description Retorna um array puro ordenado por turma e nome, incluindo todos os dias do evento e ausências. Só fica disponível quando há ao menos um desafio e todos os grupos do evento têm resultado lançado em cada desafio. Resultados parciais permanecem disponíveis no relatório parcial.
+         * @description Retorna um array puro ordenado por turma e nome, incluindo todos os dias do evento e ausências. Só fica disponível quando há ao menos um desafio e todos os grupos do evento têm resultado lançado em cada desafio, sem empate pendente e com a configuração completa (conversão e fatores de presença), para nenhum participante receber ponto extra 0 por falta de configuração. Resultados parciais permanecem disponíveis no relatório parcial.
          */
         get: operations["consultarPreviaRelatorioFinal"];
         put?: never;
@@ -889,7 +895,7 @@ export interface paths {
         };
         /**
          * Exportar relatório final por participante em PDF ou XLSX
-         * @description Gera o relatório final agrupado por turma com presença de todos os dias, ausências e ponto extra individual. Só fica disponível quando há ao menos um desafio e todos os grupos do evento têm resultado lançado em cada desafio. Resultados parciais permanecem disponíveis no relatório parcial.
+         * @description Gera o relatório final agrupado por turma com presença de todos os dias, ausências e ponto extra individual. Só fica disponível quando há ao menos um desafio e todos os grupos do evento têm resultado lançado em cada desafio, sem empate pendente e com a configuração completa (conversão e fatores de presença), para nenhum participante receber ponto extra 0 por falta de configuração. Resultados parciais permanecem disponíveis no relatório parcial.
          */
         get: operations["exportarRelatorioFinal"];
         put?: never;
@@ -4134,7 +4140,7 @@ export interface operations {
             400: components["responses"]["RequisicaoInvalida"];
             401: components["responses"]["NaoAutorizado"];
             404: components["responses"]["NaoEncontrado"];
-            /** @description Classificação possui empate pendente; é necessário registrar o desempate antes da apuração. */
+            /** @description Evento com resultados ou configuração incompletos, ou classificação com empate pendente. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -4209,7 +4215,7 @@ export interface operations {
             400: components["responses"]["RequisicaoInvalida"];
             401: components["responses"]["NaoAutorizado"];
             404: components["responses"]["NaoEncontrado"];
-            /** @description Evento sem grupos, sem desafios, com resultados pendentes ou empate pendente. */
+            /** @description Evento sem grupos, sem desafios, com resultados pendentes, empate pendente ou configuração incompleta (falta conversão de alguma colocação de 1 até a quantidade de grupos, ou fator de alguma quantidade de dias de 0 até a quantidade de dias). */
             409: components["responses"]["Conflito"];
         };
     };
@@ -4238,7 +4244,7 @@ export interface operations {
             400: components["responses"]["RequisicaoInvalida"];
             401: components["responses"]["NaoAutorizado"];
             404: components["responses"]["NaoEncontrado"];
-            /** @description Evento sem grupos, sem desafios, com resultados pendentes ou empate pendente. */
+            /** @description Evento sem grupos, sem desafios, com resultados pendentes, empate pendente ou configuração incompleta (falta conversão de alguma colocação de 1 até a quantidade de grupos, ou fator de alguma quantidade de dias de 0 até a quantidade de dias). */
             409: components["responses"]["Conflito"];
         };
     };
