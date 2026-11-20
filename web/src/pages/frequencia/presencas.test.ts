@@ -1,7 +1,22 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { ApiError } from '../../api/client.ts';
-import { aplicarPendentes, diaInicial, filtrar, gravarPendentes, guardarAoFalhar, lerPendentes, resumo, type Presenca } from './presencas.ts';
+import { LIMITE_REENVIO_AUTOMATICO_MS } from '../../api/falhas.ts';
+import {
+  aplicarPendentes,
+  chaveDasPendentes,
+  diaInicial,
+  filtrar,
+  gravarPendentes,
+  guardarAoFalhar,
+  lerPendentes,
+  marcacaoAntiga,
+  resumo,
+  type Presenca,
+} from './presencas.ts';
+
+const criadoEm = '2026-11-26T14:00:00.000Z';
+const m = (presente: boolean) => ({ presente, criadoEm });
 
 const p = (participanteId: number, nome: string, grupoId: number, presente: boolean): Presenca => ({
   participanteId,
@@ -15,7 +30,7 @@ const p = (participanteId: number, nome: string, grupoId: number, presente: bool
 const dados = [p(1, 'Lucas Vitorino', 1, true), p(2, 'Sofia Moreira', 1, false), p(3, 'Árthur Pires', 2, false)];
 
 test('marcação pendente vale por cima da API', () => {
-  const r = aplicarPendentes(dados, { 2: true, 1: false });
+  const r = aplicarPendentes(dados, { 2: m(true), 1: m(false) });
   assert.deepEqual(
     r.map((x) => x.presente),
     [false, true, false],
@@ -58,11 +73,22 @@ test('falha que passa sozinha guarda a marcação; recusa de conteúdo desfaz', 
   for (const status of [400, 403, 404, 409, 422]) assert.equal(guardarAoFalhar(new ApiError(status, 'x')), false, `status ${status}`);
 });
 
-test('pendências gravadas são lidas de volta por dia, mesmo sem armazenamento no navegador', () => {
-  gravarPendentes(901, 1, { 7: true });
-  gravarPendentes(901, 2, { 7: false });
-  assert.deepEqual(lerPendentes(901, 1), { 7: true });
-  assert.deepEqual(lerPendentes(901, 2), { 7: false });
-  gravarPendentes(901, 1, {});
-  assert.deepEqual(lerPendentes(901, 1), {});
+test('pendências são separadas por evento, usuário e dia, mesmo sem armazenamento no navegador', () => {
+  const ana = { eventoId: 901, usuarioId: 1, diaId: 1 };
+  gravarPendentes(ana, { 7: m(true) });
+  gravarPendentes({ ...ana, diaId: 2 }, { 7: m(false) });
+  assert.deepEqual(lerPendentes(ana), { 7: m(true) });
+  assert.deepEqual(lerPendentes({ ...ana, diaId: 2 }), { 7: m(false) });
+  // Outra pessoa no mesmo navegador não vê (nem reenvia) o que a Ana marcou.
+  assert.deepEqual(lerPendentes({ ...ana, usuarioId: 2 }), {});
+  assert.notEqual(chaveDasPendentes(ana), chaveDasPendentes({ ...ana, usuarioId: 2 }));
+  gravarPendentes(ana, {});
+  assert.deepEqual(lerPendentes(ana), {});
+});
+
+test('marcação guardada há mais de 2 horas não sai sozinha', () => {
+  const guardada = m(true);
+  const t = Date.parse(guardada.criadoEm);
+  assert.equal(marcacaoAntiga(guardada, t + LIMITE_REENVIO_AUTOMATICO_MS), false);
+  assert.equal(marcacaoAntiga(guardada, t + LIMITE_REENVIO_AUTOMATICO_MS + 1), true);
 });

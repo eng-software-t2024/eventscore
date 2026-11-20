@@ -1,3 +1,5 @@
+import { guardadoHaMuito } from '../../api/falhas.ts';
+
 /**
  * RNF04: lançamento que não chega à API fica guardado no navegador e é reenviado depois.
  * Só entram os PUT (colocações e bônus), que são idempotentes: reenviar não duplica nada. A chave é o
@@ -13,9 +15,8 @@ export type Pendentes = Record<string, EnvioPendente>;
 export type Fila = { eventoId: number; usuarioId: number };
 export const chaveDaFila = (fila: Fila) => `eventscore.lancamentos.${fila.eventoId}.${fila.usuarioId}`;
 
-/** Envio guardado há mais tempo que isso não é reenviado sozinho: pode sobrescrever uma correção feita depois. */
-export const LIMITE_REENVIO_AUTOMATICO_MS = 2 * 60 * 60 * 1000;
-export const envioAntigo = (envio: EnvioPendente, agora: number) => agora - Date.parse(envio.criadoEm) > LIMITE_REENVIO_AUTOMATICO_MS;
+export { LIMITE_REENVIO_AUTOMATICO_MS } from '../../api/falhas.ts';
+export const envioAntigo = (envio: EnvioPendente, agora: number) => guardadoHaMuito(envio.criadoEm, agora);
 
 // Sem armazenamento (aba anônima, cota cheia), a fila fica só na memória enquanto a página estiver aberta.
 const memoria = new Map<string, Pendentes>();

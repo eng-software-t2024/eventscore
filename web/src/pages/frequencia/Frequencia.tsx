@@ -1,13 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
-import { api, ApiError, type Schemas } from '../../api/client';
+import { api, ApiError, idDoUsuarioNoToken, token, type Schemas } from '../../api/client';
 import { useLayout } from '../../components/Layout';
 import { iniciais } from '../../texto';
-import { aplicarPendentes, diaInicial, filtrar, gravarPendentes, guardarAoFalhar, lerPendentes, resumo, type Pendentes, type Presenca } from './presencas.ts';
+import {
+  aplicarPendentes,
+  diaInicial,
+  filtrar,
+  gravarPendentes,
+  guardarAoFalhar,
+  lerPendentes,
+  marcacaoAntiga,
+  resumo,
+  type Alvo,
+  type Marcacao,
+  type Pendentes,
+  type Presenca,
+} from './presencas.ts';
 import './Frequencia.css';
 
 type Dia = Schemas['DiaEventoDto'];
-type Alvo = { eventoId: number; diaId: number };
 const formatarData = (data: string) => data.split('-').reverse().join('/');
 const doisDigitos = (n: number) => String(n).padStart(2, '0');
 const sem = (mapa: Pendentes, id: number) => {
@@ -21,6 +33,8 @@ const sem = (mapa: Pendentes, id: number) => {
 export default function Frequencia() {
   const { eventoAtivo } = useLayout();
   const eventoId = eventoAtivo?.id;
+  // Do token, para as pendências não dependerem do GET /auth/me responder (como nos Lançamentos).
+  const [usuarioId] = useState(() => idDoUsuarioNoToken(token.ler()));
   const [dias, setDias] = useState<Dia[]>();
   const [diaId, setDiaId] = useState<number>();
   // A lista guarda de qual dia ela é; ao trocar de dia, a anterior deixa de valer até a nova chegar.
@@ -31,6 +45,12 @@ export default function Frequencia() {
   const [grupoId, setGrupoId] = useState('');
   const [busca, setBusca] = useState('');
   const [erro, setErro] = useState('');
+  // Relógio da tela, atualizado a cada minuto: uma marcação pode passar de 2 h com a página aberta.
+  const [agora, setAgora] = useState(() => Date.now());
+  useEffect(() => {
+    const relogio = setInterval(() => setAgora(Date.now()), 60_000);
+    return () => clearInterval(relogio);
+  }, []);
 
   useEffect(() => {
     if (!eventoId) return;
@@ -45,27 +65,34 @@ export default function Frequencia() {
 
   useEffect(() => {
     if (!eventoId || !diaId) return;
+    // Resposta de um dia que já foi trocado é ignorada: chegando depois da do dia novo, ela deixaria a
+    // tela em "Carregando" e mostraria as pendências do dia errado.
+    let atual = true;
     api<{ dados: Presenca[] }>(`/eventos/${eventoId}/dias/${diaId}/presencas`)
       .then((r) => {
-        const guardadas = lerPendentes(eventoId, diaId);
+        if (!atual) return;
+        const guardadas = usuarioId ? lerPendentes({ eventoId, usuarioId, diaId }) : {};
         setPendentes(guardadas);
         setLista({ diaId, dados: aplicarPendentes(r.dados, guardadas) });
       })
-      .catch((e: Error) => setErro(e.message));
-  }, [eventoId, diaId]);
+      .catch((e: Error) => atual && setErro(e.message));
+    return () => {
+      atual = false;
+    };
+  }, [eventoId, usuarioId, diaId]);
 
-  // Evento e dia na tela agora. Um envio guarda para qual dia ele foi feito: se a pessoa trocar de dia
-  // enquanto ele está a caminho, o resultado mexe só nas pendências e na lista daquele dia.
+  // Evento, usuário e dia na tela agora. Um envio guarda para qual dia ele foi feito: se a pessoa trocar de
+  // dia enquanto ele está a caminho, o resultado mexe só nas pendências e na lista daquele dia.
   const naTela = useRef<Alvo>(undefined);
   useEffect(() => {
-    naTela.current = eventoId && diaId ? { eventoId, diaId } : undefined;
-  }, [eventoId, diaId]);
-  const estaNaTela = (alvo: Alvo) => naTela.current?.eventoId === alvo.eventoId && naTela.current?.diaId === alvo.diaId;
+    naTela.current = eventoId && usuarioId && diaId ? { eventoId, usuarioId, diaId } : undefined;
+  }, [eventoId, usuarioId, diaId]);
+  const estaNaTela = (alvo: Pick<Alvo, 'eventoId' | 'diaId'>) => naTela.current?.eventoId === alvo.eventoId && naTela.current?.diaId === alvo.diaId;
 
   // Lê e grava as pendências do dia do envio (não as da tela); a tela só muda se ainda for esse dia.
   const atualizarPendentes = useCallback((alvo: Alvo, mudar: (atual: Pendentes) => Pendentes) => {
-    const novo = mudar(lerPendentes(alvo.eventoId, alvo.diaId));
-    gravarPendentes(alvo.eventoId, alvo.diaId, novo);
+    const novo = mudar(lerPendentes(alvo));
+    gravarPendentes(alvo, novo);
     if (estaNaTela(alvo)) setPendentes(novo);
   }, []);
 
@@ -73,9 +100,14 @@ export default function Frequencia() {
   // valor antigo não chegar depois do novo.
   const emEnvio = useRef(new Set<string>());
 
-  /** Envia uma marcação; devolve a falha, ou `undefined` se foi salva. */
+  /**
+   * Envia uma marcação; devolve a falha, ou `undefined` se foi salva. Sem usuário (token ilegível) não há
+   * fila onde guardar: a falha desfaz a marcação. No reenvio, a marcação mantém a hora em que foi guardada.
+   */
   const enviar = useCallback(
-    async (alvo: Alvo, participanteId: number, presente: boolean): Promise<unknown> => {
+    async (alvo: Pick<Alvo, 'eventoId' | 'diaId'> & { usuarioId?: number }, participanteId: number, marcacao: Marcacao): Promise<unknown> => {
+      const { presente } = marcacao;
+      const fila = alvo.usuarioId ? { ...alvo, usuarioId: alvo.usuarioId } : undefined;
       const chave = `${alvo.diaId}:${participanteId}`;
       emEnvio.current.add(chave);
       setSalvando((s) => new Set(s).add(participanteId));
@@ -84,17 +116,17 @@ export default function Frequencia() {
           method: 'PUT',
           body: JSON.stringify({ presente }),
         });
-        atualizarPendentes(alvo, (atual) => sem(atual, participanteId));
+        if (fila) atualizarPendentes(fila, (atual) => sem(atual, participanteId));
         return undefined;
       } catch (e) {
-        if (guardarAoFalhar(e)) {
-          atualizarPendentes(alvo, (atual) => ({ ...atual, [participanteId]: presente }));
+        if (fila && guardarAoFalhar(e)) {
+          atualizarPendentes(fila, (atual) => ({ ...atual, [participanteId]: marcacao }));
           // Sem conexão o aviso de pendentes já explica; com o servidor respondendo erro, mostra o motivo.
           const semConexao = e instanceof ApiError && e.status === 0;
           if (!semConexao && estaNaTela(alvo)) setErro(`${(e as Error).message} A marcação ficou guardada e será reenviada.`);
         } else {
           // Recusa da API (ex.: participante de outro evento): desfaz a marcação e mostra o motivo.
-          atualizarPendentes(alvo, (atual) => sem(atual, participanteId));
+          if (fila) atualizarPendentes(fila, (atual) => sem(atual, participanteId));
           setLista((l) =>
             l && l.diaId === alvo.diaId
               ? { ...l, dados: l.dados.map((p) => (p.participanteId === participanteId ? { ...p, presente: !presente } : p)) }
@@ -116,38 +148,45 @@ export default function Frequencia() {
   );
 
   // Um reenvio por vez: o intervalo, a volta da conexão e o botão podem disparar juntos. Ele relê as
-  // pendências do dia a cada passo, então sai sempre o valor mais novo de cada pessoa.
+  // pendências do dia a cada passo, então sai sempre o valor mais novo de cada pessoa. As guardadas há
+  // mais de 2 h só saem pelo botão (`incluirAntigas`).
   const reenviando = useRef(false);
-  const reenviar = useCallback(async () => {
-    const alvo = naTela.current;
-    if (!alvo || reenviando.current) return;
-    reenviando.current = true;
-    try {
-      const tentados = new Set<number>();
-      for (;;) {
-        // Trocou de dia: para; o dia novo tem a própria vez.
-        if (!estaNaTela(alvo)) break;
-        const guardadas = lerPendentes(alvo.eventoId, alvo.diaId);
-        const id = Object.keys(guardadas)
-          .map(Number)
-          .find((i) => !tentados.has(i) && !emEnvio.current.has(`${alvo.diaId}:${i}`));
-        if (id === undefined) break;
-        tentados.add(id);
-        const falha = await enviar(alvo, id, guardadas[id]);
-        // Sem conexão ou sessão expirada, as outras falhariam do mesmo jeito (e o 401 já leva ao login).
-        if (falha instanceof ApiError && (falha.status === 0 || falha.status === 401)) break;
+  const reenviar = useCallback(
+    async (incluirAntigas: boolean) => {
+      const alvo = naTela.current;
+      if (!alvo || reenviando.current) return;
+      reenviando.current = true;
+      try {
+        const tentados = new Set<number>();
+        for (;;) {
+          // Trocou de dia: para; o dia novo tem a própria vez.
+          if (!estaNaTela(alvo)) break;
+          const guardadas = lerPendentes(alvo);
+          const id = Object.keys(guardadas)
+            .map(Number)
+            .find(
+              (i) =>
+                !tentados.has(i) && !emEnvio.current.has(`${alvo.diaId}:${i}`) && (incluirAntigas || !marcacaoAntiga(guardadas[i], Date.now())),
+            );
+          if (id === undefined) break;
+          tentados.add(id);
+          const falha = await enviar(alvo, id, guardadas[id]);
+          // Sem conexão ou sessão expirada, as outras falhariam do mesmo jeito (e o 401 já leva ao login).
+          if (falha instanceof ApiError && (falha.status === 0 || falha.status === 401)) break;
+        }
+      } finally {
+        reenviando.current = false;
       }
-    } finally {
-      reenviando.current = false;
-    }
-  }, [enviar]);
+    },
+    [enviar],
+  );
 
   // Com algo pendente, reenvia sozinho ao abrir o dia, quando a conexão volta, quando a aba fica visível e
   // a cada 30 s (com o servidor fora do ar o navegador continua online, e só o intervalo tenta de novo).
   const temPendentes = Object.keys(pendentes).length > 0;
   useEffect(() => {
     if (!temPendentes) return;
-    const tentar = () => void reenviar();
+    const tentar = () => void reenviar(false);
     const aoVoltarParaAba = () => {
       if (document.visibilityState === 'visible') tentar();
     };
@@ -163,10 +202,18 @@ export default function Frequencia() {
     };
   }, [temPendentes, reenviar, diaId]);
 
-  // Só o botão limpa a mensagem: a tentativa automática não apaga o motivo de uma recusa que está na tela.
+  const qtdAntigas = Object.values(pendentes).filter((m) => marcacaoAntiga(m, agora)).length;
+
+  // Só o botão limpa a mensagem (a tentativa automática não apaga o motivo de uma recusa) e só ele leva as
+  // marcações antigas, depois de confirmar.
   function reenviarAgora() {
+    if (
+      qtdAntigas > 0 &&
+      !window.confirm('Há marcações guardadas há mais de 2 horas. Reenviá-las pode desfazer correções feitas depois em outro computador. Reenviar mesmo assim?')
+    )
+      return;
     setErro('');
-    void reenviar();
+    void reenviar(true);
   }
 
   if (eventoAtivo === undefined) return <p className="cartao">Carregando...</p>;
@@ -182,7 +229,7 @@ export default function Frequencia() {
     setErro('');
     if (!eventoId || !diaId) return;
     setLista((l) => l && { ...l, dados: l.dados.map((x) => (x.participanteId === p.participanteId ? { ...x, presente } : x)) });
-    void enviar({ eventoId, diaId }, p.participanteId, presente);
+    void enviar({ eventoId, usuarioId, diaId }, p.participanteId, { presente, criadoEm: new Date().toISOString() });
   }
 
   const grupos = [...new Map((dados ?? []).map((p) => [p.grupoId, p.grupo])).entries()].sort((a, b) => a[1].localeCompare(b[1]));
@@ -239,6 +286,15 @@ export default function Frequencia() {
           <span>
             {qtdPendentes === 1 ? '1 marcação ainda não foi salva' : `${qtdPendentes} marcações ainda não foram salvas`}: a conexão caiu ou o
             servidor não respondeu. Elas ficam guardadas neste navegador e são reenviadas sozinhas.
+            {qtdAntigas > 0 && (
+              <strong>
+                {' '}
+                {qtdAntigas === 1
+                  ? '1 delas está guardada há mais de 2 horas e não sai sozinha'
+                  : `${qtdAntigas} delas estão guardadas há mais de 2 horas e não saem sozinhas`}
+                : confira antes de usar "Reenviar agora".
+              </strong>
+            )}
           </span>
           <button className="btn" onClick={reenviarAgora} disabled={salvando.size > 0}>
             Reenviar agora
@@ -309,7 +365,9 @@ export default function Frequencia() {
                           onChange={(e) => marcar(p, e.target.checked)}
                           aria-label={`Presença de ${p.nome}`}
                         />
-                        {p.participanteId in pendentes && <small className="nao-salvo">não salvo</small>}
+                        {p.participanteId in pendentes && (
+                          <small className="nao-salvo">{marcacaoAntiga(pendentes[p.participanteId], agora) ? 'não salvo · antigo' : 'não salvo'}</small>
+                        )}
                       </label>
                     </td>
                   </tr>

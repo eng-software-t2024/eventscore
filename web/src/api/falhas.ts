@@ -15,3 +15,10 @@ export function tipoDeFalha(erro: unknown): 'conexao' | 'recusado' | 'depois' {
   if (erro.status >= 400 && erro.status < 500 && !PASSAM_SOZINHOS.has(erro.status)) return 'recusado';
   return 'depois';
 }
+
+/**
+ * Envio guardado há mais tempo que isso não é reenviado sozinho: pode sobrescrever uma correção feita
+ * depois (em outro computador, ou por outra pessoa). Só sai pelo botão "Reenviar agora".
+ */
+export const LIMITE_REENVIO_AUTOMATICO_MS = 2 * 60 * 60 * 1000;
+export const guardadoHaMuito = (criadoEm: string, agora: number) => agora - Date.parse(criadoEm) > LIMITE_REENVIO_AUTOMATICO_MS;
