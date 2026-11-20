@@ -60,10 +60,14 @@ export default function Apuracao() {
         setErro('');
       })
       .catch((e: Error) => {
-        // 409: a classificação ainda tem empate que só a decisão manual resolve.
         setApuracao(undefined);
-        if (e instanceof ApiError && e.status === 409) setEmpate(e.message);
-        else setErro(e.message);
+        if (e instanceof ApiError && e.status === 409 && e.message.includes('empate pendente')) {
+          setEmpate(e.message);
+          setErro('');
+        } else {
+          setEmpate('');
+          setErro(e.message);
+        }
       });
   }, [eventoId, filtro]);
 
