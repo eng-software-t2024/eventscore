@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { validateAppEnv } from './config/env.js';
 import { HealthModule } from './health/health.module.js';
 import { AuditoriaModule } from './modules/auditoria/auditoria.module.js';
+import { ApuracaoModule } from './modules/apuracao/apuracao.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { ClassificacaoModule } from './modules/classificacao/classificacao.module.js';
 import { AuthUserRepository } from './modules/auth/auth-user.repository.js';
@@ -44,6 +45,7 @@ import { DiasEventoModule } from './modules/dias-evento/dias-evento.module.js';
     ResultadosModule,
     BonificacoesPenalidadesModule,
     ClassificacaoModule,
+    ApuracaoModule,
   ],
 })
 export class AppModule {}

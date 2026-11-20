@@ -1563,7 +1563,7 @@ paths:
       summary: "Consultar apuração individual de ponto extra (RF16)"
       description: |
         Calcula na consulta o ponto extra individual de cada participante (`ROUND(pontoExtraGrupo * fator, 2)`) a partir da colocação do grupo e dos dias presentes.
-        Retorna `409 Conflict` caso a classificação possua empate pendente ainda não resolvido.
+        Retorna `409 Conflict` se faltarem grupos, desafios, resultados de alguma combinação desafio/grupo, conversões das colocações de 1 até a quantidade de grupos, fatores de 0 até a quantidade de dias ou se houver empate pendente.
       operationId: "consultarApuracaoIndividual"
       parameters:
         - $ref: '#/components/parameters/PaginaQueryParam'
@@ -1604,7 +1604,7 @@ paths:
         '404':
           $ref: '#/components/responses/NaoEncontrado'
         '409':
-          description: "Classificação possui empate pendente; é necessário registrar o desempate antes da apuração."
+          description: "Evento com resultados ou configuração incompletos, ou classificação com empate pendente."
           content:
             application/json:
               schema:
