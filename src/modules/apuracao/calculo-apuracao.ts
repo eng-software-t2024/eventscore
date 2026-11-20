@@ -1,3 +1,4 @@
+import { ConflictException } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client.js';
 import type {
   LinhaApuracaoParticipanteDto,
@@ -32,12 +33,24 @@ export function calculateIndividualResults(
   const lines = participants.map((participant) => {
     const colocacaoGrupo = placements.get(participant.grupoId);
     if (colocacaoGrupo === undefined) {
-      throw new Error('Classificação sem grupo de participante');
+      throw new ConflictException(
+        'O grupo do participante não consta na classificação atual.',
+      );
     }
-    const groupScore = conversions.get(colocacaoGrupo) ?? new Prisma.Decimal(0);
+    const groupScore = conversions.get(colocacaoGrupo);
+    if (groupScore === undefined) {
+      throw new ConflictException(
+        `Falta a conversão da ${colocacaoGrupo}ª colocação na configuração do evento.`,
+      );
+    }
     const participantAttendance = attendanceByParticipant.get(participant.id);
     const daysPresent = Number(participantAttendance?.diasPresentes ?? 0);
-    const factor = participantAttendance?.fator ?? new Prisma.Decimal(0);
+    const factor = participantAttendance?.fator;
+    if (factor === null || factor === undefined) {
+      throw new ConflictException(
+        `Falta o fator para ${daysPresent} ${daysPresent === 1 ? 'dia presente' : 'dias presentes'} na configuração do evento.`,
+      );
+    }
     const individualScore = groupScore
       .mul(factor)
       .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
@@ -68,7 +81,9 @@ export function calculateIndividualResults(
       totalParticipantes: totalParticipants,
       assiduidade:
         totalParticipants > 0 && totalDays > 0
-          ? totalDaysPresent / (totalParticipants * totalDays)
+          ? Math.round(
+              (totalDaysPresent / (totalParticipants * totalDays)) * 10000,
+            ) / 10000
           : 0,
       aptos: lines.filter((line) => line.pontoExtra > 0).length,
     },
