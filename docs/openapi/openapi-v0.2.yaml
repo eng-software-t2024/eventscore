@@ -3067,6 +3067,25 @@ components:
           minimum: 0
           example: 10
 
+    BonificacaoItemResumoDto:
+      type: object
+      required:
+        - id
+        - itemBonificacaoId
+        - valor
+      properties:
+        id:
+          type: integer
+          example: 21
+          description: "Id do lançamento, usado como registroId em GET /auditoria?entidade=BONIFICACAO_GRUPO (RF18)."
+        itemBonificacaoId:
+          type: integer
+          example: 1
+        valor:
+          type: integer
+          minimum: 0
+          example: 10
+
     BonificacaoGrupoResumoDto:
       type: object
       required:
@@ -3080,7 +3099,7 @@ components:
         itens:
           type: array
           items:
-            $ref: '#/components/schemas/ItemBonificacaoLancamentoDto'
+            $ref: '#/components/schemas/BonificacaoItemResumoDto'
         total:
           type: integer
           example: 18

@@ -115,6 +115,10 @@ describe('Acesso a bônus e penalidades (#206 parte 2)', () => {
           (entry: { grupoId: number }) => entry.grupoId === groupId,
         );
         expect(grupo.total).toBe(8);
+        // O id do item é o registroId do histórico (RF18).
+        expect(grupo.itens).toEqual([
+          { id: replace.body.itens[0].id, itemBonificacaoId: itemId, valor: 8 },
+        ]);
       });
 
     await request(app.getHttpServer())
@@ -145,6 +149,16 @@ describe('Acesso a bônus e penalidades (#206 parte 2)', () => {
     });
     expect(row).not.toBeNull();
     const registroId = row!.id;
+
+    // O id devolvido pela API é o mesmo do registro auditado.
+    const lista = await request(app.getHttpServer())
+      .get(`/api/v1/eventos/${eventId}/bonificacoes`)
+      .auth(token, { type: 'bearer' })
+      .expect(200);
+    const doGrupo = lista.body.find(
+      (entry: { grupoId: number }) => entry.grupoId === groupId,
+    );
+    expect(doGrupo.itens[0].id).toBe(registroId);
 
     const auditoriaAntes = await request(app.getHttpServer())
       .get('/api/v1/auditoria')

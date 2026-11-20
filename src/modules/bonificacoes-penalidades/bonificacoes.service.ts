@@ -186,6 +186,7 @@ export class BonificacoesService {
         total: 0,
       };
       current.itens.push({
+        id: entry.id,
         itemBonificacaoId: entry.itemBonificacao.id,
         valor: entry.valor,
       });

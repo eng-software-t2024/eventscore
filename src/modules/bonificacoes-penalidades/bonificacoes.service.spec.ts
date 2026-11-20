@@ -44,7 +44,7 @@ describe('BonificacoesService', () => {
     await expect(service.list(1)).resolves.toEqual([
       {
         grupoId: 2,
-        itens: [{ itemBonificacaoId: 3, valor: 8 }],
+        itens: [{ id: 10, itemBonificacaoId: 3, valor: 8 }],
         total: 8,
       },
     ]);
@@ -74,7 +74,7 @@ describe('BonificacoesService', () => {
     );
     expect(result).toEqual({
       grupoId: 2,
-      itens: [{ itemBonificacaoId: 3, valor: 8 }],
+      itens: [{ id: 10, itemBonificacaoId: 3, valor: 8 }],
       total: 8,
     });
   });

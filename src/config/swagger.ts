@@ -16,6 +16,7 @@ import { GrupoResumoDto } from '../modules/grupos/dto/grupo-resumo.dto.js';
 import {
   BonificacaoEntradaDto,
   BonificacaoGrupoResumoDto,
+  BonificacaoItemResumoDto,
 } from '../modules/bonificacoes-penalidades/dto/bonificacao.dto.js';
 import {
   AtualizarPenalidadeDto,
@@ -68,6 +69,7 @@ export function configurarSwagger(app: INestApplication): void {
       AtualizarGrupoDto,
       GrupoResumoDto,
       BonificacaoEntradaDto,
+      BonificacaoItemResumoDto,
       BonificacaoGrupoResumoDto,
       AtualizarPenalidadeDto,
       CriarPenalidadeDto,
