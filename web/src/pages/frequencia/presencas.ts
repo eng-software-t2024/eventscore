@@ -1,4 +1,4 @@
-import { tipoDeFalha } from '../lancamentos/pendentes.ts';
+import { tipoDeFalha } from '../../api/falhas.ts';
 
 // Formato do contrato v0.3 (frequência); ainda fora do OpenAPI oficial.
 export type Presenca = {
@@ -20,20 +20,28 @@ export type Pendentes = Record<number, boolean>;
  */
 const chave = (eventoId: number, diaId: number) => `eventscore.presencas.${eventoId}.${diaId}`;
 
+// Sem armazenamento (aba anônima, cota cheia), as pendências ficam só na memória enquanto a página estiver aberta.
+const memoria = new Map<string, Pendentes>();
+let semArmazenamento = false;
+
 export function lerPendentes(eventoId: number, diaId: number): Pendentes {
+  const k = chave(eventoId, diaId);
+  if (semArmazenamento) return memoria.get(k) ?? {};
   try {
-    return JSON.parse(localStorage.getItem(chave(eventoId, diaId)) ?? '{}') as Pendentes;
+    return JSON.parse(localStorage.getItem(k) ?? '{}') as Pendentes;
   } catch {
-    return {};
+    return memoria.get(k) ?? {};
   }
 }
 
 export function gravarPendentes(eventoId: number, diaId: number, pendentes: Pendentes) {
+  const k = chave(eventoId, diaId);
+  memoria.set(k, pendentes);
   try {
-    if (Object.keys(pendentes).length) localStorage.setItem(chave(eventoId, diaId), JSON.stringify(pendentes));
-    else localStorage.removeItem(chave(eventoId, diaId));
+    if (Object.keys(pendentes).length) localStorage.setItem(k, JSON.stringify(pendentes));
+    else localStorage.removeItem(k);
   } catch {
-    // Sem armazenamento (aba anônima, cota cheia): as pendências ficam só na memória da tela.
+    semArmazenamento = true;
   }
 }
 

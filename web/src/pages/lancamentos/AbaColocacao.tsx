@@ -99,7 +99,7 @@ export default function AbaColocacao({ eventoId, grupos, envios }: { eventoId: n
     if (!recusado || !dados || recusaTratada.current === recusado.id) return;
     recusaTratada.current = recusado.id;
     if (!desafioId || !telaMostraRecusado(corpoColocacoes(dados), recusado)) return;
-    const caminho = caminhoResultados(desafioId);
+    const caminho = `${base}/desafios/${desafioId}/resultados`;
     api<Resultado[]>(caminho)
       .then((resultados) =>
         setLinhas((l) => {

@@ -3,7 +3,8 @@ import { Link } from 'react-router';
 import { api } from '../../api/client';
 import type { Configuracao } from '../configuracao/regras.ts';
 import { ListaHistorico, PontoCor, type Grupo } from './comum';
-import { bonusPendente, telaMostraRecusado, tipoDeFalha } from './pendentes.ts';
+import { tipoDeFalha } from '../../api/falhas.ts';
+import { bonusPendente, telaMostraRecusado } from './pendentes.ts';
 import { juntarHistoricos, montarBonificacao, montarPenalidade, type Auditoria, type Bonificacao, type Penalidade } from './regras.ts';
 import type { EnviosPendentes } from './useEnviosPendentes.ts';
 

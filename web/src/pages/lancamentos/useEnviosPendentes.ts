@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../../api/client';
+import { tipoDeFalha } from '../../api/falhas.ts';
 import {
   chaveDaFila,
   comPendente,
@@ -9,7 +10,6 @@ import {
   novoId,
   pendentesDeOutraAba,
   semPendente,
-  tipoDeFalha,
   type EnvioPendente,
   type Fila,
   type Pendentes,

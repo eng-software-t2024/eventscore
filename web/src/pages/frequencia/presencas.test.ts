@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { ApiError } from '../../api/client.ts';
-import { aplicarPendentes, diaInicial, filtrar, guardarAoFalhar, resumo, type Presenca } from './presencas.ts';
+import { aplicarPendentes, diaInicial, filtrar, gravarPendentes, guardarAoFalhar, lerPendentes, resumo, type Presenca } from './presencas.ts';
 
 const p = (participanteId: number, nome: string, grupoId: number, presente: boolean): Presenca => ({
   participanteId,
@@ -56,4 +56,13 @@ test('abre no dia de hoje quando ele é dia do evento', () => {
 test('falha que passa sozinha guarda a marcação; recusa de conteúdo desfaz', () => {
   for (const status of [0, 401, 408, 429, 500, 502, 503]) assert.equal(guardarAoFalhar(new ApiError(status, 'x')), true, `status ${status}`);
   for (const status of [400, 403, 404, 409, 422]) assert.equal(guardarAoFalhar(new ApiError(status, 'x')), false, `status ${status}`);
+});
+
+test('pendências gravadas são lidas de volta por dia, mesmo sem armazenamento no navegador', () => {
+  gravarPendentes(901, 1, { 7: true });
+  gravarPendentes(901, 2, { 7: false });
+  assert.deepEqual(lerPendentes(901, 1), { 7: true });
+  assert.deepEqual(lerPendentes(901, 2), { 7: false });
+  gravarPendentes(901, 1, {});
+  assert.deepEqual(lerPendentes(901, 1), {});
 });
