@@ -5,12 +5,14 @@ import { LIMITE_REENVIO_AUTOMATICO_MS } from '../../api/falhas.ts';
 import {
   aplicarPendentes,
   chaveDasPendentes,
+  descartarFormatoAntigo,
   diaInicial,
   filtrar,
   gravarPendentes,
   guardarAoFalhar,
   lerPendentes,
   marcacaoAntiga,
+  pendentesDeOutraAba,
   resumo,
   type Presenca,
 } from './presencas.ts';
@@ -91,4 +93,36 @@ test('marcação guardada há mais de 2 horas não sai sozinha', () => {
   const t = Date.parse(guardada.criadoEm);
   assert.equal(marcacaoAntiga(guardada, t + LIMITE_REENVIO_AUTOMATICO_MS), false);
   assert.equal(marcacaoAntiga(guardada, t + LIMITE_REENVIO_AUTOMATICO_MS + 1), true);
+});
+
+test('aba vê as pendências do dia como a outra aba deixou', () => {
+  const alvo = { eventoId: 902, usuarioId: 1, diaId: 1 };
+  const k = chaveDasPendentes(alvo);
+  // A outra aba enviou tudo: a chave some.
+  assert.deepEqual(pendentesDeOutraAba({ key: k, newValue: null }, alvo), {});
+  // A outra aba guardou uma marcação.
+  assert.deepEqual(pendentesDeOutraAba({ key: k, newValue: JSON.stringify({ 7: m(true) }) }, alvo), { 7: m(true) });
+  // localStorage.clear() em outra aba.
+  assert.deepEqual(pendentesDeOutraAba({ key: null, newValue: null }, alvo), {});
+  // Outro usuário, outro dia ou conteúdo ilegível: não mexe na tela.
+  assert.equal(pendentesDeOutraAba({ key: chaveDasPendentes({ ...alvo, usuarioId: 2 }), newValue: '{}' }, alvo), undefined);
+  assert.equal(pendentesDeOutraAba({ key: chaveDasPendentes({ ...alvo, diaId: 2 }), newValue: '{}' }, alvo), undefined);
+  assert.equal(pendentesDeOutraAba({ key: k, newValue: '{' }, alvo), undefined);
+});
+
+test('pendências do formato antigo (sem usuário) são descartadas; as novas ficam', () => {
+  const dados = new Map([
+    ['eventscore.presencas.5.3', '{"7":true}'],
+    ['eventscore.presencas.5.1.3', JSON.stringify({ 7: m(true) })],
+    ['eventscore.lancamentos.5.1', '{}'],
+  ]);
+  const armazenamento = {
+    get length() {
+      return dados.size;
+    },
+    key: (i: number) => [...dados.keys()][i] ?? null,
+    removeItem: (k: string) => void dados.delete(k),
+  };
+  descartarFormatoAntigo(armazenamento);
+  assert.deepEqual([...dados.keys()], ['eventscore.presencas.5.1.3', 'eventscore.lancamentos.5.1']);
 });

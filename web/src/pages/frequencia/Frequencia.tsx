@@ -1,16 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { api, ApiError, idDoUsuarioNoToken, token, type Schemas } from '../../api/client';
+import { paraOReenvio } from '../../api/falhas.ts';
 import { useLayout } from '../../components/Layout';
 import { iniciais } from '../../texto';
 import {
   aplicarPendentes,
+  descartarFormatoAntigo,
   diaInicial,
   filtrar,
   gravarPendentes,
   guardarAoFalhar,
   lerPendentes,
   marcacaoAntiga,
+  pendentesDeOutraAba,
   resumo,
   type Alvo,
   type Marcacao,
@@ -45,6 +48,7 @@ export default function Frequencia() {
   const [grupoId, setGrupoId] = useState('');
   const [busca, setBusca] = useState('');
   const [erro, setErro] = useState('');
+  useEffect(descartarFormatoAntigo, []);
   // Relógio da tela, atualizado a cada minuto: uma marcação pode passar de 2 h com a página aberta.
   const [agora, setAgora] = useState(() => Date.now());
   useEffect(() => {
@@ -151,11 +155,21 @@ export default function Frequencia() {
   // pendências do dia a cada passo, então sai sempre o valor mais novo de cada pessoa. As guardadas há
   // mais de 2 h só saem pelo botão (`incluirAntigas`).
   const reenviando = useRef(false);
+  // Pedido que chegou durante um reenvio (o dia foi trocado, ou o botão com as antigas): roda logo depois
+  // dele, em vez de esperar a próxima tentativa de 30 s. `true` se algum pedido incluía as antigas.
+  const pedido = useRef<boolean>(undefined);
   const reenviar = useCallback(
-    async (incluirAntigas: boolean) => {
+    // Função nomeada para rodar de novo o pedido que chegou durante a execução.
+    async function reenviarDia(incluirAntigas: boolean): Promise<void> {
       const alvo = naTela.current;
-      if (!alvo || reenviando.current) return;
+      if (!alvo) return;
+      if (reenviando.current) {
+        pedido.current = pedido.current || incluirAntigas;
+        return;
+      }
       reenviando.current = true;
+      // Outra aba pode ter enviado (ou guardado) algo: a tela passa a mostrar o que está no navegador.
+      setPendentes(lerPendentes(alvo));
       try {
         const tentados = new Set<number>();
         for (;;) {
@@ -171,11 +185,14 @@ export default function Frequencia() {
           if (id === undefined) break;
           tentados.add(id);
           const falha = await enviar(alvo, id, guardadas[id]);
-          // Sem conexão ou sessão expirada, as outras falhariam do mesmo jeito (e o 401 já leva ao login).
-          if (falha instanceof ApiError && (falha.status === 0 || falha.status === 401)) break;
+          // Sem conexão, sessão expirada ou servidor fora do ar: as outras falhariam do mesmo jeito.
+          if (paraOReenvio(falha)) break;
         }
       } finally {
         reenviando.current = false;
+        const proximo = pedido.current;
+        pedido.current = undefined;
+        if (proximo !== undefined) void reenviarDia(proximo);
       }
     },
     [enviar],
@@ -201,6 +218,21 @@ export default function Frequencia() {
       document.removeEventListener('visibilitychange', aoVoltarParaAba);
     };
   }, [temPendentes, reenviar, diaId]);
+
+  // Outra aba do mesmo usuário enviou, guardou ou descartou marcações deste dia: a tela acompanha.
+  useEffect(() => {
+    if (!eventoId || !usuarioId || !diaId) return;
+    const alvo = { eventoId, usuarioId, diaId };
+    const aoMudarEmOutraAba = (e: StorageEvent) => {
+      if (e.storageArea !== localStorage) return;
+      const novo = pendentesDeOutraAba(e, alvo);
+      if (!novo) return;
+      setPendentes(novo);
+      setLista((l) => (l && l.diaId === diaId ? { ...l, dados: aplicarPendentes(l.dados, novo) } : l));
+    };
+    window.addEventListener('storage', aoMudarEmOutraAba);
+    return () => window.removeEventListener('storage', aoMudarEmOutraAba);
+  }, [eventoId, usuarioId, diaId]);
 
   const qtdAntigas = Object.values(pendentes).filter((m) => marcacaoAntiga(m, agora)).length;
 

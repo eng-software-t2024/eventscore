@@ -22,3 +22,11 @@ export function tipoDeFalha(erro: unknown): 'conexao' | 'recusado' | 'depois' {
  */
 export const LIMITE_REENVIO_AUTOMATICO_MS = 2 * 60 * 60 * 1000;
 export const guardadoHaMuito = (criadoEm: string, agora: number) => agora - Date.parse(criadoEm) > LIMITE_REENVIO_AUTOMATICO_MS;
+
+/**
+ * Falhas que valem para todos os envios, não só para o que falhou: sem conexão, sessão expirada, excesso
+ * de requisições e servidor fora do ar ou sobrecarregado. O reenvio para em vez de tentar cada envio
+ * guardado (com o servidor fora do ar, seriam dezenas de requisições a cada tentativa).
+ */
+const PARAM_O_REENVIO = new Set([0, 401, 429, 502, 503, 504]);
+export const paraOReenvio = (erro: unknown) => erro instanceof ApiError && PARAM_O_REENVIO.has(erro.status);

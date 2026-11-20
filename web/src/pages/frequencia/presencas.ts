@@ -32,13 +32,15 @@ const ehMarcacao = (m: unknown): m is Marcacao =>
 const memoria = new Map<string, Pendentes>();
 let semArmazenamento = false;
 
+// Entrada fora do formato (editada à mão, versão antiga) é ignorada em vez de quebrar a tela.
+const lerJson = (texto: string): Pendentes =>
+  Object.fromEntries(Object.entries(JSON.parse(texto) as Record<string, unknown>).filter(([, m]) => ehMarcacao(m))) as Pendentes;
+
 export function lerPendentes(alvo: Alvo): Pendentes {
   const k = chaveDasPendentes(alvo);
   if (semArmazenamento) return memoria.get(k) ?? {};
   try {
-    const lido = JSON.parse(localStorage.getItem(k) ?? '{}') as Record<string, unknown>;
-    // Entrada fora do formato (editada à mão, versão antiga) é ignorada em vez de quebrar a tela.
-    return Object.fromEntries(Object.entries(lido).filter(([, m]) => ehMarcacao(m))) as Pendentes;
+    return lerJson(localStorage.getItem(k) ?? '{}');
   } catch {
     return memoria.get(k) ?? {};
   }
@@ -52,6 +54,45 @@ export function gravarPendentes(alvo: Alvo, pendentes: Pendentes) {
     else localStorage.removeItem(k);
   } catch {
     semArmazenamento = true;
+  }
+}
+
+/**
+ * Outra aba do mesmo usuário mexeu nas pendências deste dia (evento `storage`): devolve como ficaram, para a
+ * tela não continuar mostrando como não salva uma marcação que a outra aba já enviou. `undefined` quando a
+ * mudança é de outra chave ou veio ilegível; `key` nulo é `localStorage.clear()`, que esvazia tudo.
+ */
+export function pendentesDeOutraAba(evento: { key: string | null; newValue: string | null }, alvo: Alvo): Pendentes | undefined {
+  const k = chaveDasPendentes(alvo);
+  if (evento.key !== null && evento.key !== k) return undefined;
+  let novo: Pendentes = {};
+  if (evento.key !== null && evento.newValue) {
+    try {
+      novo = lerJson(evento.newValue);
+    } catch {
+      return undefined;
+    }
+  }
+  memoria.set(k, novo);
+  return novo;
+}
+
+/**
+ * Pendências do formato antigo (`eventscore.presencas.<evento>.<dia>`, sem usuário nem hora) não são
+ * reenviadas, porque não dá para saber de quem são; só ocupariam espaço no navegador.
+ */
+const FORMATO_ANTIGO = /^eventscore\.presencas\.\d+\.\d+$/;
+export function descartarFormatoAntigo(armazenamento?: Pick<Storage, 'length' | 'key' | 'removeItem'>) {
+  try {
+    const a = armazenamento ?? localStorage;
+    const antigas: string[] = [];
+    for (let i = 0; i < a.length; i++) {
+      const k = a.key(i);
+      if (k && FORMATO_ANTIGO.test(k)) antigas.push(k);
+    }
+    for (const k of antigas) a.removeItem(k);
+  } catch {
+    // Sem armazenamento: não há o que limpar.
   }
 }
 

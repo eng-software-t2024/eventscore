@@ -65,12 +65,15 @@ export default function AbaColocacao({ eventoId, grupos, envios }: { eventoId: n
     };
   }, [base, desafioId, grupos]);
 
-  // O envio deste desafio saiu da fila (enviado ou recusado): busca só os ids, sem tocar nas colocações.
+  // O envio deste desafio saiu da fila: busca só os ids, sem tocar nas colocações. Se ele saiu porque a
+  // API recusou no reenvio automático, nada mudou no servidor; o efeito da recusa (abaixo) cuida da tela.
   const pendenteAnterior = useRef(pendenteId);
+  const recusadoNaFila = desafioId ? envios.recusados[caminhoResultados(desafioId)]?.id : undefined;
   useEffect(() => {
-    const saiu = pendenteAnterior.current !== undefined && pendenteId === undefined;
+    const quemSaiu = pendenteAnterior.current;
+    const saiu = quemSaiu !== undefined && pendenteId === undefined;
     pendenteAnterior.current = pendenteId;
-    if (!saiu || !desafioId) return;
+    if (!saiu || !desafioId || recusadoNaFila === quemSaiu) return;
     let atual = true;
     api<Resultado[]>(`${base}/desafios/${desafioId}/resultados`)
       .then((resultados) => {
@@ -86,7 +89,7 @@ export default function AbaColocacao({ eventoId, grupos, envios }: { eventoId: n
     return () => {
       atual = false;
     };
-  }, [base, desafioId, pendenteId]);
+  }, [base, desafioId, pendenteId, recusadoNaFila]);
 
   const desafio = desafios?.find((d) => d.id === desafioId);
   const dados = linhas?.desafioId === desafioId ? linhas?.dados : undefined;
