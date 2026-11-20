@@ -12,6 +12,7 @@ describe('Apuração individual HTTP com PostgreSQL (#261)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let eventId: number;
+  let validationEventId: number;
   let groupAId: number;
   let groupBId: number;
   let token: string;
@@ -206,6 +207,27 @@ describe('Apuração individual HTTP com PostgreSQL (#261)', () => {
   });
 
   afterAll(async () => {
+    if (prisma) {
+      for (const id of [validationEventId, eventId].filter(
+        (value): value is number => value !== undefined,
+      )) {
+        await prisma.presenca.deleteMany({ where: { eventoId: id } });
+        await prisma.resultadoDesafio.deleteMany({ where: { eventoId: id } });
+        await prisma.pontosColocacao.deleteMany({
+          where: { desafio: { eventoId: id } },
+        });
+        await prisma.desafio.deleteMany({ where: { eventoId: id } });
+        await prisma.conversaoPontoExtra.deleteMany({
+          where: { eventoId: id },
+        });
+        await prisma.fatorPresenca.deleteMany({ where: { eventoId: id } });
+        await prisma.participante.deleteMany({ where: { eventoId: id } });
+        await prisma.grupo.deleteMany({ where: { eventoId: id } });
+        await prisma.diaEvento.deleteMany({ where: { eventoId: id } });
+        await prisma.evento.delete({ where: { id } });
+      }
+      await prisma.usuario.deleteMany({ where: { email } });
+    }
     await app?.close();
   });
 
@@ -303,13 +325,105 @@ describe('Apuração individual HTTP com PostgreSQL (#261)', () => {
       .expect(404);
   });
 
-  it('bloqueia a apuração quando a classificação tem empate pendente', async () => {
+  it('bloqueia evento incompleto, configuração incompleta e empate em fixture isolada', async () => {
+    const validationEvent = await prisma.evento.create({
+      data: {
+        nome: `Evento validação apuração ${suffix}`,
+        ano: 2097,
+        dataInicio: new Date('2097-11-20T00:00:00.000Z'),
+        dataFim: new Date('2097-11-21T00:00:00.000Z'),
+        quantidadeDias: 2,
+        ativo: false,
+      },
+    });
+    validationEventId = validationEvent.id;
+    const getValidation = () =>
+      http()
+        .get(`/api/v1/eventos/${validationEventId}/apuracao`)
+        .set('Authorization', `Bearer ${token}`);
+    expect((await getValidation().expect(409)).body.message).toContain(
+      'não possui grupos',
+    );
+
+    const [firstGroup, secondGroup] = await Promise.all([
+      prisma.grupo.create({
+        data: { eventoId: validationEventId, nome: 'Primeiro', cor: '#123456' },
+      }),
+      prisma.grupo.create({
+        data: { eventoId: validationEventId, nome: 'Segundo', cor: '#654321' },
+      }),
+    ]);
+    expect((await getValidation().expect(409)).body.message).toContain(
+      'não possui desafios',
+    );
+    const day = await prisma.diaEvento.create({
+      data: {
+        eventoId: validationEventId,
+        numeroDia: 1,
+        data: new Date('2097-11-20T00:00:00.000Z'),
+      },
+    });
+    const challenge = await prisma.desafio.create({
+      data: {
+        eventoId: validationEventId,
+        diaId: day.id,
+        nome: 'Desafio de validação',
+        pontosColocacao: {
+          create: [
+            { colocacao: 1, pontos: 100 },
+            { colocacao: 2, pontos: 50 },
+          ],
+        },
+      },
+    });
+    await prisma.resultadoDesafio.create({
+      data: {
+        eventoId: validationEventId,
+        desafioId: challenge.id,
+        grupoId: firstGroup.id,
+        colocacao: 1,
+        ausente: false,
+      },
+    });
+    expect((await getValidation().expect(409)).body.message).toContain(
+      'resultados pendentes',
+    );
+    await prisma.resultadoDesafio.create({
+      data: {
+        eventoId: validationEventId,
+        desafioId: challenge.id,
+        grupoId: secondGroup.id,
+        colocacao: 2,
+        ausente: false,
+      },
+    });
+    expect((await getValidation().expect(409)).body.message).toContain(
+      'conversão da 1ª',
+    );
+    await prisma.conversaoPontoExtra.createMany({
+      data: [
+        { eventoId: validationEventId, colocacao: 1, pontoExtra: 0.9 },
+        { eventoId: validationEventId, colocacao: 2, pontoExtra: 0.5 },
+      ],
+    });
+    expect((await getValidation().expect(409)).body.message).toContain(
+      'fator para 0 dias presentes',
+    );
+    await prisma.fatorPresenca.createMany({
+      data: [
+        { eventoId: validationEventId, diasPresentes: 0, fator: 0 },
+        { eventoId: validationEventId, diasPresentes: 1, fator: 0.5 },
+        { eventoId: validationEventId, diasPresentes: 2, fator: 1 },
+      ],
+    });
+    await getValidation().expect(200);
     await prisma.pontosColocacao.updateMany({
-      where: { desafio: { eventoId: eventId }, colocacao: 2 },
+      where: { desafioId: challenge.id, colocacao: 2 },
       data: { pontos: 100 },
     });
-    const response = await getResults().expect(409);
-    expect(response.body.message).toContain('empate pendente');
+    expect((await getValidation().expect(409)).body.message).toContain(
+      'empate pendente',
+    );
   });
 
   it('publica o contrato da apuração e exige Bearer no Swagger gerado', () => {
