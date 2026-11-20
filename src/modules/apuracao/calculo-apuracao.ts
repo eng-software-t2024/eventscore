@@ -1,5 +1,6 @@
 import { ConflictException } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client.js';
+import { describeMissingConfiguration } from '../classificacao/event-readiness.js';
 import type {
   LinhaApuracaoParticipanteDto,
   ResumoApuracaoDto,
@@ -40,7 +41,10 @@ export function calculateIndividualResults(
     const groupScore = conversions.get(colocacaoGrupo);
     if (groupScore === undefined) {
       throw new ConflictException(
-        `Falta a conversão da ${colocacaoGrupo}ª colocação na configuração do evento.`,
+        describeMissingConfiguration({
+          kind: 'conversion',
+          value: colocacaoGrupo,
+        }),
       );
     }
     const participantAttendance = attendanceByParticipant.get(participant.id);
@@ -48,7 +52,7 @@ export function calculateIndividualResults(
     const factor = participantAttendance?.fator;
     if (factor === null || factor === undefined) {
       throw new ConflictException(
-        `Falta o fator para ${daysPresent} ${daysPresent === 1 ? 'dia presente' : 'dias presentes'} na configuração do evento.`,
+        describeMissingConfiguration({ kind: 'factor', value: daysPresent }),
       );
     }
     const individualScore = groupScore

@@ -7,6 +7,7 @@ import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { ClassificacaoService } from '../classificacao/classificacao.service.js';
 import {
+  describeMissingConfiguration,
   getIncompleteEventReason,
   getMissingConfiguration,
 } from '../classificacao/event-readiness.js';
@@ -86,14 +87,8 @@ export class ApuracaoService {
       conversions.map((item) => item.colocacao),
       factors.map((item) => item.diasPresentes),
     );
-    if (missing?.kind === 'conversion')
-      throw new ConflictException(
-        `Falta a conversão da ${missing.value}ª colocação na configuração do evento.`,
-      );
-    if (missing?.kind === 'factor')
-      throw new ConflictException(
-        `Falta o fator para ${missing.value} ${missing.value === 1 ? 'dia presente' : 'dias presentes'} na configuração do evento.`,
-      );
+    if (missing)
+      throw new ConflictException(describeMissingConfiguration(missing));
 
     const where: Prisma.ParticipanteWhereInput = { eventoId: eventId };
     if (query.grupoId !== undefined) where.grupoId = query.grupoId;
