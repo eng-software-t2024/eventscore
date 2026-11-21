@@ -42,7 +42,7 @@ Cada commit deve representar uma mudança lógica. Evite tanto um commit por arq
 
 ### Módulos
 
-Módulos de domínio ficam em `src/modules/<nome>/`. Infraestrutura compartilhada fica fora: `src/config`, `src/prisma`, `src/health` e, futuramente, `src/common`.
+Módulos de domínio ficam em `src/modules/<nome>/`. Infraestrutura compartilhada fica fora: `src/config`, `src/prisma`, `src/health` e `src/common`.
 
 Para criar um módulo:
 
@@ -65,6 +65,17 @@ import { EventosService } from './eventos.service.js'; // correto
 import { EventosService } from './eventos.service';    // não compila
 ```
 
+### Nomes em inglês
+
+Funções, métodos, variáveis, parâmetros e constantes são escritos em inglês, mesmo quando o domínio tem nome em português:
+
+```ts
+async list(eventId: number) { ... } // correto
+async listar(eventoId: number) { ... } // incorreto
+```
+
+Exceção: propriedades de DTOs, entidades e parâmetros de rota que espelham o contrato OpenAPI (T06) mantêm o nome do contrato (`nome`, `cor`, `quantidadeParticipantes`, `eventoId`, `grupoId`). O código que as manipula continua em inglês.
+
 ### Acesso ao banco
 
 O `PrismaModule` é global. Basta injetar o `PrismaService`:
@@ -74,11 +85,49 @@ O `PrismaModule` é global. Basta injetar o `PrismaService`:
 export class EventosService {
   constructor(private readonly prisma: PrismaService) {}
 
-  listar() {
+  list() {
     return this.prisma.evento.findMany();
   }
 }
 ```
+
+### Auditoria (RF18)
+
+Todo lançamento (colocação, bônus, penalidade, desempate e recálculo) grava
+histórico pelo `AuditoriaService`, que é global. Chame `record` dentro da
+mesma transação da alteração, informando os campos antes e depois; o serviço
+grava só o que mudou e ignora o reenvio dos mesmos valores. O usuário vem do
+decorator `@CurrentUserId()`. A decisão está no
+[ADR 0004](docs/adr/0004-auditoria-lancamentos.md).
+
+```ts
+@Put(':grupoId')
+save(@CurrentUserId() userId: number, @Body() dto: SalvarResultadoDto) { ... }
+
+// no service
+await this.prisma.$transaction(async (tx) => {
+  const operationId = randomUUID(); // um por requisição
+  const before = await tx.resultadoDesafio.findUnique({ where });
+  const after = await tx.resultadoDesafio.upsert({ where, create, update });
+  await this.audit.record(tx, {
+    usuarioId: userId,
+    eventoId: eventId,
+    operacaoId: operationId,
+    entidade: 'RESULTADO_DESAFIO',
+    registroId: after.id,
+    operacao: before ? 'UPDATE' : 'INSERT',
+    before: before && { colocacao: before.colocacao, ausente: before.ausente },
+    after: { colocacao: after.colocacao, ausente: after.ausente },
+  });
+});
+```
+
+O histórico gravado é consultado em
+`GET /api/v1/auditoria?entidade=<ENTIDADE>&registroId=<id>`, usado pelo botão
+"Histórico" do front.
+
+A auditoria é imutável e impede a exclusão do evento e do usuário ligados a
+ela. Testes e2e que gravam auditoria não devem apagar esses registros ao final.
 
 ### Configuração
 
@@ -112,6 +161,8 @@ const prismaMock = { evento: { findMany: vi.fn() } };
 | E2E | `test/` (`*.e2e-spec.ts`) | Contrato HTTP: status, payloads, autenticação (401) e validação (400) | `npm run test:e2e` |
 
 A maior parte dos testes deve ser unitária, principalmente nos cálculos de pontuação. Os testes e2e cobrem o que só existe na camada HTTP: guards, pipes de validação e formato de erro.
+
+Regra: toda implementação de código (service, controller, DTO, utilitário) deve ser entregue acompanhada de testes unitários (`*.spec.ts`) no mesmo diretório. Não abra PR sem os testes correspondentes.
 
 ## Migrações
 

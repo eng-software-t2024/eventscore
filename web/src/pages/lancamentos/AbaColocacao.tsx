@@ -1,25 +1,32 @@
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { api } from '../../api/client';
 import type { Desafio } from '../desafios/regras.ts';
-import { PontoCor, type Grupo } from './comum';
+import { ListaHistorico, PontoCor, type Grupo } from './comum';
+import { aplicarColocacoesPendentes, telaMostraRecusado } from './pendentes.ts';
 import { corpoColocacoes, pontosDaColocacao, validarColocacoes, type Auditoria, type Resultado } from './regras.ts';
+import type { EnviosPendentes } from './useEnviosPendentes.ts';
 
 type Linha = { id: number | null; grupoId: number; colocacao: number | null; ausente: boolean };
 
-const formatarDataHora = (iso: string) =>
-  new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-
 /** Aba 1 (RF08, RF09): colocação de cada grupo no desafio, salva de uma vez com PUT idempotente. */
-export default function AbaColocacao({ eventoId, grupos }: { eventoId: number; grupos: Grupo[] }) {
+export default function AbaColocacao({ eventoId, grupos, envios }: { eventoId: number; grupos: Grupo[]; envios: EnviosPendentes }) {
   const base = `/eventos/${eventoId}`;
+  const caminhoResultados = (id: number) => `${base}/desafios/${id}/resultados`;
   const [desafios, setDesafios] = useState<Desafio[]>();
   const [desafioId, setDesafioId] = useState<number>();
   const [linhas, setLinhas] = useState<{ desafioId: number; dados: Linha[] }>();
   const [historico, setHistorico] = useState<{ id: number; itens?: Auditoria[] }>();
   const [erro, setErro] = useState('');
-  const [salvo, setSalvo] = useState(false);
+  const [salvo, setSalvo] = useState<'salvo' | 'guardado'>();
   const [salvando, setSalvando] = useState(false);
+  // Envio deste desafio que está na fila. A fila nunca recarrega o formulário (apagaria o que está sendo
+  // digitado); quando o envio sai dela, só os ids das linhas são atualizados, para o "Histórico".
+  const pendenteId = desafioId ? envios.pendentes[caminhoResultados(desafioId)]?.id : undefined;
+  const guardadosRef = useRef(envios.guardados);
+  useEffect(() => {
+    guardadosRef.current = envios.guardados;
+  }, [envios.guardados]);
 
   useEffect(() => {
     api<Desafio[]>(`${base}/desafios`)
@@ -32,27 +39,92 @@ export default function AbaColocacao({ eventoId, grupos }: { eventoId: number; g
 
   useEffect(() => {
     if (!desafioId) return;
-    api<Resultado[]>(`${base}/desafios/${desafioId}/resultados`)
-      .then((resultados) =>
+    const caminho = `${base}/desafios/${desafioId}/resultados`;
+    // Resposta de uma carga que já foi substituída (trocou o desafio) é ignorada.
+    let atual = true;
+    api<Resultado[]>(caminho)
+      .then((resultados) => {
+        if (!atual) return;
+        setErro('');
         setLinhas({
           desafioId,
           // Uma linha por grupo do evento, mesmo que a API ainda não tenha resultado para ele.
-          dados: grupos.map((g) => {
-            const r = resultados.find((x) => x.grupoId === g.id);
-            return { id: r?.id ?? null, grupoId: g.id, colocacao: r?.colocacao ?? null, ausente: r?.ausente ?? false };
-          }),
-        }),
-      )
-      .catch((e: Error) => setErro(e.message));
+          dados: aplicarColocacoesPendentes(
+            grupos.map((g) => {
+              const r = resultados.find((x) => x.grupoId === g.id);
+              return { id: r?.id ?? null, grupoId: g.id, colocacao: r?.colocacao ?? null, ausente: r?.ausente ?? false };
+            }),
+            // O que ficou guardado sem conexão aparece por cima do que veio da API.
+            guardadosRef.current()[caminho],
+          ),
+        });
+      })
+      .catch((e: Error) => atual && setErro(e.message));
+    return () => {
+      atual = false;
+    };
   }, [base, desafioId, grupos]);
+
+  // O envio deste desafio saiu da fila: busca só os ids, sem tocar nas colocações. Se ele saiu porque a
+  // API recusou no reenvio automático, nada mudou no servidor; o efeito da recusa (abaixo) cuida da tela.
+  const pendenteAnterior = useRef(pendenteId);
+  const recusadoNaFila = desafioId ? envios.recusados[caminhoResultados(desafioId)]?.id : undefined;
+  useEffect(() => {
+    const quemSaiu = pendenteAnterior.current;
+    const saiu = quemSaiu !== undefined && pendenteId === undefined;
+    pendenteAnterior.current = pendenteId;
+    if (!saiu || !desafioId || recusadoNaFila === quemSaiu) return;
+    let atual = true;
+    api<Resultado[]>(`${base}/desafios/${desafioId}/resultados`)
+      .then((resultados) => {
+        if (!atual) return;
+        setLinhas((l) =>
+          l?.desafioId === desafioId
+            ? { ...l, dados: l.dados.map((x) => ({ ...x, id: resultados.find((r) => r.grupoId === x.grupoId)?.id ?? x.id })) }
+            : l,
+        );
+      })
+      // Só os ids do "Histórico": se falhar, eles chegam na próxima carga do desafio.
+      .catch(() => {});
+    return () => {
+      atual = false;
+    };
+  }, [base, desafioId, pendenteId, recusadoNaFila]);
 
   const desafio = desafios?.find((d) => d.id === desafioId);
   const dados = linhas?.desafioId === desafioId ? linhas?.dados : undefined;
+
+  // RNF04: a API recusou no reenvio automático as colocações deste desafio. Se a tela ainda mostra
+  // exatamente elas, volta ao que está salvo; o motivo aparece no aviso da fila, acima das abas.
+  const recusado = desafioId ? envios.recusados[caminhoResultados(desafioId)] : undefined;
+  const recusaTratada = useRef<string>(undefined);
+  useEffect(() => {
+    if (!recusado || !dados || recusaTratada.current === recusado.id) return;
+    recusaTratada.current = recusado.id;
+    if (!desafioId || !telaMostraRecusado(corpoColocacoes(dados), recusado)) return;
+    const caminho = `${base}/desafios/${desafioId}/resultados`;
+    api<Resultado[]>(caminho)
+      .then((resultados) =>
+        setLinhas((l) => {
+          // Trocou de desafio ou o usuário mexeu enquanto a busca acontecia: o que está na tela fica.
+          if (l?.desafioId !== desafioId || !telaMostraRecusado(corpoColocacoes(l.dados), recusado)) return l;
+          const salvas = l.dados.map((x) => {
+            const r = resultados.find((y) => y.grupoId === x.grupoId);
+            return { ...x, id: r?.id ?? null, colocacao: r?.colocacao ?? null, ausente: r?.ausente ?? false };
+          });
+          // Um envio mais novo deste desafio que esteja guardado continua por cima.
+          return { ...l, dados: aplicarColocacoesPendentes(salvas, guardadosRef.current()[caminho]) };
+        }),
+      )
+      // Se falhar, a tela continua com o valor recusado, como antes; a próxima carga do desafio corrige.
+      .catch(() => {});
+  }, [recusado, dados, desafioId, base]);
+
   const nome = (id: number) => grupos.find((g) => g.id === id)?.nome ?? `grupo ${id}`;
   const maximo = Math.max(1, ...(desafio?.pontosColocacao.map((p) => p.pontos) ?? []));
 
   function mudar(grupoId: number, valor: string) {
-    setSalvo(false);
+    setSalvo(undefined);
     setLinhas(
       (l) =>
         l && {
@@ -70,18 +142,17 @@ export default function AbaColocacao({ eventoId, grupos }: { eventoId: number; g
     if (problema) return setErro(problema);
     setErro('');
     setSalvando(true);
+    const caminho = caminhoResultados(desafioId);
+    const corpo = corpoColocacoes(dados);
     try {
-      const resposta = await api<Resultado[] | undefined>(`${base}/desafios/${desafioId}/resultados`, {
-        method: 'PUT',
-        body: JSON.stringify(corpoColocacoes(dados)),
-      });
-      // O PUT mantém o id de cada linha; com ele o botão "Histórico" passa a funcionar.
-      if (Array.isArray(resposta)) {
-        setLinhas({ desafioId, dados: dados.map((l) => ({ ...l, id: resposta.find((r) => r.grupoId === l.grupoId)?.id ?? l.id })) });
-      }
-      setSalvo(true);
-    } catch (e) {
-      setErro((e as Error).message);
+      // Passa pela fila: se a conexão cair, o envio fica guardado e sai em ordem depois (RNF04).
+      const resultado = await envios.enviar({ caminho, corpo, descricao: `colocações de ${desafio?.nome ?? 'um desafio'}` });
+      if (resultado.status === 'recusado') return setErro(resultado.erro.message);
+      if (resultado.status === 'erro-servidor')
+        return setErro(`${resultado.erro.message} As colocações ficaram guardadas neste navegador e serão reenviadas.`);
+      if (resultado.status === 'substituido') return;
+      // Ao sair da fila, a tela recarrega os resultados (efeito acima), e os ids novos ativam o "Histórico".
+      setSalvo(resultado.status);
     } finally {
       setSalvando(false);
     }
@@ -127,9 +198,14 @@ export default function AbaColocacao({ eventoId, grupos }: { eventoId: number; g
           {erro}
         </p>
       )}
-      {salvo && (
+      {salvo === 'salvo' && (
         <p className="sucesso" role="status">
           Colocações salvas. A classificação já considera este lançamento.
+        </p>
+      )}
+      {salvo === 'guardado' && pendenteId && (
+        <p className="aviso" role="status">
+          Sem conexão com o servidor: as colocações ficaram guardadas neste navegador e serão enviadas quando a conexão voltar.
         </p>
       )}
 
@@ -200,15 +276,7 @@ export default function AbaColocacao({ eventoId, grupos }: { eventoId: number; g
                       {historico?.id === l.id && l.id !== null && (
                         <tr className="historico">
                           <td colSpan={4}>
-                            {!historico.itens && 'Carregando histórico...'}
-                            {historico.itens?.length === 0 && 'Sem alterações registradas.'}
-                            <ul>
-                              {historico.itens?.map((h, i) => (
-                                <li key={i}>
-                                  {formatarDataHora(h.dataHora)} · {h.usuario} · {h.operacao}: {h.valorAnterior ?? '—'} → {h.valorNovo ?? '—'}
-                                </li>
-                              ))}
-                            </ul>
+                            <ListaHistorico itens={historico.itens} />
                           </td>
                         </tr>
                       )}

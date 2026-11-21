@@ -1,16 +1,18 @@
 openapi: 3.0.3
 info:
   title: "EventScore API (Arena Comp 2026)"
-  version: "0.1.0"
+  version: "0.3.0"
   description: |
-    Especificação formal inicial da API RESTful do **EventScore**, desenvolvida para a competição acadêmica **Arena Comp 2026**.
-    
-    Esta especificação corresponde à entrega da **Sprint 01 (S1)**, formalizada no Workshop de Contrato API (US02 / T06) e aprovada pela equipe de frontend na versão **v0.3**.
+    Especificação formal completa da API RESTful do **EventScore**, desenvolvida para a competição acadêmica **Arena Comp 2026**.
+
+    A versão **v0.2.0** consolida 100% do contrato da aplicação (Sprints 01 e 02 — 44 operações distribuídas em 30 rotas), alinhada ao Contrato v0.3 aprovado pelo Frontend, às decisões arquiteturais do **ADR 0003** (migração V12) e **ADR 0004** (auditoria), e aos recortes homologados de Participantes (`#203`), Frequência (`#205`), Desafios (`#202` / `#245` — PR #31), Resultados (`#223` — PR #35), Bonificações/Penalidades/Classificação (`#206`), Configuração (`#199`), Apuração (`#204`) e Relatórios (`#207` / `#228` / `#229`).
+
+    A versão **v0.3.0** acrescenta o `id` de cada item em `BonificacaoItemResumoDto` (resposta de `GET /eventos/{eventoId}/bonificacoes` e de `PUT /eventos/{eventoId}/bonificacoes/{grupoId}`), usado como `registroId` em `GET /auditoria?entidade=BONIFICACAO_GRUPO` (RF18, PR #51). Mudança compatível: o corpo do PUT não muda.
 
     ### Principais Decisões de Contrato:
     - **Prefixo base:** `/api/v1` (definido nos servidores).
-    - **Nomenclatura:** rotas em português, kebab-case, no plural e sem acentos (`/eventos`, `/dias`, `/grupos`).
-    - **Identificadores:** no padrão `{nomeId}` (ex.: `{eventoId}`, `{diaId}`, `{grupoId}`).
+    - **Nomenclatura:** rotas em português, kebab-case, no plural e sem acentos (`/eventos`, `/dias`, `/grupos`, `/participantes`, `/desafios`, `/relatorios`).
+    - **Identificadores:** no padrão `{nomeId}` (ex.: `{eventoId}`, `{diaId}`, `{grupoId}`, `{desafioId}`, `{participanteId}`, `{penalidadeId}`).
     - **Payloads:** propriedades JSON em `camelCase`. Banco de dados em `snake_case` com conversão automática na camada de serviço.
     - **Formatos de Data/Hora:**
       - Datas puras: ISO 8601 (`YYYY-MM-DD`).
@@ -36,6 +38,22 @@ tags:
     description: "Gestão do cronograma e dos dias de competição do evento"
   - name: Grupos
     description: "Gestão das equipes/grupos de participantes do evento"
+  - name: Configuração
+    description: "Configuração de regras de pontuação, bonificações, faixa de penalidades, fatores de presença e critérios de desempate (RF02, RF10, RF11, RF13)"
+  - name: Participantes
+    description: "Importação em lote (CSV/XLSX) e consulta paginada de participantes do evento (RF04)"
+  - name: Frequência
+    description: "Consulta e registro idempotente de presença diária dos participantes (RF07)"
+  - name: Desafios
+    description: "Gestão dos desafios do evento e respectivas tabelas de pontuação por colocação (RF05, RF06)"
+  - name: Resultados e Lançamentos
+    description: "Lançamento idempotente de colocações por desafio, bonificações e penalidades (RF08 a RF11, RF18)"
+  - name: Auditoria
+    description: "Histórico de alterações de lançamentos e registros auditados (RF18)"
+  - name: Classificação e Apuração
+    description: "Cálculo em tempo real da classificação das equipes, desempate manual e apuração individual de ponto extra (RF12 a RF14, RF16)"
+  - name: Relatórios
+    description: "Exportação de relatórios parciais e finais em PDF/XLSX e prévia agrupada por turma (RF15, RF17, RNF03)"
 
 security:
   - bearerAuth: []
@@ -176,6 +194,16 @@ paths:
           $ref: '#/components/responses/RequisicaoInvalida'
         '401':
           $ref: '#/components/responses/NaoAutorizado'
+        '409':
+          description: "Conflito: já existe um evento com o mesmo nome e ano (`uq_evento_nome_ano`)."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErroPadraoDto'
+              example:
+                statusCode: 409
+                message: "Já existe um registro com os dados informados"
+                error: "Conflict"
         '422':
           description: "Violação de regra de negócio (ex.: data de término anterior à data de início ou quantidadeDias superior ao período do evento)."
           content:
@@ -289,6 +317,16 @@ paths:
           $ref: '#/components/responses/NaoAutorizado'
         '404':
           $ref: '#/components/responses/NaoEncontrado'
+        '409':
+          description: "Conflito: já existe outro evento com o mesmo nome e ano (`uq_evento_nome_ano`)."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErroPadraoDto'
+              example:
+                statusCode: 409
+                message: "Já existe um registro com os dados informados"
+                error: "Conflict"
         '422':
           description: "Violação de regra de negócio (ex.: período ou quantidadeDias incompatível com o intervalo de datas ou com dias já cadastrados)."
           content:
@@ -405,7 +443,7 @@ paths:
                 $ref: '#/components/schemas/ErroPadraoDto'
               example:
                 statusCode: 409
-                message: "O número de dia 1 já está cadastrado para este evento"
+                message: "Já existe um dia com esse número neste evento."
                 error: "Conflict"
         '422':
           description: "Violação de regra de negócio (data fora do período do evento ou numeroDia maior que quantidadeDias)."
@@ -415,7 +453,7 @@ paths:
                 $ref: '#/components/schemas/ErroPadraoDto'
               example:
                 statusCode: 422
-                message: "A data informada (2026-11-25) está fora do período do evento (2026-11-20 a 2026-11-22)"
+                message: "O número do dia não pode exceder a quantidade de dias do evento."
                 error: "Unprocessable Entity"
 
   /eventos/{eventoId}/dias/{diaId}:
@@ -454,14 +492,14 @@ paths:
         '404':
           $ref: '#/components/responses/NaoEncontrado'
         '409':
-          description: "Conflito: número de dia já utilizado por outro dia deste evento."
+          description: "Conflito: número do dia ou data já utilizados por outro dia deste evento."
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErroPadraoDto'
               example:
                 statusCode: 409
-                message: "Já existe outro dia cadastrado com o número 2 neste evento"
+                message: "Já existe um dia com esse número neste evento."
                 error: "Conflict"
         '422':
           description: "Violação de regra de negócio (data fora do período do evento ou numeroDia maior que quantidadeDias)."
@@ -471,7 +509,7 @@ paths:
                 $ref: '#/components/schemas/ErroPadraoDto'
               example:
                 statusCode: 422
-                message: "A data informada (2026-11-25) está fora do período do evento (2026-11-20 a 2026-11-22)"
+                message: "O número do dia não pode exceder a quantidade de dias do evento."
                 error: "Unprocessable Entity"
     delete:
       tags:
@@ -506,7 +544,7 @@ paths:
                 $ref: '#/components/schemas/ErroPadraoDto'
               example:
                 statusCode: 503
-                message: "Verificação de vínculos do dia temporariamente indisponível"
+                message: "Não foi possível verificar as dependências do dia. Tente novamente mais tarde."
                 error: "Service Unavailable"
 
   /eventos/{eventoId}/grupos:
@@ -661,7 +699,7 @@ paths:
       tags:
         - Grupos
       summary: "Excluir grupo do evento"
-      description: "Remove um grupo do evento. Não é permitida a exclusão se o evento já possuir resultados lançados (RF03) ou se houver participantes/registros vinculados."
+      description: "Remove um grupo do evento. Não é permitida a exclusão se o evento já possuir resultados lançados (RF03) ou se houver participantes vinculados (ADR 0003)."
       operationId: "excluirGrupoEvento"
       responses:
         '204':
@@ -673,15 +711,992 @@ paths:
         '404':
           $ref: '#/components/responses/NaoEncontrado'
         '409':
-          description: "Conflito: os grupos não podem mais ser alterados porque já há resultado lançado (RF03) ou grupo possui participantes vinculados."
+          description: "Conflito: os grupos não podem mais ser alterados porque já há resultado lançado (RF03) ou o grupo possui participantes vinculados (ADR 0003)."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErroPadraoDto'
+              examples:
+                bloqueadoPorResultado:
+                  summary: "Evento já possui resultados lançados (RF03)"
+                  value:
+                    statusCode: 409
+                    message: "os grupos não podem mais ser alterados porque já há resultado lançado"
+                    error: "Conflict"
+                grupoComParticipantes:
+                  summary: "Grupo possui participantes vinculados (ADR 0003)"
+                  value:
+                    statusCode: 409
+                    message: "O grupo tem 12 participantes. Remova ou mova os participantes antes de excluir."
+                    error: "Conflict"
+
+  # ----------------------------------------------------
+  # Configuração do Evento (#199)
+  # ----------------------------------------------------
+  /eventos/{eventoId}/configuracao:
+    parameters:
+      - $ref: '#/components/parameters/EventoIdParam'
+    get:
+      tags:
+        - Configuração
+      summary: "Consultar configuração de pontuação do evento (RF02)"
+      description: "Retorna a configuração completa do evento: conversão de colocação em ponto extra, itens de bonificação, faixa de penalidade, fatores de presença e critérios de desempate."
+      operationId: "obterConfiguracaoEvento"
+      responses:
+        '200':
+          description: "Configuração do evento retornada com sucesso."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfiguracaoEventoDto'
+        '400':
+          $ref: '#/components/responses/RequisicaoInvalida'
+        '401':
+          $ref: '#/components/responses/NaoAutorizado'
+        '404':
+          $ref: '#/components/responses/NaoEncontrado'
+    put:
+      tags:
+        - Configuração
+      summary: "Salvar configuração completa do evento (idempotente)"
+      description: |
+        Substitui de forma transacional e idempotente toda a configuração de regras do evento.
+        Conforme o ADR 0003 (V12):
+        - `desafioId` nos critérios de desempate é obrigatório apenas para `MAIOR_PONTUACAO_DESAFIO` e proibido nos demais tipos.
+        - `penalidadeMin` não pode ser maior que `penalidadeMax`, e a alteração da faixa não pode deixar fora do intervalo penalidades já lançadas (retorna 422).
+      operationId: "salvarConfiguracaoEvento"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfiguracaoEventoDto'
+      responses:
+        '200':
+          description: "Configuração salva com sucesso."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfiguracaoEventoDto'
+        '400':
+          $ref: '#/components/responses/RequisicaoInvalida'
+        '401':
+          $ref: '#/components/responses/NaoAutorizado'
+        '404':
+          $ref: '#/components/responses/NaoEncontrado'
+        '409':
+          $ref: '#/components/responses/Conflito'
+        '422':
+          description: "Violação de regra de negócio (ex.: penalidade mínima maior que a máxima, penalidade já lançada fora da nova faixa ou diasPresentes acima da quantidade de dias do evento)."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErroPadraoDto'
+              example:
+                statusCode: 422
+                message: "A penalidade mínima não pode ser maior que a máxima."
+                error: "Unprocessable Entity"
+
+  # ----------------------------------------------------
+  # Participantes do Evento (#203)
+  # ----------------------------------------------------
+  /eventos/{eventoId}/participantes:
+    parameters:
+      - $ref: '#/components/parameters/EventoIdParam'
+    get:
+      tags:
+        - Participantes
+      summary: "Listar participantes do evento com paginação e filtros (RF04)"
+      description: "Lista os participantes do evento com suporte a paginação e filtros opcionais por grupo, turma e busca textual por nome ou matrícula."
+      operationId: "listarParticipantesEvento"
+      parameters:
+        - $ref: '#/components/parameters/PaginaQueryParam'
+        - $ref: '#/components/parameters/TamanhoQueryParam'
+        - name: grupoId
+          in: query
+          required: false
+          description: "Filtra participantes pelo identificador do grupo."
+          schema:
+            type: integer
+            minimum: 1
+          example: 1
+        - name: turma
+          in: query
+          required: false
+          description: "Filtra participantes pela turma."
+          schema:
+            type: string
+          example: "ES 2026.2"
+        - name: busca
+          in: query
+          required: false
+          description: "Busca parcial case-insensitive por nome ou matrícula."
+          schema:
+            type: string
+          example: "Lucas"
+      responses:
+        '200':
+          description: "Lista paginada de participantes com resumo totalizador."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParticipantesListagemDto'
+        '400':
+          $ref: '#/components/responses/RequisicaoInvalida'
+        '401':
+          $ref: '#/components/responses/NaoAutorizado'
+        '404':
+          $ref: '#/components/responses/NaoEncontrado'
+
+  /eventos/{eventoId}/participantes/importacao/previa:
+    parameters:
+      - $ref: '#/components/parameters/EventoIdParam'
+    post:
+      tags:
+        - Participantes
+      summary: "Pré-visualizar importação de participantes via CSV ou XLSX (RF04)"
+      description: |
+        Valida a planilha enviada no campo `arquivo` (CSV UTF-8 separado por vírgula ou ponto e vírgula, ou XLSX, até 5 MB) sem gravar dados no banco.
+        Retorna todas as linhas do arquivo indicando `VALIDO` ou `ERRO` e o respectivo `motivoErro`.
+      operationId: "previsualizarImportacaoParticipantes"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UploadArquivoPlanilhaDto'
+      responses:
+        '200':
+          description: "Prévia da importação processada com sucesso."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportacaoPrevistaDto'
+        '400':
+          description: "Arquivo ausente, malformado ou acima do limite de 5 MB."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErroPadraoDto'
+              example:
+                statusCode: 400
+                message: "O arquivo excede o limite de 5 MB"
+                error: "Bad Request"
+        '401':
+          $ref: '#/components/responses/NaoAutorizado'
+        '404':
+          $ref: '#/components/responses/NaoEncontrado'
+
+  /eventos/{eventoId}/participantes/importacao:
+    parameters:
+      - $ref: '#/components/parameters/EventoIdParam'
+    post:
+      tags:
+        - Participantes
+      summary: "Confirmar e gravar importação de participantes (RF04)"
+      description: |
+        Revalida a planilha enviada (CSV ou XLSX até 5 MB) e persiste os participantes em transação única somente se não houver nenhuma linha com erro.
+        Caso exista qualquer linha inválida, responde 422 com o detalhamento completo das linhas e não grava nenhum registro.
+      operationId: "confirmarImportacaoParticipantes"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UploadArquivoPlanilhaDto'
+      responses:
+        '201':
+          description: "Participantes importados com sucesso."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportacaoConfirmadaDto'
+        '400':
+          description: "Arquivo ausente, malformado ou acima do limite de 5 MB."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErroPadraoDto'
+              example:
+                statusCode: 400
+                message: "O arquivo excede o limite de 5 MB"
+                error: "Bad Request"
+        '401':
+          $ref: '#/components/responses/NaoAutorizado'
+        '404':
+          $ref: '#/components/responses/NaoEncontrado'
+        '422':
+          description: "A planilha contém linhas com erro; nenhum participante foi persistido."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportacaoErro422Dto'
+
+  # ----------------------------------------------------
+  # Frequência / Presenças (#205)
+  # ----------------------------------------------------
+  /eventos/{eventoId}/dias/{diaId}/presencas:
+    parameters:
+      - $ref: '#/components/parameters/EventoIdParam'
+      - $ref: '#/components/parameters/DiaIdParam'
+    get:
+      tags:
+        - Frequência
+      summary: "Consultar grade de presença dos participantes no dia (RF07)"
+      description: "Retorna a lista de participantes do evento com seu status de presença no dia especificado e o resumo consolidado (total, presentes e ausentes)."
+      operationId: "listarPresencasDia"
+      parameters:
+        - name: grupoId
+          in: query
+          required: false
+          description: "Filtra a grade de presença pelo grupo."
+          schema:
+            type: integer
+            minimum: 1
+          example: 1
+        - name: busca
+          in: query
+          required: false
+          description: "Filtra participantes por nome ou matrícula."
+          schema:
+            type: string
+          example: "Sofia"
+      responses:
+        '200':
+          description: "Grade de presença do dia retornada com sucesso."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PresencaGradeDto'
+        '400':
+          $ref: '#/components/responses/RequisicaoInvalida'
+        '401':
+          $ref: '#/components/responses/NaoAutorizado'
+        '404':
+          $ref: '#/components/responses/NaoEncontrado'
+
+  /eventos/{eventoId}/dias/{diaId}/presencas/{participanteId}:
+    parameters:
+      - $ref: '#/components/parameters/EventoIdParam'
+      - $ref: '#/components/parameters/DiaIdParam'
+      - $ref: '#/components/parameters/ParticipanteIdParam'
+    put:
+      tags:
+        - Frequência
+      summary: "Registrar ou atualizar presença de um participante no dia (RF07, idempotente)"
+      description: "Marca ou atualiza de forma idempotente a presença de um participante em um dia do evento."
+      operationId: "registrarPresencaParticipante"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegistrarPresencaDto'
+      responses:
+        '200':
+          description: "Presença registrada com sucesso."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PresencaRegistradaDto'
+        '400':
+          $ref: '#/components/responses/RequisicaoInvalida'
+        '401':
+          $ref: '#/components/responses/NaoAutorizado'
+        '404':
+          $ref: '#/components/responses/NaoEncontrado'
+
+  # ----------------------------------------------------
+  # Desafios do Evento (US #202 / #245)
+  # ----------------------------------------------------
+  /eventos/{eventoId}/desafios:
+    parameters:
+      - $ref: '#/components/parameters/EventoIdParam'
+    get:
+      tags:
+        - Desafios
+      summary: "Listar desafios do evento"
+      description: |
+        Lista os desafios do evento com suas tabelas de pontuação por colocação.
+        Evento inexistente retorna 404; evento sem desafios retorna [].
+        Ordem estável: numeroDia crescente do dia e, em seguida, id do desafio.
+        Cada tabela de pontos vem ordenada por colocacao crescente.
+      operationId: "listarDesafios"
+      responses:
+        '200':
+          description: "Array de desafios do evento."
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DesafioDto'
+        '400':
+          $ref: '#/components/responses/RequisicaoInvalida'
+        '401':
+          $ref: '#/components/responses/NaoAutorizado'
+        '404':
+          $ref: '#/components/responses/NaoEncontrado'
+    post:
+      tags:
+        - Desafios
+      summary: "Criar desafio e tabela de pontos"
+      description: |
+        Cria desafio e pontos na mesma transação. O dia deve pertencer ao evento da URL.
+        Exige pelo menos um grupo cadastrado e uma linha para cada grupo, com colocações únicas formando 1..N.
+        Não cria resultado nem grupo.
+      operationId: "criarDesafio"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CriarDesafioDto'
+      responses:
+        '201':
+          $ref: '#/components/responses/DesafioRetornado'
+        '400':
+          $ref: '#/components/responses/RequisicaoInvalida'
+        '401':
+          $ref: '#/components/responses/NaoAutorizado'
+        '404':
+          $ref: '#/components/responses/NaoEncontrado'
+        '409':
+          $ref: '#/components/responses/ConflitoDesafio'
+        '422':
+          $ref: '#/components/responses/TabelaInvalida'
+
+  /eventos/{eventoId}/desafios/{desafioId}:
+    parameters:
+      - $ref: '#/components/parameters/EventoIdParam'
+      - $ref: '#/components/parameters/DesafioIdParam'
+    get:
+      tags:
+        - Desafios
+      summary: "Consultar desafio no contexto do evento"
+      description: "Consulta individual de um desafio e sua tabela de pontos. Desafio de outro evento retorna 404."
+      operationId: "obterDesafioPorId"
+      responses:
+        '200':
+          $ref: '#/components/responses/DesafioRetornado'
+        '400':
+          $ref: '#/components/responses/RequisicaoInvalida'
+        '401':
+          $ref: '#/components/responses/NaoAutorizado'
+        '404':
+          $ref: '#/components/responses/NaoEncontrado'
+    patch:
+      tags:
+        - Desafios
+      summary: "Atualizar desafio parcialmente"
+      description: |
+        Campos ausentes são preservados; null não é aceito. descricao vazia limpa a descrição.
+        Quando pontosColocacao muda de valor, substitui a tabela inteira na mesma transação da atualização do desafio.
+        A tabela resultante precisa atender a regra 1..N dos grupos atuais.
+        Após resultados, o 409 só ocorre se diaId mudar de valor ou se o conteúdo da tabela (colocacao e pontos) mudar.
+        A comparação da tabela considera os pares por colocacao, independentemente da ordem do array.
+        Reenviar diaId ou pontosColocacao com os valores já gravados é permitido e não exige substituir a tabela.
+        A presença desses campos no corpo não caracteriza mudança.
+        Nome e descrição continuam editáveis, inclusive quando acompanhados do mesmo dia e da mesma tabela.
+        Condição registrada no aceite do frontend no PR #31.
+      operationId: "atualizarDesafio"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AtualizarDesafioDto'
+      responses:
+        '200':
+          $ref: '#/components/responses/DesafioRetornado'
+        '400':
+          $ref: '#/components/responses/RequisicaoInvalida'
+        '401':
+          $ref: '#/components/responses/NaoAutorizado'
+        '404':
+          $ref: '#/components/responses/NaoEncontrado'
+        '409':
+          $ref: '#/components/responses/ConflitoDesafio'
+        '422':
+          $ref: '#/components/responses/TabelaInvalida'
+    delete:
+      tags:
+        - Desafios
+      summary: "Excluir desafio sem dependências impeditivas"
+      description: |
+        Remove os pontos próprios e o desafio na mesma transação.
+        Desafio usado em critério de desempate (ADR 0003) ou com resultado lançado retorna 409;
+        não apagar resultados nem histórico em cascata.
+      operationId: "excluirDesafio"
+      responses:
+        '204':
+          description: "Desafio excluído, sem corpo de resposta."
+        '400':
+          $ref: '#/components/responses/RequisicaoInvalida'
+        '401':
+          $ref: '#/components/responses/NaoAutorizado'
+        '404':
+          $ref: '#/components/responses/NaoEncontrado'
+        '409':
+          $ref: '#/components/responses/ConflitoDesafio'
+
+  # ----------------------------------------------------
+  # Resultados de Desafios e Lançamentos (#223 / #206)
+  # ----------------------------------------------------
+  /eventos/{eventoId}/desafios/{desafioId}/resultados:
+    parameters:
+      - $ref: '#/components/parameters/EventoIdParam'
+      - $ref: '#/components/parameters/DesafioIdParam'
+    get:
+      tags:
+        - Resultados e Lançamentos
+      summary: "Consultar colocações dos grupos no desafio (RF08, RF09, RF18)"
+      description: |
+        Valida evento e desafio no mesmo contexto e retorna uma linha por grupo do evento (ordenada por `grupoId` crescente).
+        Sem lançamento prévio, a linha possui `id: null`, `colocacao: null`, `ausente: false` e `pontos: 0` (preenchimento pendente).
+        Uma ausência gravada possui `id` preenchido, `colocacao: null`, `ausente: true` e `pontos: 0`.
+      operationId: "listarResultadosDoDesafio"
+      responses:
+        '200':
+          description: "Array com o resultado ou estado pendente de cada grupo do evento."
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ResultadoDesafioDto'
+              examples:
+                antesDoPrimeiroLancamento:
+                  value:
+                    - id: null
+                      grupoId: 1
+                      colocacao: null
+                      ausente: false
+                      pontos: 0
+                    - id: null
+                      grupoId: 2
+                      colocacao: null
+                      ausente: false
+                      pontos: 0
+                comAusencia:
+                  value:
+                    - id: 11
+                      grupoId: 1
+                      colocacao: 1
+                      ausente: false
+                      pontos: 100
+                    - id: 12
+                      grupoId: 2
+                      colocacao: null
+                      ausente: true
+                      pontos: 0
+        '400':
+          $ref: '#/components/responses/RequisicaoInvalida'
+        '401':
+          $ref: '#/components/responses/NaoAutorizado'
+        '404':
+          $ref: '#/components/responses/NaoEncontrado'
+    put:
+      tags:
+        - Resultados e Lançamentos
+      summary: "Salvar todas as colocações do desafio (idempotente, RF08, RF09, RF18)"
+      description: |
+        Recebe um array completo com exatamente uma linha para cada grupo do evento.
+        Com P grupos presentes, suas colocações devem formar a sequência `1..P` sem repetição nem lacunas; grupos com `ausente: true` exigem `colocacao: null` e recebem `0` ponto.
+        Grava o conjunto e a trilha de auditoria na mesma transação, preservando o `id` de cada resultado existente.
+      operationId: "salvarResultadosDoDesafio"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              minItems: 1
+              items:
+                $ref: '#/components/schemas/SalvarResultadoDesafioDto'
+            examples:
+              todosPresentes:
+                value:
+                  - grupoId: 1
+                    colocacao: 1
+                    ausente: false
+                  - grupoId: 2
+                    colocacao: 2
+                    ausente: false
+              comAusencia:
+                value:
+                  - grupoId: 1
+                    colocacao: 1
+                    ausente: false
+                  - grupoId: 2
+                    colocacao: null
+                    ausente: true
+      responses:
+        '200':
+          description: "Colocações salvas com sucesso (todos os resultados retornam com id preenchido)."
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ResultadoDesafioSalvoDto'
+              example:
+                - id: 11
+                  grupoId: 1
+                  colocacao: 1
+                  ausente: false
+                  pontos: 100
+                - id: 12
+                  grupoId: 2
+                  colocacao: 2
+                  ausente: false
+                  pontos: 80
+        '400':
+          $ref: '#/components/responses/RequisicaoInvalida'
+        '401':
+          $ref: '#/components/responses/NaoAutorizado'
+        '404':
+          $ref: '#/components/responses/NaoEncontrado'
+        '422':
+          description: "Violação de regra de negócio (ex.: colocação repetida, sequência 1..P com lacunas, omissão/repetição de grupos ou combinação inválida entre ausente e colocacao)."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErroPadraoDto'
+              example:
+                statusCode: 422
+                message: "Dois grupos não podem ter a mesma colocação."
+                error: "Unprocessable Entity"
+
+  /auditoria:
+    get:
+      tags:
+        - Auditoria
+      summary: "Consultar histórico de alterações de um registro (RF18)"
+      description: "Lista em ordem cronológica as alterações auditadas para uma entidade e chave primária específicas (`entidade` + `registroId`)."
+      operationId: "listarAuditoria"
+      parameters:
+        - name: entidade
+          in: query
+          required: true
+          description: "Nome canônico da entidade auditada (RESULTADO_DESAFIO, BONIFICACAO_GRUPO, PENALIDADE, DESEMPATE_MANUAL ou APURACAO)."
+          schema:
+            type: string
+            enum:
+              - RESULTADO_DESAFIO
+              - BONIFICACAO_GRUPO
+              - PENALIDADE
+              - DESEMPATE_MANUAL
+              - APURACAO
+          example: "RESULTADO_DESAFIO"
+        - name: registroId
+          in: query
+          required: true
+          description: "Identificador numérico do registro auditado."
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+          example: 11
+      responses:
+        '200':
+          description: "Histórico de alterações do registro."
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RegistroAuditoriaDto'
+        '400':
+          $ref: '#/components/responses/RequisicaoInvalida'
+        '401':
+          $ref: '#/components/responses/NaoAutorizado'
+
+  /eventos/{eventoId}/bonificacoes:
+    parameters:
+      - $ref: '#/components/parameters/EventoIdParam'
+    get:
+      tags:
+        - Resultados e Lançamentos
+      summary: "Consultar bonificações de cada grupo por item (RF10)"
+      description: "Retorna a lista de grupos do evento com os valores atribuídos em cada item de bonificação e a soma total por grupo."
+      operationId: "listarBonificacoesEvento"
+      responses:
+        '200':
+          description: "Bonificações por grupo retornadas com sucesso."
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BonificacaoGrupoResumoDto'
+        '400':
+          $ref: '#/components/responses/RequisicaoInvalida'
+        '401':
+          $ref: '#/components/responses/NaoAutorizado'
+        '404':
+          $ref: '#/components/responses/NaoEncontrado'
+
+  /eventos/{eventoId}/bonificacoes/{grupoId}:
+    parameters:
+      - $ref: '#/components/parameters/EventoIdParam'
+      - $ref: '#/components/parameters/GrupoIdParam'
+    put:
+      tags:
+        - Resultados e Lançamentos
+      summary: "Registrar bonificações de um grupo (idempotente, RF10)"
+      description: "Salva de forma idempotente os pontos de bonificação do grupo por item. Valores que excedam o teto configurado para o item retornam 422."
+      operationId: "salvarBonificacoesGrupo"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/ItemBonificacaoLancamentoDto'
+      responses:
+        '200':
+          description: "Bonificações do grupo registradas com sucesso."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BonificacaoGrupoResumoDto'
+        '400':
+          $ref: '#/components/responses/RequisicaoInvalida'
+        '401':
+          $ref: '#/components/responses/NaoAutorizado'
+        '404':
+          $ref: '#/components/responses/NaoEncontrado'
+        '422':
+          description: "Valor de bonificação acima do teto configurado para o item."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErroPadraoDto'
+              example:
+                statusCode: 422
+                message: "O valor de Uniformização passa do teto de 10."
+                error: "Unprocessable Entity"
+
+  /eventos/{eventoId}/penalidades:
+    parameters:
+      - $ref: '#/components/parameters/EventoIdParam'
+    get:
+      tags:
+        - Resultados e Lançamentos
+      summary: "Listar penalidades aplicadas no evento (RF11)"
+      description: "Retorna todas as penalidades lançadas para os grupos do evento."
+      operationId: "listarPenalidadesEvento"
+      responses:
+        '200':
+          description: "Lista de penalidades do evento."
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PenalidadeDto'
+        '400':
+          $ref: '#/components/responses/RequisicaoInvalida'
+        '401':
+          $ref: '#/components/responses/NaoAutorizado'
+        '404':
+          $ref: '#/components/responses/NaoEncontrado'
+    post:
+      tags:
+        - Resultados e Lançamentos
+      summary: "Aplicar penalidade a um grupo (RF11)"
+      description: |
+        Registra uma nova penalidade disciplinar para um grupo do evento.
+        Conforme ADR 0003, retorna 422 se a faixa de penalidade do evento ainda não estiver configurada ou se `pontos` estiver fora do intervalo `[penalidadeMin, penalidadeMax]`.
+      operationId: "aplicarPenalidade"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CriarPenalidadeDto'
+      responses:
+        '201':
+          description: "Penalidade aplicada com sucesso."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PenalidadeDto'
+        '400':
+          $ref: '#/components/responses/RequisicaoInvalida'
+        '401':
+          $ref: '#/components/responses/NaoAutorizado'
+        '404':
+          $ref: '#/components/responses/NaoEncontrado'
+        '422':
+          description: "Pontos fora da faixa configurada no evento ou faixa ainda não configurada."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErroPadraoDto'
+              example:
+                statusCode: 422
+                message: "A penalidade deve estar entre 10 e 50 pontos."
+                error: "Unprocessable Entity"
+
+  /eventos/{eventoId}/penalidades/{penalidadeId}:
+    parameters:
+      - $ref: '#/components/parameters/EventoIdParam'
+      - $ref: '#/components/parameters/PenalidadeIdParam'
+    patch:
+      tags:
+        - Resultados e Lançamentos
+      summary: "Atualizar penalidade lançada (RF11)"
+      description: "Corrige dados de uma penalidade existente no evento, validando a faixa configurada e registrando auditoria."
+      operationId: "atualizarPenalidade"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AtualizarPenalidadeDto'
+      responses:
+        '200':
+          description: "Penalidade atualizada com sucesso."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PenalidadeDto'
+        '400':
+          $ref: '#/components/responses/RequisicaoInvalida'
+        '401':
+          $ref: '#/components/responses/NaoAutorizado'
+        '404':
+          $ref: '#/components/responses/NaoEncontrado'
+        '422':
+          $ref: '#/components/responses/RegraDeNegocio'
+    delete:
+      tags:
+        - Resultados e Lançamentos
+      summary: "Remover penalidade lançada (RF11)"
+      description: "Exclui uma penalidade do evento e registra a operação na auditoria."
+      operationId: "removerPenalidade"
+      responses:
+        '204':
+          description: "Penalidade removida com sucesso (sem conteúdo no corpo)."
+        '400':
+          $ref: '#/components/responses/RequisicaoInvalida'
+        '401':
+          $ref: '#/components/responses/NaoAutorizado'
+        '404':
+          $ref: '#/components/responses/NaoEncontrado'
+
+  # ----------------------------------------------------
+  # Classificação, Desempates e Apuração (#206 pt 3 / #204)
+  # ----------------------------------------------------
+  /eventos/{eventoId}/classificacao:
+    parameters:
+      - $ref: '#/components/parameters/EventoIdParam'
+    get:
+      tags:
+        - Classificação e Apuração
+      summary: "Consultar classificação geral dos grupos (RF12, RF13)"
+      description: |
+        Calcula em tempo real a classificação das equipes a partir dos lançamentos atuais (`pontosDesafios + bonificacao - penalidade`),
+        aplicando os critérios de desempate configurados (V12) e decisões manuais vigentes (ADR 0003).
+        Retorna `dados` com a posição de cada grupo e `resumo` indicando desafios lançados e eventuais `empatesPendentes`.
+      operationId: "consultarClassificacaoGrupos"
+      responses:
+        '200':
+          description: "Classificação calculada com sucesso."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassificacaoEnvelopeDto'
+        '400':
+          $ref: '#/components/responses/RequisicaoInvalida'
+        '401':
+          $ref: '#/components/responses/NaoAutorizado'
+        '404':
+          $ref: '#/components/responses/NaoEncontrado'
+
+  /eventos/{eventoId}/desempates:
+    parameters:
+      - $ref: '#/components/parameters/EventoIdParam'
+    post:
+      tags:
+        - Classificação e Apuração
+      summary: "Registrar decisão manual de desempate (RF14)"
+      description: |
+        Registra em transação única uma nova versão de apuração, o snapshot da classificação e as decisões manuais de desempate para todos os empates pendentes (ADR 0003).
+        Um novo envio substitui as decisões anteriores dos mesmos grupos. A decisão vale enquanto os grupos empatados mantiverem os mesmos pontos.
+
+        Regras do envio:
+        - Só é aceito depois que todos os desafios do evento forem lançados (`desafiosLancados == desafiosTotais` no `GET /classificacao`); antes disso responde `422`. O front deve esconder o formulário até lá.
+        - Cada empate vem inteiro, com as posições que ele ocupa (empate no 2º lugar entre dois grupos: posições 2 e 3), e todos os empates pendentes vão no mesmo envio (`422`).
+        - Grupo repetido ou fora de um empate responde `422`; grupo de outro evento responde `404`.
+        - Reenviar a mesma decisão (mesmas posições e justificativa) não grava de novo e devolve a decisão vigente (RNF04).
+      operationId: "registrarDesempateManual"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegistrarDesempateDto'
+      responses:
+        '201':
+          description: "Desempate manual registrado com sucesso."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DesempateRegistradoDto'
+        '400':
+          $ref: '#/components/responses/RequisicaoInvalida'
+        '401':
+          $ref: '#/components/responses/NaoAutorizado'
+        '404':
+          $ref: '#/components/responses/NaoEncontrado'
+        '422':
+          $ref: '#/components/responses/RegraDeNegocio'
+
+  /eventos/{eventoId}/apuracao:
+    parameters:
+      - $ref: '#/components/parameters/EventoIdParam'
+    get:
+      tags:
+        - Classificação e Apuração
+      summary: "Consultar apuração individual de ponto extra (RF16)"
+      description: |
+        Calcula na consulta o ponto extra individual de cada participante (`ROUND(pontoExtraGrupo * fator, 2)`) a partir da colocação do grupo e dos dias presentes.
+        Retorna `409 Conflict` se faltarem grupos, desafios, resultados de alguma combinação desafio/grupo, conversões das colocações de 1 até a quantidade de grupos, fatores de 0 até a quantidade de dias ou se houver empate pendente.
+      operationId: "consultarApuracaoIndividual"
+      parameters:
+        - $ref: '#/components/parameters/PaginaQueryParam'
+        - $ref: '#/components/parameters/TamanhoQueryParam'
+        - name: grupoId
+          in: query
+          required: false
+          description: "Filtra a apuração pelo grupo."
+          schema:
+            type: integer
+            minimum: 1
+          example: 1
+        - name: turma
+          in: query
+          required: false
+          description: "Filtra a apuração pela turma."
+          schema:
+            type: string
+          example: "ES 2026.2"
+        - name: busca
+          in: query
+          required: false
+          description: "Busca parcial por nome ou matrícula do participante."
+          schema:
+            type: string
+          example: "Lucas"
+      responses:
+        '200':
+          description: "Apuração individual paginada com resumo de assiduidade e aptos."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApuracaoEnvelopeDto'
+        '400':
+          $ref: '#/components/responses/RequisicaoInvalida'
+        '401':
+          $ref: '#/components/responses/NaoAutorizado'
+        '404':
+          $ref: '#/components/responses/NaoEncontrado'
+        '409':
+          description: "Evento com resultados ou configuração incompletos, ou classificação com empate pendente."
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErroPadraoDto'
               example:
                 statusCode: 409
-                message: "os grupos não podem mais ser alterados porque já há resultado lançado"
+                message: "A classificação tem empate pendente; registre o desempate antes da apuração."
                 error: "Conflict"
+
+  # ----------------------------------------------------
+  # Relatórios (#207 / #228 / #229)
+  # ----------------------------------------------------
+  /eventos/{eventoId}/relatorios/parcial:
+    parameters:
+      - $ref: '#/components/parameters/EventoIdParam'
+      - $ref: '#/components/parameters/FormatoRelatorioParam'
+    get:
+      tags:
+        - Relatórios
+      summary: "Exportar relatório parcial por grupo em PDF ou XLSX (RF15)"
+      description: |
+        Gera o relatório parcial da classificação das equipes considerando apenas os desafios com resultados já lançados, em formato PDF ou XLSX.
+        Não bloqueia em caso de empate pendente (equipes empatadas saem na mesma posição marcadas com empate) e não expõe dados pessoais de alunos (RF15, RNF03).
+      operationId: "exportarRelatorioParcial"
+      responses:
+        '200':
+          $ref: '#/components/responses/ArquivoRelatorio'
+        '400':
+          $ref: '#/components/responses/RequisicaoInvalida'
+        '401':
+          $ref: '#/components/responses/NaoAutorizado'
+        '404':
+          $ref: '#/components/responses/NaoEncontrado'
+
+  /eventos/{eventoId}/relatorios/final/previa:
+    parameters:
+      - $ref: '#/components/parameters/EventoIdParam'
+      - name: busca
+        in: query
+        required: false
+        description: "Busca por nome, matrícula ou turma."
+        schema:
+          type: string
+    get:
+      tags:
+        - Relatórios
+      summary: "Consultar prévia do relatório final por participante"
+      description: "Retorna um array puro ordenado por turma e nome, incluindo todos os dias do evento e ausências. Só fica disponível quando há ao menos um desafio e todos os grupos do evento têm resultado lançado em cada desafio, sem empate pendente e com a configuração completa (conversão e fatores de presença), para nenhum participante receber ponto extra 0 por falta de configuração. Resultados parciais permanecem disponíveis no relatório parcial."
+      operationId: "consultarPreviaRelatorioFinal"
+      responses:
+        '200':
+          description: "Prévia do relatório final."
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TurmaRelatorioFinalDto'
+        '400':
+          $ref: '#/components/responses/RequisicaoInvalida'
+        '401':
+          $ref: '#/components/responses/NaoAutorizado'
+        '404':
+          $ref: '#/components/responses/NaoEncontrado'
+        '409':
+          description: "Evento sem grupos, sem desafios, com resultados pendentes, empate pendente ou configuração incompleta (falta conversão de alguma colocação de 1 até a quantidade de grupos, ou fator de alguma quantidade de dias de 0 até a quantidade de dias)."
+          $ref: '#/components/responses/Conflito'
+
+  /eventos/{eventoId}/relatorios/final:
+    parameters:
+      - $ref: '#/components/parameters/EventoIdParam'
+      - $ref: '#/components/parameters/FormatoRelatorioParam'
+    get:
+      tags:
+        - Relatórios
+      summary: "Exportar relatório final por participante em PDF ou XLSX"
+      description: "Gera o relatório final agrupado por turma com presença de todos os dias, ausências e ponto extra individual. Só fica disponível quando há ao menos um desafio e todos os grupos do evento têm resultado lançado em cada desafio, sem empate pendente e com a configuração completa (conversão e fatores de presença), para nenhum participante receber ponto extra 0 por falta de configuração. Resultados parciais permanecem disponíveis no relatório parcial."
+      operationId: "exportarRelatorioFinal"
+      responses:
+        '200':
+          $ref: '#/components/responses/ArquivoRelatorioFinal'
+        '400':
+          $ref: '#/components/responses/RequisicaoInvalida'
+        '401':
+          $ref: '#/components/responses/NaoAutorizado'
+        '404':
+          $ref: '#/components/responses/NaoEncontrado'
+        '409':
+          description: "Evento sem grupos, sem desafios, com resultados pendentes, empate pendente ou configuração incompleta (falta conversão de alguma colocação de 1 até a quantidade de grupos, ou fator de alguma quantidade de dias de 0 até a quantidade de dias)."
+          $ref: '#/components/responses/Conflito'
 
 components:
   securitySchemes:
@@ -700,6 +1715,7 @@ components:
       schema:
         type: integer
         minimum: 1
+        maximum: 2147483647
       example: 1
 
     DiaIdParam:
@@ -710,6 +1726,7 @@ components:
       schema:
         type: integer
         minimum: 1
+        maximum: 2147483647
       example: 1
 
     GrupoIdParam:
@@ -720,21 +1737,98 @@ components:
       schema:
         type: integer
         minimum: 1
+        maximum: 2147483647
       example: 1
+
+    DesafioIdParam:
+      name: desafioId
+      in: path
+      required: true
+      description: "Identificador numérico único do desafio."
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 2147483647
+      example: 3
+
+    ParticipanteIdParam:
+      name: participanteId
+      in: path
+      required: true
+      description: "Identificador numérico único do participante."
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 2147483647
+      example: 1
+
+    PenalidadeIdParam:
+      name: penalidadeId
+      in: path
+      required: true
+      description: "Identificador numérico único da penalidade."
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 2147483647
+      example: 1
+
+    FormatoRelatorioParam:
+      name: formato
+      in: query
+      required: true
+      description: "Formato do arquivo de relatório a ser gerado (PDF ou XLSX)."
+      schema:
+        $ref: '#/components/schemas/FormatoRelatorio'
+      example: PDF
+
+    PaginaQueryParam:
+      name: pagina
+      in: query
+      required: false
+      description: "Página consultada (1-indexed)."
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      example: 1
+
+    TamanhoQueryParam:
+      name: tamanho
+      in: query
+      required: false
+      description: "Quantidade de itens por página (máximo 100)."
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+      example: 20
 
   responses:
     RequisicaoInvalida:
-      description: "Erro de validação de sintaxe ou de campos do payload disparado pelo ValidationPipe."
+      description: "Requisição inválida. A validação de campos do payload (ValidationPipe) devolve `message` como lista; JSON malformado, parâmetros de rota inválidos e validações feitas nos serviços devolvem `message` como texto."
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErroValidacaoDto'
-          example:
-            statusCode: 400
-            message:
-              - "email deve ser um endereço de e-mail válido"
-              - "senha deve ter pelo menos 6 caracteres"
-            error: "Bad Request"
+            oneOf:
+              - $ref: '#/components/schemas/ErroValidacaoDto'
+              - $ref: '#/components/schemas/ErroPadraoDto'
+          examples:
+            validacaoDeCampos:
+              summary: "Campos inválidos no payload"
+              value:
+                statusCode: 400
+                message:
+                  - "email deve ser um endereço de e-mail válido"
+                  - "senha deve ter pelo menos 6 caracteres"
+                error: "Bad Request"
+            jsonMalformado:
+              summary: "Corpo da requisição com JSON malformado"
+              value:
+                statusCode: 400
+                message: "Unexpected token '}', \"{\"nome\": }\" is not valid JSON"
+                error: "Bad Request"
 
     NaoAutorizado:
       description: "Token JWT ausente, expirado ou inválido."
@@ -759,7 +1853,7 @@ components:
             error: "Not Found"
 
     Conflito:
-      description: "Conflito de estado ou violação de unicidade de dados."
+      description: "Conflito de estado ou violação de unicidade. Nas rotas do relatório final, o campo message distingue empate pendente, ausência de desafios, ausência de grupos e resultados pendentes."
       content:
         application/json:
           schema:
@@ -779,6 +1873,78 @@ components:
             statusCode: 422
             message: "Ação não permitida pelas regras de negócio da competição"
             error: "Unprocessable Entity"
+
+    DesafioRetornado:
+      description: "Dados do desafio com a tabela de pontos."
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DesafioDto'
+
+    ConflitoDesafio:
+      description: |
+        Nome duplicado no mesmo dia e evento; dependência impeditiva de
+        exclusão ou alteração estrutural conforme o contrato de desafios (#245).
+        No PATCH após resultados, a alteração estrutural exige mudança efetiva
+        do dia ou dos pares colocacao/pontos; reenvio de valores iguais é permitido.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErroPadraoDto'
+          example:
+            statusCode: 409
+            message: "O desafio está vinculado a um critério de desempate."
+            error: "Conflict"
+
+    TabelaInvalida:
+      description: |
+        Evento sem grupos, tabela com número de linhas diferente de N
+        ou colocações repetidas/com lacunas. N é o total de grupos do evento.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErroPadraoDto'
+          example:
+            statusCode: 422
+            message: "A tabela de pontos precisa ter uma linha por grupo (6)."
+            error: "Unprocessable Entity"
+
+    ArquivoRelatorioFinal:
+      description: "Arquivo binário do relatório final agrupado por turma com cabeçalho Content-Disposition."
+      headers:
+        Content-Disposition:
+          description: "Instrução de download com o nome sugerido para o arquivo."
+          schema:
+            type: string
+          example: 'attachment; filename="relatorio-final-arena-final.pdf"; filename*=UTF-8''relatorio-final-arena-final.pdf'
+      content:
+        application/pdf:
+          schema:
+            type: string
+            format: binary
+          example: "%PDF-1.4 relatório final do evento"
+        application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+          schema:
+            type: string
+            format: binary
+          example: "planilha binária .xlsx do relatório final"
+    ArquivoRelatorio:
+      description: "Arquivo binário do relatório gerado com cabeçalho Content-Disposition."
+      headers:
+        Content-Disposition:
+          description: "Instrução de download com o nome sugerido para o arquivo."
+          schema:
+            type: string
+          example: 'attachment; filename="relatorio-parcial-arena-comp-2026.pdf"; filename*=UTF-8''relatorio-parcial-arena-comp-2026.pdf'
+      content:
+        application/pdf:
+          schema:
+            type: string
+            format: binary
+        application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+          schema:
+            type: string
+            format: binary
 
   schemas:
     # ----------------------------------------------------
@@ -1123,6 +2289,1245 @@ components:
           example: "#FF2A00"
 
     # ----------------------------------------------------
+    # Desafios (US #202 / #245)
+    # ----------------------------------------------------
+    PontoColocacaoDto:
+      type: object
+      additionalProperties: false
+      required:
+        - colocacao
+        - pontos
+      properties:
+        colocacao:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+          description: "Posição ordinal (1..N) na tabela de pontuação do desafio."
+          example: 1
+        pontos:
+          type: integer
+          minimum: 0
+          maximum: 2147483647
+          description: "Pontuação inteira não negativa atribuída à colocação."
+          example: 100
+
+    CriarDesafioDto:
+      type: object
+      additionalProperties: false
+      required:
+        - nome
+        - diaId
+        - pontosColocacao
+      properties:
+        nome:
+          type: string
+          minLength: 1
+          maxLength: 100
+          pattern: '\S'
+          description: |
+            Deve conter pelo menos um caractere não branco. No backend,
+            remover espaços externos com trim() e rejeitar com 400 se o nome
+            normalizado ficar vazio; persistir o valor normalizado.
+          example: "Hackathon"
+        descricao:
+          type: string
+          maxLength: 255
+          default: ""
+          description: "Descrição opcional do desafio (máximo de 255 caracteres)."
+          example: "Desenvolvimento em equipe"
+        diaId:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+          description: "Identificador do dia de competição ao qual o desafio pertence."
+          example: 2
+        pontosColocacao:
+          type: array
+          minItems: 1
+          description: "Uma linha por grupo; colocações devem formar 1..N sem repetição."
+          items:
+            $ref: '#/components/schemas/PontoColocacaoDto'
+
+    AtualizarDesafioDto:
+      type: object
+      additionalProperties: false
+      description: "Os mesmos campos da criação, todos opcionais; null é inválido."
+      properties:
+        nome:
+          type: string
+          minLength: 1
+          maxLength: 100
+          pattern: '\S'
+          description: |
+            Quando informado, remover espaços externos com trim() no backend
+            e rejeitar com 400 se o nome normalizado ficar vazio. O pattern
+            exige pelo menos um caractere não branco no valor recebido.
+            Campo ausente preserva o nome; null é inválido.
+          example: "Hackathon"
+        descricao:
+          type: string
+          maxLength: 255
+          description: "Nova descrição do desafio; string vazia limpa o texto."
+          example: ""
+        diaId:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+          description: "Novo identificador do dia do evento; após resultados, mudanças efetivas retornam 409."
+          example: 2
+        pontosColocacao:
+          type: array
+          minItems: 1
+          description: |
+            Quando o conteúdo mudar, substitui a tabela inteira; não é um
+            patch de itens. Comparar pares colocacao/pontos ignorando a ordem
+            do array. Valores iguais aos gravados são aceitos após resultados;
+            só a presença do campo não dispara o bloqueio 409.
+          items:
+            $ref: '#/components/schemas/PontoColocacaoDto'
+
+    DesafioDto:
+      type: object
+      required:
+        - id
+        - nome
+        - descricao
+        - diaId
+        - pontosColocacao
+      properties:
+        id:
+          type: integer
+          minimum: 1
+          description: "Identificador numérico único do desafio."
+          example: 3
+        nome:
+          type: string
+          description: "Nome identificador do desafio."
+          example: "Hackathon"
+        descricao:
+          type: string
+          description: "Retorna string vazia quando a coluna do banco é null."
+          example: "Desenvolvimento em equipe"
+        diaId:
+          type: integer
+          minimum: 1
+          description: "Identificador do dia do evento vinculado ao desafio."
+          example: 2
+        pontosColocacao:
+          type: array
+          description: "Tabela de pontos por colocação ordenada crescentemente por colocacao."
+          items:
+            $ref: '#/components/schemas/PontoColocacaoDto'
+      example:
+        id: 3
+        nome: "Hackathon"
+        descricao: "Desenvolvimento em equipe"
+        diaId: 2
+        pontosColocacao:
+          - colocacao: 1
+            pontos: 100
+          - colocacao: 2
+            pontos: 80
+
+    # ----------------------------------------------------
+    # Configuração do Evento (#199)
+    # ----------------------------------------------------
+    ConversaoPontoExtraItemDto:
+      type: object
+      required:
+        - colocacao
+        - pontoExtra
+      properties:
+        colocacao:
+          type: integer
+          minimum: 1
+          description: "Colocação final do grupo na classificação geral."
+          example: 1
+        pontoExtra:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: "Ponto extra base atribuído à colocação do grupo (0 a 1, uma casa decimal — `NUMERIC(5,1)`)."
+          example: 1.0
+
+    ItemBonificacaoConfigDto:
+      type: object
+      required:
+        - nome
+        - teto
+      properties:
+        id:
+          type: integer
+          minimum: 1
+          description: "Identificador do item de bonificação (ausente em item novo)."
+          example: 1
+        nome:
+          type: string
+          minLength: 1
+          maxLength: 150
+          description: "Nome do quesito/item de bonificação."
+          example: "Uniformização"
+        teto:
+          type: integer
+          minimum: 0
+          description: "Pontuação máxima permitida para este item."
+          example: 10
+
+    FatorPresencaItemDto:
+      type: object
+      required:
+        - diasPresentes
+        - fator
+      properties:
+        diasPresentes:
+          type: integer
+          minimum: 0
+          description: "Quantidade de dias em que o participante esteve presente."
+          example: 2
+        fator:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: "Fator multiplicador (0 a 1) aplicado sobre o ponto extra do grupo."
+          example: 1.0
+
+    CriterioDesempateConfigDto:
+      type: object
+      required:
+        - ordem
+        - tipo
+        - descricao
+      properties:
+        ordem:
+          type: integer
+          minimum: 1
+          description: "Ordem de precedência do critério (1..N)."
+          example: 1
+        tipo:
+          $ref: '#/components/schemas/TipoCriterioDesempate'
+        desafioId:
+          type: integer
+          nullable: true
+          description: "Obrigatório quando tipo = MAIOR_PONTUACAO_DESAFIO; null nos demais tipos (ADR 0003 / V12)."
+          example: 3
+        descricao:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: "Descrição legível do critério de desempate."
+          example: "Maior pontuação no Hackathon"
+
+    ConfiguracaoEventoDto:
+      type: object
+      required:
+        - conversaoPontoExtra
+        - itensBonificacao
+        - penalidadeMin
+        - penalidadeMax
+        - fatoresPresenca
+        - criteriosDesempate
+      properties:
+        conversaoPontoExtra:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConversaoPontoExtraItemDto'
+        itensBonificacao:
+          type: array
+          items:
+            $ref: '#/components/schemas/ItemBonificacaoConfigDto'
+        penalidadeMin:
+          type: integer
+          nullable: true
+          minimum: 0
+          description: "Valor mínimo permitido para aplicação de uma penalidade. `null` enquanto a faixa não estiver configurada; deve ser nulo ou preenchido junto com `penalidadeMax` (ADR 0003, item 7)."
+          example: 10
+        penalidadeMax:
+          type: integer
+          nullable: true
+          minimum: 0
+          description: "Valor máximo permitido para aplicação de uma penalidade. `null` enquanto a faixa não estiver configurada; deve ser nulo ou preenchido junto com `penalidadeMin` (ADR 0003, item 7)."
+          example: 50
+        fatoresPresenca:
+          type: array
+          items:
+            $ref: '#/components/schemas/FatorPresencaItemDto'
+        criteriosDesempate:
+          type: array
+          items:
+            $ref: '#/components/schemas/CriterioDesempateConfigDto'
+      example:
+        conversaoPontoExtra:
+          - colocacao: 1
+            pontoExtra: 1.0
+          - colocacao: 2
+            pontoExtra: 0.8
+          - colocacao: 3
+            pontoExtra: 0.6
+        itensBonificacao:
+          - id: 1
+            nome: "Uniformização"
+            teto: 10
+          - id: 2
+            nome: "Grito de guerra"
+            teto: 10
+        penalidadeMin: 10
+        penalidadeMax: 50
+        fatoresPresenca:
+          - diasPresentes: 2
+            fator: 1.0
+          - diasPresentes: 1
+            fator: 0.5
+          - diasPresentes: 0
+            fator: 0.0
+        criteriosDesempate:
+          - ordem: 1
+            tipo: "MAIOR_PONTUACAO_DESAFIO"
+            desafioId: 3
+            descricao: "Maior pontuação no Hackathon"
+          - ordem: 2
+            tipo: "MENOR_PENALIDADE"
+            desafioId: null
+            descricao: "Menos penalidades"
+
+    # ----------------------------------------------------
+    # Participantes (#203)
+    # ----------------------------------------------------
+    ParticipanteResumoDto:
+      type: object
+      required:
+        - id
+        - nome
+        - matricula
+        - turma
+        - grupoId
+        - grupo
+      properties:
+        id:
+          type: integer
+          description: "Identificador numérico único do participante."
+          example: 1
+        nome:
+          type: string
+          description: "Nome completo do participante."
+          example: "Lucas Vitorino"
+        matricula:
+          type: string
+          description: "Matrícula do participante (única por evento)."
+          example: "2026-101"
+        turma:
+          type: string
+          description: "Turma acadêmica do participante."
+          example: "ES 2026.2"
+        grupoId:
+          type: integer
+          description: "Identificador do grupo ao qual o participante pertence."
+          example: 1
+        grupo:
+          type: string
+          description: "Nome do grupo do participante."
+          example: "Alfa"
+
+    ParticipantesListagemDto:
+      type: object
+      required:
+        - dados
+        - paginacao
+        - resumo
+      properties:
+        dados:
+          type: array
+          items:
+            $ref: '#/components/schemas/ParticipanteResumoDto'
+        paginacao:
+          $ref: '#/components/schemas/PaginacaoMetaDto'
+        resumo:
+          type: object
+          required:
+            - totalParticipantes
+          properties:
+            totalParticipantes:
+              type: integer
+              minimum: 0
+              example: 72
+      example:
+        dados:
+          - id: 1
+            nome: "Lucas Vitorino"
+            matricula: "2026-101"
+            turma: "ES 2026.2"
+            grupoId: 1
+            grupo: "Alfa"
+          - id: 2
+            nome: "Sofia Moreira"
+            matricula: "2026-102"
+            turma: "ES 2026.2"
+            grupoId: 1
+            grupo: "Alfa"
+        paginacao:
+          pagina: 1
+          tamanho: 20
+          totalItens: 72
+          totalPaginas: 4
+        resumo:
+          totalParticipantes: 72
+
+    UploadArquivoPlanilhaDto:
+      type: object
+      required:
+        - arquivo
+      properties:
+        arquivo:
+          type: string
+          format: binary
+          description: "Planilha .csv (UTF-8 com vírgula ou ponto e vírgula) ou .xlsx de até 5 MB."
+
+    ImportacaoLinhaDto:
+      type: object
+      required:
+        - linha
+        - nome
+        - matricula
+        - turma
+        - grupo
+        - status
+        - motivoErro
+      properties:
+        linha:
+          type: integer
+          description: "Número da linha no arquivo (cabeçalho é a linha 1)."
+          example: 2
+        nome:
+          type: string
+          nullable: true
+          example: "Lucas Vitorino"
+        matricula:
+          type: string
+          nullable: true
+          example: "2026-101"
+        turma:
+          type: string
+          nullable: true
+          example: "ES 2026.2"
+        grupo:
+          type: string
+          nullable: true
+          example: "Alfa"
+        status:
+          type: string
+          enum:
+            - VALIDO
+            - ERRO
+          example: "VALIDO"
+        motivoErro:
+          type: string
+          nullable: true
+          description: "Descrição do problema quando status = ERRO; null quando VALIDO."
+          example: null
+
+    ImportacaoPrevistaDto:
+      type: object
+      required:
+        - totalLinhas
+        - linhasValidas
+        - linhasComErro
+        - linhas
+      properties:
+        totalLinhas:
+          type: integer
+          example: 3
+        linhasValidas:
+          type: integer
+          example: 2
+        linhasComErro:
+          type: integer
+          example: 1
+        linhas:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImportacaoLinhaDto'
+      example:
+        totalLinhas: 3
+        linhasValidas: 2
+        linhasComErro: 1
+        linhas:
+          - linha: 2
+            nome: "Lucas Vitorino"
+            matricula: "2026-101"
+            turma: "ES 2026.2"
+            grupo: "Alfa"
+            status: "VALIDO"
+            motivoErro: null
+          - linha: 3
+            nome: "Sofia Moreira"
+            matricula: "2026-102"
+            turma: "ES 2026.2"
+            grupo: "Alfa"
+            status: "VALIDO"
+            motivoErro: null
+          - linha: 4
+            nome: "Rafael Nogueira"
+            matricula: "2026-110"
+            turma: "CC 2026.2"
+            grupo: "Inexistente"
+            status: "ERRO"
+            motivoErro: "grupo 'Inexistente' não pertence ao evento"
+
+    ImportacaoConfirmadaDto:
+      type: object
+      required:
+        - importados
+        - participantes
+      properties:
+        importados:
+          type: integer
+          description: "Quantidade total de participantes criados."
+          example: 2
+        participantes:
+          type: array
+          items:
+            $ref: '#/components/schemas/ParticipanteResumoDto'
+
+    ImportacaoErro422Dto:
+      type: object
+      required:
+        - statusCode
+        - message
+        - error
+        - totalLinhas
+        - linhasValidas
+        - linhasComErro
+        - linhas
+      properties:
+        statusCode:
+          type: integer
+          example: 422
+        message:
+          type: string
+          example: "Existem linhas com erro na importação"
+        error:
+          type: string
+          example: "Unprocessable Entity"
+        totalLinhas:
+          type: integer
+          example: 3
+        linhasValidas:
+          type: integer
+          example: 2
+        linhasComErro:
+          type: integer
+          example: 1
+        linhas:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImportacaoLinhaDto'
+
+    # ----------------------------------------------------
+    # Frequência / Presenças (#205)
+    # ----------------------------------------------------
+    PresencaParticipanteItemDto:
+      type: object
+      required:
+        - participanteId
+        - matricula
+        - nome
+        - turma
+        - grupoId
+        - grupo
+        - presente
+      properties:
+        participanteId:
+          type: integer
+          example: 1
+        matricula:
+          type: string
+          example: "2026-101"
+        nome:
+          type: string
+          example: "Lucas Vitorino"
+        turma:
+          type: string
+          example: "ES 2026.2"
+        grupoId:
+          type: integer
+          example: 1
+        grupo:
+          type: string
+          example: "Alfa"
+        presente:
+          type: boolean
+          example: true
+
+    PresencaResumoDto:
+      type: object
+      required:
+        - total
+        - presentes
+        - ausentes
+      properties:
+        total:
+          type: integer
+          example: 5
+        presentes:
+          type: integer
+          example: 3
+        ausentes:
+          type: integer
+          example: 2
+
+    PresencaGradeDto:
+      type: object
+      required:
+        - dados
+        - resumo
+      properties:
+        dados:
+          type: array
+          items:
+            $ref: '#/components/schemas/PresencaParticipanteItemDto'
+        resumo:
+          $ref: '#/components/schemas/PresencaResumoDto'
+
+    RegistrarPresencaDto:
+      type: object
+      required:
+        - presente
+      properties:
+        presente:
+          type: boolean
+          description: "Define se o participante esteve presente (true) ou ausente (false) no dia."
+          example: true
+
+    PresencaRegistradaDto:
+      type: object
+      required:
+        - participanteId
+        - presente
+      properties:
+        participanteId:
+          type: integer
+          example: 3
+        presente:
+          type: boolean
+          example: true
+
+    # ----------------------------------------------------
+    # Resultados, Auditoria, Bonificações e Penalidades (#223 / #206)
+    # ----------------------------------------------------
+    ResultadoDesafioDto:
+      type: object
+      additionalProperties: false
+      description: |
+        Item retornado na consulta GET de resultados por desafio.
+        Quando id é null, representa preenchimento pendente (colocacao null, ausente false, pontos 0).
+        O retorno do PUT utiliza ResultadoDesafioSalvoDto, cujo id não aceita null.
+      required:
+        - id
+        - grupoId
+        - colocacao
+        - ausente
+        - pontos
+      properties:
+        id:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 2147483647
+          description: "null somente quando ainda não existe resultado persistido para o grupo no desafio."
+          example: 11
+        grupoId:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+          example: 1
+        colocacao:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 2147483647
+          example: 1
+        ausente:
+          type: boolean
+          example: false
+        pontos:
+          type: integer
+          minimum: 0
+          maximum: 2147483647
+          description: "Pontos obtidos pelo grupo no desafio; 0 para ausente ou pendente."
+          example: 100
+
+    ResultadoDesafioSalvoDto:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - grupoId
+        - colocacao
+        - ausente
+        - pontos
+      description: |
+        Resultado persistido retornado pelo PUT; não representa uma linha pendente.
+        O id é obrigatório e não anulável (nullable: false), inclusive para grupo ausente.
+        A colocacao continua anulável para representar ausência, que vale zero ponto.
+      properties:
+        id:
+          type: integer
+          nullable: false
+          minimum: 1
+          maximum: 2147483647
+          description: "Identificador persistido e preservado em correções."
+          example: 11
+        grupoId:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+          example: 1
+        colocacao:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 2147483647
+          example: 1
+        ausente:
+          type: boolean
+          example: false
+        pontos:
+          type: integer
+          minimum: 0
+          maximum: 2147483647
+          description: "Pontos da colocação no desafio; zero para ausência."
+          example: 100
+
+    SalvarResultadoDesafioDto:
+      type: object
+      additionalProperties: false
+      required:
+        - grupoId
+        - colocacao
+        - ausente
+      properties:
+        grupoId:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+          example: 1
+        colocacao:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 2147483647
+          description: "null apenas quando ausente = true; inteiro positivo (1..P) quando presente."
+          example: 1
+        ausente:
+          type: boolean
+          example: false
+
+    RegistroAuditoriaDto:
+      type: object
+      required:
+        - dataHora
+        - usuario
+        - operacao
+        - valorAnterior
+        - valorNovo
+      properties:
+        dataHora:
+          type: string
+          format: date-time
+          example: "2026-11-23T14:38:00Z"
+        usuario:
+          type: string
+          example: "Administrador Arena"
+        operacao:
+          type: string
+          enum:
+            - INSERT
+            - UPDATE
+            - DELETE
+            - RECALCULO
+          example: "UPDATE"
+        valorAnterior:
+          type: string
+          nullable: true
+          example: "colocacao=2"
+        valorNovo:
+          type: string
+          nullable: true
+          example: "colocacao=1"
+
+    ItemBonificacaoLancamentoDto:
+      type: object
+      required:
+        - itemBonificacaoId
+        - valor
+      properties:
+        itemBonificacaoId:
+          type: integer
+          minimum: 1
+          example: 1
+        valor:
+          type: integer
+          minimum: 0
+          example: 10
+
+    BonificacaoItemResumoDto:
+      type: object
+      required:
+        - id
+        - itemBonificacaoId
+        - valor
+      properties:
+        id:
+          type: integer
+          example: 21
+          description: "Id do lançamento, usado como registroId em GET /auditoria?entidade=BONIFICACAO_GRUPO (RF18)."
+        itemBonificacaoId:
+          type: integer
+          example: 1
+        valor:
+          type: integer
+          minimum: 0
+          example: 10
+
+    BonificacaoGrupoResumoDto:
+      type: object
+      required:
+        - grupoId
+        - itens
+        - total
+      properties:
+        grupoId:
+          type: integer
+          example: 1
+        itens:
+          type: array
+          items:
+            $ref: '#/components/schemas/BonificacaoItemResumoDto'
+        total:
+          type: integer
+          example: 18
+
+    PenalidadeDto:
+      type: object
+      required:
+        - id
+        - grupoId
+        - pontos
+        - descricao
+        - justificativa
+      properties:
+        id:
+          type: integer
+          example: 1
+        grupoId:
+          type: integer
+          example: 2
+        pontos:
+          type: integer
+          example: 20
+        descricao:
+          type: string
+          nullable: true
+          description: "Opcional no lançamento; `null` quando não informada."
+          example: "Atraso na entrega"
+        justificativa:
+          type: string
+          example: "Entregou o projeto 15 minutos depois do prazo"
+
+    CriarPenalidadeDto:
+      type: object
+      required:
+        - grupoId
+        - pontos
+        - justificativa
+      properties:
+        grupoId:
+          type: integer
+          minimum: 1
+          example: 2
+        pontos:
+          type: integer
+          minimum: 1
+          example: 20
+        descricao:
+          type: string
+          maxLength: 255
+          example: "Atraso na entrega"
+        justificativa:
+          type: string
+          minLength: 1
+          maxLength: 500
+          example: "Entregou o projeto 15 minutos depois do prazo"
+
+    AtualizarPenalidadeDto:
+      type: object
+      properties:
+        grupoId:
+          type: integer
+          minimum: 1
+          example: 2
+        pontos:
+          type: integer
+          minimum: 1
+          example: 15
+        descricao:
+          type: string
+          maxLength: 255
+          example: "Atraso na entrega"
+        justificativa:
+          type: string
+          minLength: 1
+          maxLength: 500
+          example: "Entregou o projeto 15 minutos depois do prazo"
+
+    # ----------------------------------------------------
+    # Classificação, Desempates e Apuração (#206 pt 3 / #204)
+    # ----------------------------------------------------
+    LinhaClassificacaoGrupoDto:
+      type: object
+      required:
+        - posicao
+        - grupoId
+        - grupo
+        - cor
+        - pontosDesafios
+        - bonificacao
+        - penalidade
+        - total
+        - empatado
+      properties:
+        posicao:
+          type: integer
+          minimum: 1
+          example: 1
+        grupoId:
+          type: integer
+          example: 1
+        grupo:
+          type: string
+          example: "Alfa"
+        cor:
+          type: string
+          example: "#FF5733"
+        pontosDesafios:
+          type: integer
+          example: 260
+        bonificacao:
+          type: integer
+          example: 18
+        penalidade:
+          type: integer
+          example: 0
+        total:
+          type: integer
+          example: 278
+        empatado:
+          type: boolean
+          example: false
+
+    ResumoClassificacaoDto:
+      type: object
+      required:
+        - desafiosLancados
+        - desafiosTotais
+        - empatesPendentes
+      properties:
+        desafiosLancados:
+          type: integer
+          example: 4
+        desafiosTotais:
+          type: integer
+          example: 4
+        empatesPendentes:
+          type: array
+          description: "Grupos de IDs empatados que não foram separados pelos critérios automáticos nem por decisão manual vigente."
+          items:
+            type: array
+            items:
+              type: integer
+          example:
+            - [2, 3]
+            - [5, 6]
+
+    ClassificacaoEnvelopeDto:
+      type: object
+      required:
+        - dados
+        - resumo
+      properties:
+        dados:
+          type: array
+          items:
+            $ref: '#/components/schemas/LinhaClassificacaoGrupoDto'
+        resumo:
+          $ref: '#/components/schemas/ResumoClassificacaoDto'
+
+    PosicaoDesempateItemDto:
+      type: object
+      required:
+        - grupoId
+        - posicao
+      properties:
+        grupoId:
+          type: integer
+          minimum: 1
+          example: 2
+        posicao:
+          type: integer
+          minimum: 1
+          example: 1
+
+    RegistrarDesempateDto:
+      type: object
+      required:
+        - posicoes
+        - justificativa
+      properties:
+        posicoes:
+          type: array
+          minItems: 2
+          items:
+            $ref: '#/components/schemas/PosicaoDesempateItemDto'
+        justificativa:
+          type: string
+          minLength: 1
+          maxLength: 500
+          example: "Sorteio na frente das equipes"
+
+    DesempateRegistradoDto:
+      type: object
+      required:
+        - posicoes
+        - justificativa
+        - responsavel
+        - dataHora
+      properties:
+        posicoes:
+          type: array
+          items:
+            $ref: '#/components/schemas/PosicaoDesempateItemDto'
+        justificativa:
+          type: string
+          example: "Sorteio na frente das equipes"
+        responsavel:
+          type: string
+          example: "Administrador Arena"
+        dataHora:
+          type: string
+          format: date-time
+          example: "2026-11-24T20:10:00Z"
+
+    LinhaApuracaoParticipanteDto:
+      type: object
+      required:
+        - participanteId
+        - matricula
+        - nome
+        - turma
+        - grupo
+        - colocacaoGrupo
+        - pontoExtraGrupo
+        - diasPresentes
+        - diasTotais
+        - fator
+        - pontoExtra
+      properties:
+        participanteId:
+          type: integer
+          example: 1
+        matricula:
+          type: string
+          example: "2026-101"
+        nome:
+          type: string
+          example: "Lucas Vitorino"
+        turma:
+          type: string
+          example: "ES 2026.2"
+        grupo:
+          type: string
+          example: "Alfa"
+        colocacaoGrupo:
+          type: integer
+          example: 1
+        pontoExtraGrupo:
+          type: number
+          example: 1.0
+        diasPresentes:
+          type: integer
+          example: 2
+        diasTotais:
+          type: integer
+          example: 2
+        fator:
+          type: number
+          example: 1.0
+        pontoExtra:
+          type: number
+          example: 1.0
+
+    ResumoApuracaoDto:
+      type: object
+      required:
+        - totalParticipantes
+        - assiduidade
+        - aptos
+      properties:
+        totalParticipantes:
+          type: integer
+          example: 72
+        assiduidade:
+          type: number
+          example: 0.924
+        aptos:
+          type: integer
+          example: 68
+
+    ApuracaoEnvelopeDto:
+      type: object
+      required:
+        - dados
+        - paginacao
+        - resumo
+      properties:
+        dados:
+          type: array
+          items:
+            $ref: '#/components/schemas/LinhaApuracaoParticipanteDto'
+        paginacao:
+          $ref: '#/components/schemas/PaginacaoMetaDto'
+        resumo:
+          $ref: '#/components/schemas/ResumoApuracaoDto'
+
+    # ----------------------------------------------------
+    # Relatórios (#207 / #228 / #229)
+    # ----------------------------------------------------
+    FormatoRelatorio:
+      type: string
+      description: "Formatos suportados para exportação de relatórios."
+      enum:
+        - PDF
+        - XLSX
+      example: PDF
+
+    PresencaDiaRelatorioDto:
+      type: object
+      required:
+        - numeroDia
+        - presente
+      properties:
+        numeroDia:
+          type: integer
+          minimum: 1
+          example: 1
+        presente:
+          type: boolean
+          example: true
+
+    ParticipantePreviaRelatorioDto:
+      type: object
+      required:
+        - matricula
+        - nome
+        - grupo
+        - presencas
+        - pontoExtra
+      properties:
+        matricula:
+          type: string
+          example: "2026-101"
+        nome:
+          type: string
+          example: "Lucas Vitorino"
+        grupo:
+          type: string
+          example: "Alfa"
+        presencas:
+          type: array
+          items:
+            $ref: '#/components/schemas/PresencaDiaRelatorioDto'
+        pontoExtra:
+          type: number
+          example: 1.0
+
+    TurmaPreviaRelatorioDto:
+      type: object
+      required:
+        - turma
+        - totalParticipantes
+        - participantes
+      properties:
+        turma:
+          type: string
+          example: "ES 2026.2"
+        totalParticipantes:
+          type: integer
+          example: 2
+        participantes:
+          type: array
+          items:
+            $ref: '#/components/schemas/ParticipantePreviaRelatorioDto'
+
+    TurmaRelatorioFinalDto:
+      type: object
+      required: [turma, totalParticipantes, participantes]
+      properties:
+        turma:
+          type: string
+          maxLength: 10
+          example: "ES 2026.2"
+        totalParticipantes:
+          type: integer
+          minimum: 0
+          example: 2
+        participantes:
+          type: array
+          items:
+            $ref: '#/components/schemas/ParticipanteRelatorioFinalDto'
+
+    ParticipanteRelatorioFinalDto:
+      type: object
+      required: [matricula, nome, grupo, presencas, pontoExtra, turma]
+      properties:
+        matricula:
+          type: string
+          maxLength: 20
+          example: "2026-101"
+        nome:
+          type: string
+          maxLength: 150
+          example: "Lucas Vitorino"
+        grupo:
+          type: string
+          maxLength: 60
+          example: "Alfa"
+        presencas:
+          type: array
+          items:
+            $ref: '#/components/schemas/PresencaRelatorioFinalDto'
+        pontoExtra:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+          example: 0.8
+        turma:
+          type: string
+          maxLength: 10
+          example: "ES 2026.2"
+
+    PresencaRelatorioFinalDto:
+      type: object
+      required: [numeroDia, presente]
+      properties:
+        numeroDia:
+          type: integer
+          minimum: 1
+          example: 1
+        presente:
+          type: boolean
+          example: false
+
+    # ----------------------------------------------------
     # Schemas Compartilhados (Envelopes, Paginação e Enums)
     # ----------------------------------------------------
     PaginacaoMetaDto:
@@ -1184,18 +3589,16 @@ components:
     TipoCriterioDesempate:
       type: string
       description: |
-        Critérios de desempate homologados na regra de negócio da competição (RF13):
+        Critérios de desempate homologados na regra de negócio da competição (RF13 / ADR 0003 / V12):
         - `MAIOR_PONTUACAO_DESAFIO`: Maior pontuação em um desafio específico (requer parâmetro `desafioId`).
         - `MAIOR_SOMA_DESAFIOS`: Maior pontuação agregada considerando apenas os desafios realizados.
         - `MAIOR_BONIFICACAO`: Maior pontuação obtida por itens de bonificação.
         - `MENOR_PENALIDADE`: Menor dedução acumulada por penalidades disciplinares.
-        - `MAIOR_PRESENCA`: Maior índice/quantidade percentual de presença dos membros do grupo.
       enum:
         - MAIOR_PONTUACAO_DESAFIO
         - MAIOR_SOMA_DESAFIOS
         - MAIOR_BONIFICACAO
         - MENOR_PENALIDADE
-        - MAIOR_PRESENCA
       example: MAIOR_PONTUACAO_DESAFIO
 
     # ----------------------------------------------------

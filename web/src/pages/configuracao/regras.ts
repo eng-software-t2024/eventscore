@@ -29,6 +29,28 @@ export type Formulario = {
   criterios: { tipo: TipoCriterio; desafioId: number | null }[];
 };
 
+/** "a", "a e b", "a, b e c". */
+const listar = (itens: string[]) => (itens.length < 2 ? itens.join('') : `${itens.slice(0, -1).join(', ')} e ${itens[itens.length - 1]}`);
+
+/**
+ * O que falta na configuração salva para cobrir os grupos e os dias atuais, ou null se nada falta.
+ * Acontece quando a configuração nunca foi salva ou quando um grupo ou dia foi cadastrado depois.
+ * Sem isso, a apuração individual e o relatório final respondem 409.
+ */
+export function pendenciaConfiguracao(config: Configuracao, grupos: number, quantidadeDias: number): string | null {
+  const colocacoes = new Set(config.conversaoPontoExtra.map((c) => c.colocacao));
+  const dias = new Set(config.fatoresPresenca.map((f) => f.diasPresentes));
+  const faltas: string[] = [];
+  const semConversao = Array.from({ length: grupos }, (_, i) => i + 1).filter((c) => !colocacoes.has(c));
+  const semFator = Array.from({ length: quantidadeDias + 1 }, (_, d) => d).filter((d) => !dias.has(d));
+  if (semConversao.length === 1) faltas.push(`a conversão da ${semConversao[0]}ª colocação`);
+  else if (semConversao.length > 1) faltas.push(`a conversão das ${listar(semConversao.map((c) => `${c}ª`))} colocações`);
+  if (semFator.length === 1) faltas.push(`o fator para ${semFator[0]} ${semFator[0] === 1 ? 'dia presente' : 'dias presentes'}`);
+  else if (semFator.length > 1) faltas.push(`os fatores para ${listar(semFator.map(String))} dias presentes`);
+  if (!faltas.length) return null;
+  return `A configuração salva não cobre os grupos e dias atuais: falta ${faltas.join(' e ')}. Preencha os campos e salve; sem isso a apuração individual e o relatório final ficam bloqueados.`;
+}
+
 /** Critérios com tipo que a tela ainda aceita; um tipo que saiu do contrato é descartado ao salvar. */
 export const criteriosValidos = (config: Configuracao) => config.criteriosDesempate.filter((c) => c.tipo in TIPOS_CRITERIO);
 

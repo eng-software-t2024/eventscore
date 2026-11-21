@@ -92,7 +92,7 @@ Basta rodar `npm run start:dev` de novo: migrações novas são aplicadas e o Pr
 | `npm test` | Testes unitários |
 | `npm run test:watch` | Testes unitários em modo observação |
 | `npm run test:cov` | Testes unitários com relatório de cobertura |
-| `npm run test:e2e` | Testes e2e (exigem `TEST_DATABASE_URL` apontando para um banco exclusivo) |
+| `npm run test:e2e` | Testes e2e (exige `TEST_DATABASE_URL` apontando para banco exclusivo) |
 | **Banco de dados** | |
 | `npm run db:migrate` | Cria uma migração a partir de mudanças no `schema.prisma` e aplica |
 | `npm run db:deploy` | Aplica migrações pendentes |
@@ -104,6 +104,10 @@ Basta rodar `npm run start:dev` de novo: migrações novas são aplicadas e o Pr
 ## Variáveis de ambiente
 
 Definidas no `.env` (copiado de `.env.example`, nunca versionado). A aplicação valida as variáveis ao iniciar e não sobe se alguma estiver inválida.
+
+A suíte e2e exige `TEST_DATABASE_URL` apontando para um banco exclusivamente de
+testes; o nome do banco precisa conter `test`. A suíte cria e remove um administrador temporário
+no próprio banco de teste e não usa credenciais externas.
 
 | Variável | Usada por | Descrição |
 |---|---|---|
@@ -123,9 +127,8 @@ Definidas no `.env` (copiado de `.env.example`, nunca versionado). A aplicação
 
 `DATABASE_URL` deve usar o mesmo usuário, senha, porta e banco das variáveis `POSTGRES_*`.
 
-Os testes e2e que alteram dados recusam a execução sem `TEST_DATABASE_URL` ou
-quando o nome do banco não contém o marcador `test`. Crie e migre um banco
-separado antes de executá-los, por exemplo:
+Crie e migre um banco separado antes de executar os testes e2e. `TEST_DATABASE_URL`
+é obrigatório, mesmo quando o banco estiver em `localhost`:
 
 ```bash
 createdb -h localhost -U eventscore eventscore_test
@@ -145,6 +148,7 @@ TEST_DATABASE_URL=postgresql://eventscore:eventscore@localhost:5432/eventscore_t
 ├── src/
 │   ├── main.ts          # Ponto de entrada
 │   ├── app.module.ts    # Módulo raiz
+│   ├── common/          # DTOs, decorators e filtro de erros compartilhados
 │   ├── config/          # Validação das variáveis de ambiente
 │   ├── prisma/          # PrismaService (acesso ao banco)
 │   ├── health/          # GET /health

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mensagemDeErro, nomeDoArquivo } from './client.ts';
+import { idDoUsuarioNoToken, mensagemDeErro, nomeDoArquivo } from './client.ts';
 
 test('nome do arquivo vem do Content-Disposition, com acento ou sem aspas', () => {
   assert.equal(nomeDoArquivo('attachment; filename="relatorio-final-arena-comp-2026.xlsx"', 'x'), 'relatorio-final-arena-comp-2026.xlsx');
@@ -18,4 +18,13 @@ test('mensagem de erro no formato do NestJS', () => {
 test('rota que ainda não existe no servidor vira mensagem clara', () => {
   assert.equal(mensagemDeErro(404, { message: 'Cannot GET /api/v1/eventos/1/desafios', error: 'Not Found' }), 'Esta função ainda não está disponível no servidor.');
   assert.equal(mensagemDeErro(404, { message: 'Evento não encontrado' }), 'Evento não encontrado');
+});
+
+test('id do usuário lido do token', () => {
+  const jwt = (payload: object) => `cabecalho.${Buffer.from(JSON.stringify(payload)).toString('base64url')}.assinatura`;
+  assert.equal(idDoUsuarioNoToken(jwt({ sub: 7, exp: 1 })), 7);
+  assert.equal(idDoUsuarioNoToken(jwt({ sub: '7' })), undefined);
+  assert.equal(idDoUsuarioNoToken(jwt({ nome: 'x' })), undefined);
+  assert.equal(idDoUsuarioNoToken('nao-e-jwt'), undefined);
+  assert.equal(idDoUsuarioNoToken(null), undefined);
 });

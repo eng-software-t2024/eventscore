@@ -31,8 +31,8 @@ Ficou acordado que a Sprint 01 entrega os 4 módulos essenciais com CRUD complet
    - Todos os endpoints `PUT` (frequência, bônus e resultados de desafios) são estritamente idempotentes via substituição transacional / `upsert`.
 4. **Histórico e Auditoria (RF18):**
    - O endpoint `GET .../resultados` devolve o campo `id` (ou `null` se ainda não lançado), e o `PUT` preserva a mesma chave primária, permitindo consulta pontual na auditoria via `entidade + registroId`.
-5. **Critérios de Desempate (RF13):**
-   - Enum fechado: `MAIOR_PONTUACAO_DESAFIO` (exige `desafioId`), `MAIOR_SOMA_DESAFIOS`, `MAIOR_BONIFICACAO`, `MENOR_PENALIDADE`, `MAIOR_PRESENCA`.
+5. **Critérios de Desempate (RF13 / ADR 0003 / V12):**
+   - Enum fechado: `MAIOR_PONTUACAO_DESAFIO` (exige `desafioId`), `MAIOR_SOMA_DESAFIOS`, `MAIOR_BONIFICACAO`, `MENOR_PENALIDADE` (`MAIOR_PRESENCA` foi removido conforme ADR 0003).
 6. **Autenticação:**
    - Retorno do login inclui `expiraEm` no formato ISO 8601 UTC.
    - Sessão gerenciada por token JWT no cabeçalho `Authorization: Bearer <token>`.
@@ -41,7 +41,7 @@ Ficou acordado que a Sprint 01 entrega os 4 módulos essenciais com CRUD complet
    - `200`: Sucesso de leitura ou alteração.
    - `201`: Criação de novo recurso (`POST`).
    - `204`: Exclusão bem-sucedida sem corpo (`DELETE`).
-   - `400`: Erro de sintaxe ou campo inválido disparado pelo `ValidationPipe`.
+   - `400`: Requisição inválida. A validação de campos (`ValidationPipe`) devolve `message` como lista; JSON malformado, parâmetros de rota inválidos e validações feitas nos serviços devolvem `message` como texto.
    - `401`: Token ausente, inválido ou login incorreto.
    - `404`: Recurso não encontrado ou pertencente a outro evento.
    - `409`: Conflito de estado — inclui o bloqueio por trigger de grupos após resultado lançado (RF03) com a mensagem canônica `"os grupos não podem mais ser alterados porque já há resultado lançado"`, tentativa de excluir grupo com participantes vinculados ou dia com presenças/desafios, e violação de unicidade.

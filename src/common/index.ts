@@ -1,3 +1,4 @@
+export { CurrentUserId } from './decorators/current-user-id.decorator.js';
 export { EnvelopeListagemDto } from './dto/envelope-listagem.dto.js';
 export { ErroPadraoDto } from './dto/erro-padrao.dto.js';
 export { ErroValidacaoDto } from './dto/erro-validacao.dto.js';

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   corpoColocacoes,
+  juntarHistoricos,
   montarBonificacao,
   montarPenalidade,
   pontosDaColocacao,
@@ -133,4 +134,16 @@ test('presentes formam 1..P sem lacunas; ausente não ocupa posição', () => {
     ),
     null,
   );
+});
+
+test('histórico do bônus: junta os itens em ordem de data, marcando o item', () => {
+  const h = (dataHora: string, valorNovo: string) => ({ dataHora, usuario: 'Admin', operacao: 'UPDATE', valorAnterior: null, valorNovo });
+  assert.deepEqual(
+    juntarHistoricos([
+      { rotulo: 'Uniformização', itens: [h('2026-11-23T10:00:00Z', 'valor=5'), h('2026-11-23T12:00:00Z', 'valor=8')] },
+      { rotulo: 'Grito de guerra', itens: [h('2026-11-23T11:00:00Z', 'valor=10')] },
+    ]).map((x) => `${x.rotulo} ${x.valorNovo}`),
+    ['Uniformização valor=5', 'Grito de guerra valor=10', 'Uniformização valor=8'],
+  );
+  assert.deepEqual(juntarHistoricos([]), []);
 });

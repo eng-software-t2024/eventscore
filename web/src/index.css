@@ -163,6 +163,11 @@ textarea {
   text-decoration: none;
 }
 
+/* Aviso que não impede o uso, como configuração desatualizada. */
+.aviso {
+  font-weight: 500;
+}
+
 .sucesso {
   color: #1b5e20;
   font-weight: 500;
