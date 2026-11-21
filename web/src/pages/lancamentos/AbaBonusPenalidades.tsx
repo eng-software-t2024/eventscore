@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
 import { api } from '../../api/client';
+import { confirmar } from '../../components/Confirmacao';
 import type { Configuracao } from '../configuracao/regras.ts';
 import { ListaHistorico, PontoCor, type Grupo } from './comum';
 import { tipoDeFalha } from '../../api/falhas.ts';
@@ -190,7 +191,7 @@ export default function AbaBonusPenalidades({ eventoId, grupos, envios }: { even
   }
 
   async function remover(p: Penalidade) {
-    if (!window.confirm(`Remover a penalidade de ${p.pontos} pontos de ${nome(p.grupoId)}?`)) return;
+    if (!(await confirmar({ titulo: 'Remover penalidade', mensagem: `Remover a penalidade de ${p.pontos} pontos de ${nome(p.grupoId)}?`, confirmar: 'Remover', perigo: true }))) return;
     try {
       await api(`${base}/penalidades/${p.id}`, { method: 'DELETE' });
       if (editando?.id === p.id) cancelarEdicao();

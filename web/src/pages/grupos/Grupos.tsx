@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
 import { api, type Schemas } from '../../api/client';
+import { confirmar } from '../../components/Confirmacao';
 import { useLayout } from '../../components/Layout';
 import { iniciais } from '../../texto';
 import './Grupos.css';
@@ -110,7 +111,7 @@ export default function Grupos() {
   }
 
   async function excluir(grupo: Grupo) {
-    if (!window.confirm(`Excluir o grupo "${grupo.nome}"? Essa ação não pode ser desfeita.`)) return;
+    if (!(await confirmar({ titulo: 'Excluir grupo', mensagem: `Excluir o grupo "${grupo.nome}"? Essa ação não pode ser desfeita.`, confirmar: 'Excluir', perigo: true }))) return;
     setErro('');
     try {
       await api(`${base}/grupos/${grupo.id}`, { method: 'DELETE' });

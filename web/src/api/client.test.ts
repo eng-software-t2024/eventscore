@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { idDoUsuarioNoToken, mensagemDeErro, nomeDoArquivo } from './client.ts';
+import { idDoUsuarioNoToken, mensagemDeErro, nomeDoArquivo, primeiroToken } from './client.ts';
 
 test('nome do arquivo vem do Content-Disposition, com acento ou sem aspas', () => {
   assert.equal(nomeDoArquivo('attachment; filename="relatorio-final-arena-comp-2026.xlsx"', 'x'), 'relatorio-final-arena-comp-2026.xlsx');
@@ -27,4 +27,12 @@ test('id do usuário lido do token', () => {
   assert.equal(idDoUsuarioNoToken(jwt({ nome: 'x' })), undefined);
   assert.equal(idDoUsuarioNoToken('nao-e-jwt'), undefined);
   assert.equal(idDoUsuarioNoToken(null), undefined);
+});
+
+test('token vazio ou só com espaços não esconde o token do outro armazenamento', () => {
+  assert.equal(primeiroToken('', 'abc'), 'abc');
+  assert.equal(primeiroToken('   ', 'abc'), 'abc');
+  assert.equal(primeiroToken(null, 'abc'), 'abc');
+  assert.equal(primeiroToken('xyz', 'abc'), 'xyz');
+  assert.equal(primeiroToken('', null), null);
 });

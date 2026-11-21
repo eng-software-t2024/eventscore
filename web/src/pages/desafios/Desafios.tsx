@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
 import { api, type Schemas } from '../../api/client';
+import { confirmar } from '../../components/Confirmacao';
 import { useLayout } from '../../components/Layout';
 import { camposAlterados, desafiosDesatualizados, MAX_DESCRICAO, MAX_NOME, montarDesafio, paraFormulario, type Desafio, type FormDesafio } from './regras.ts';
 import './Desafios.css';
@@ -94,7 +95,7 @@ export default function Desafios() {
   }
 
   async function excluir(desafio: Desafio) {
-    if (!window.confirm(`Excluir o desafio "${desafio.nome}"? Essa ação não pode ser desfeita.`)) return;
+    if (!(await confirmar({ titulo: 'Excluir desafio', mensagem: `Excluir o desafio "${desafio.nome}"? Essa ação não pode ser desfeita.`, confirmar: 'Excluir', perigo: true }))) return;
     setErro('');
     try {
       await api(`${base}/desafios/${desafio.id}`, { method: 'DELETE' });

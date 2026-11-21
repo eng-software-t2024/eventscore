@@ -173,6 +173,19 @@ textarea {
   font-weight: 500;
 }
 
+.btn-perigo {
+  background: var(--erro);
+  color: var(--branco);
+}
+
+.confirmacao {
+  width: min(480px, calc(100% - 32px));
+}
+
+.confirmacao p {
+  line-height: 1.5;
+}
+
 .btn-cinza {
   background: var(--campo);
   color: var(--preto);
