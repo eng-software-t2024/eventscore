@@ -44,6 +44,16 @@ export function validarColocacoes(linhas: Lancamento[], nomeDoGrupo: (id: number
     if (outro !== undefined) return `${nomeDoGrupo(outro)} e ${nomeDoGrupo(l.grupoId)} estão na mesma colocação (${l.colocacao}º).`;
     usadas.set(l.colocacao, l.grupoId);
   }
+  // Proposta #223 e função da V5: com P grupos presentes, as colocações formam 1..P sem lacunas
+  // (ausente não ocupa posição). Sem esta trava, a API recusaria com 422.
+  const presentes = usadas.size;
+  for (let posicao = 1; posicao <= presentes; posicao++) {
+    if (!usadas.has(posicao)) {
+      if (presentes === 1) return 'Com uma única equipe presente, ela precisa ficar em 1º lugar.';
+      const sobrando = [...usadas.keys()].filter((c) => c > presentes).sort((a, b) => a - b);
+      return `Com ${presentes} equipes presentes, as colocações vão de 1º a ${presentes}º sem pular posição. Falta o ${posicao}º lugar${sobrando.length ? ` e sobra o ${sobrando[0]}º` : ''}.`;
+    }
+  }
   return null;
 }
 

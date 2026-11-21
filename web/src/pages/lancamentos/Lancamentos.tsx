@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { api, idDoUsuarioNoToken, token } from '../../api/client';
+import { confirmar } from '../../components/Confirmacao';
 import { useLayout } from '../../components/Layout';
 import AbaBonusPenalidades from './AbaBonusPenalidades';
 import AbaClassificacao from './AbaClassificacao';
@@ -38,9 +39,17 @@ export default function Lancamentos() {
     return () => clearInterval(relogio);
   }, []);
 
-  function reenviarAgora() {
+  async function reenviarAgora() {
     const antigos = listaPendentes.filter((p) => envioAntigo(p, Date.now()));
-    if (antigos.length && !window.confirm('Há lançamentos guardados há mais de 2 horas. Reenviá-los pode desfazer correções feitas depois em outro computador. Reenviar mesmo assim?')) return;
+    if (
+      antigos.length &&
+      !(await confirmar({
+        titulo: 'Reenviar lançamentos antigos',
+        mensagem: 'Há lançamentos guardados há mais de 2 horas. Reenviá-los pode desfazer correções feitas depois em outro computador. Reenviar mesmo assim?',
+        confirmar: 'Reenviar',
+      }))
+    )
+      return;
     envios.reenviarTodos();
   }
 
@@ -103,7 +112,10 @@ export default function Lancamentos() {
                 <button
                   type="button"
                   className="btn btn-contorno btn-pequeno"
-                  onClick={() => window.confirm(`Descartar ${p.descricao}? O que foi digitado não será enviado.`) && envios.descartar(p.caminho)}
+                  onClick={async () => {
+                    const ok = await confirmar({ titulo: 'Descartar lançamento', mensagem: `Descartar ${p.descricao}? O que foi digitado não será enviado.`, confirmar: 'Descartar', perigo: true });
+                    if (ok) envios.descartar(p.caminho);
+                  }}
                 >
                   Descartar
                 </button>

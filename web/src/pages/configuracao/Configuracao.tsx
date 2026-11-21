@@ -49,7 +49,10 @@ export default function Configuracao() {
     setErro('');
     setSalvando(true);
     try {
-      await api(`${base}/configuracao`, { method: 'PUT', body: JSON.stringify(resultado.dados) });
+      const salva = await api<Config | undefined>(`${base}/configuracao`, { method: 'PUT', body: JSON.stringify(resultado.dados) });
+      // A API devolve os itens de bonificação com id; sem isso, um segundo "Salvar" recriaria os itens
+      // e apagaria os bônus já lançados para eles.
+      if (salva) setForm(paraFormulario(salva, form.conversao.length, form.fatores.length - 1));
       setSalvo(true);
       // O formulário tem uma linha por grupo e por dia, então o que foi salvo cobre tudo.
       setPendencia(null);

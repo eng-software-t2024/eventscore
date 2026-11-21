@@ -68,9 +68,16 @@ textarea {
 }
 
 .nav-marca {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-weight: 700;
-  padding: 0 14px;
+  padding: 0 14px 0 6px;
   white-space: nowrap;
+}
+
+.nav-marca img {
+  height: 28px;
 }
 
 .nav a,
@@ -171,6 +178,19 @@ textarea {
 .sucesso {
   color: #1b5e20;
   font-weight: 500;
+}
+
+.btn-perigo {
+  background: var(--erro);
+  color: var(--branco);
+}
+
+.confirmacao {
+  width: min(480px, calc(100% - 32px));
+}
+
+.confirmacao p {
+  line-height: 1.5;
 }
 
 .btn-cinza {

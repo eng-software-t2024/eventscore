@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { api, ApiError, idDoUsuarioNoToken, token, type Schemas } from '../../api/client';
+import { confirmar } from '../../components/Confirmacao';
 import { paraOReenvio } from '../../api/falhas.ts';
 import { useLayout } from '../../components/Layout';
 import { iniciais } from '../../texto';
@@ -270,10 +271,14 @@ export default function Frequencia() {
 
   // Só o botão limpa a mensagem (a tentativa automática não apaga o motivo de uma recusa) e só ele leva as
   // marcações antigas, depois de confirmar.
-  function reenviarAgora() {
+  async function reenviarAgora() {
     if (
       qtdAntigas > 0 &&
-      !window.confirm('Há marcações guardadas há mais de 2 horas. Reenviá-las pode desfazer correções feitas depois em outro computador. Reenviar mesmo assim?')
+      !(await confirmar({
+        titulo: 'Reenviar marcações antigas',
+        mensagem: 'Há marcações guardadas há mais de 2 horas. Reenviá-las pode desfazer correções feitas depois em outro computador. Reenviar mesmo assim?',
+        confirmar: 'Reenviar',
+      }))
     )
       return;
     setErro('');
