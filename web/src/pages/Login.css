@@ -19,28 +19,18 @@
 }
 
 .login-logo {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+  display: grid;
+  justify-items: start;
+  gap: 8px;
 }
 
-.login-logo div {
-  display: grid;
+.login-logo img {
+  height: 44px;
+  max-width: 100%;
 }
 
 .login-logo small {
   color: var(--texto-suave);
-}
-
-.login-selo {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background: var(--preto);
-  color: var(--branco);
-  font-weight: 700;
 }
 
 .login-tag {

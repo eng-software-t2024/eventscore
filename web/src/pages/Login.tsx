@@ -34,11 +34,8 @@ export default function Login() {
     <main className="login">
       <section className="login-form">
         <div className="login-logo">
-          <span className="login-selo">E/S</span>
-          <div>
-            <strong>EVENTSCORE</strong>
-            <small>Motor de apuração</small>
-          </div>
+          <img src="/logo-eventscore.svg" alt="EventScore" />
+          <small>Motor de apuração</small>
         </div>
 
         <form onSubmit={entrar}>

@@ -60,7 +60,10 @@ export default function Layout() {
   return (
     <div className="pagina">
       <nav className="nav" aria-label="Seções">
-        <span className="nav-marca">{eventoAtivo?.nome ?? 'EventScore'}</span>
+        <span className="nav-marca">
+          <img src="/logo-es.svg" alt="" />
+          {eventoAtivo?.nome ?? 'EventScore'}
+        </span>
         {ABAS.map(([rota, nome]) => (
           <NavLink key={rota} to={rota}>
             {nome}
