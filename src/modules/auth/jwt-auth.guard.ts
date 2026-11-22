@@ -2,8 +2,10 @@ import {
   CanActivate,
   ExecutionContext,
   Injectable,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
+import { SecurityTelemetryService } from '../security-telemetry/security-telemetry.service.js';
 import { JwtService } from '@nestjs/jwt';
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
@@ -12,6 +14,7 @@ import { IS_PUBLIC_KEY } from './public.decorator.js';
 
 export interface JwtAuthenticatedRequest extends Request {
   user?: { id: number };
+  auth?: { perfil: string; sessionId: string };
 }
 
 @Injectable()
@@ -20,6 +23,7 @@ export class JwtAuthGuard implements CanActivate {
     private readonly jwt: JwtService,
     private readonly users: AuthUserRepository,
     private readonly reflector: Reflector,
+    @Optional() private readonly sessions?: SecurityTelemetryService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -30,6 +34,9 @@ export class JwtAuthGuard implements CanActivate {
       ])
     ) {
       return true;
+    }
+    if (!this.sessions && process.env.NODE_ENV !== 'test') {
+      throw new UnauthorizedException('Sessões persistidas indisponíveis');
     }
 
     const request = context
@@ -58,10 +65,22 @@ export class JwtAuthGuard implements CanActivate {
       throw new UnauthorizedException('Token ausente ou inválido');
     }
     const user = await this.users.findById(payload.sub);
-    if (!user || !user.ativo || user.perfil !== 'ADMIN') {
+    if (!user || !user.ativo || !['ADMIN', 'MASTER'].includes(user.perfil)) {
       throw new UnauthorizedException('Token ausente ou inválido');
     }
+    const sessionId =
+      'jti' in payload && typeof payload.jti === 'string'
+        ? payload.jti
+        : undefined;
+    if (
+      this.sessions &&
+      (!sessionId ||
+        !(await this.sessions.validarEAtualizarSessao(sessionId, payload.sub)))
+    ) {
+      throw new UnauthorizedException('Sessão expirada ou revogada');
+    }
     request.user = { id: payload.sub };
+    request.auth = { perfil: user.perfil, sessionId: sessionId ?? '' };
     return true;
   }
 }

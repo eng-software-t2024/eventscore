@@ -38,6 +38,15 @@ import { ItemBonificacaoConfigDto } from '../modules/configuracao/dto/item-bonif
 import { ResultadoSalvoDto } from '../modules/resultados/dto/resultado-salvo.dto.js';
 import { ResultadoDto } from '../modules/resultados/dto/resultado.dto.js';
 import { SalvarResultadoDto } from '../modules/resultados/dto/salvar-resultado.dto.js';
+import {
+  AtualizarUsuarioDto,
+  CriarUsuarioDto,
+  EventoFrontendDto,
+  FiltroTelemetriaDto,
+  ListarUsuariosDto,
+  RedefinirSenhaDto,
+  RevogarSessaoDto,
+} from '../modules/management/management.dto.js';
 
 export function configurarSwagger(app: INestApplication): void {
   const swaggerConfig = new DocumentBuilder()
@@ -89,6 +98,13 @@ export function configurarSwagger(app: INestApplication): void {
       CriterioDesempateConfigDto,
       ErroPadraoDto,
       ErroValidacaoDto,
+      AtualizarUsuarioDto,
+      CriarUsuarioDto,
+      EventoFrontendDto,
+      FiltroTelemetriaDto,
+      ListarUsuariosDto,
+      RedefinirSenhaDto,
+      RevogarSessaoDto,
     ],
   });
   SwaggerModule.setup('api/docs', app, document, {

@@ -13,6 +13,7 @@ export interface AuthenticatedUser {
   id: number;
   nome: string;
   email: string;
+  perfil: string;
 }
 
 @Injectable()
@@ -32,7 +33,7 @@ export class AuthService {
     const { email, senha } = result.data;
     const user = await this.users.findByEmail(email.toLowerCase());
 
-    if (!user || !user.ativo || user.perfil !== 'ADMIN') {
+    if (!user || !user.ativo || !['ADMIN', 'MASTER'].includes(user.perfil)) {
       throw new UnauthorizedException('E-mail ou senha inválidos');
     }
 
@@ -41,15 +42,25 @@ export class AuthService {
       throw new UnauthorizedException('E-mail ou senha inválidos');
     }
 
-    return { id: user.id, nome: user.nome, email: user.email };
+    return {
+      id: user.id,
+      nome: user.nome,
+      email: user.email,
+      perfil: user.perfil,
+    };
   }
 
   async getCurrentUser(id: number): Promise<AuthenticatedUser> {
     const user = await this.users.findById(id);
-    if (!user || !user.ativo || user.perfil !== 'ADMIN') {
+    if (!user || !user.ativo || !['ADMIN', 'MASTER'].includes(user.perfil)) {
       throw new UnauthorizedException('Token ausente ou inválido');
     }
 
-    return { id: user.id, nome: user.nome, email: user.email };
+    return {
+      id: user.id,
+      nome: user.nome,
+      email: user.email,
+      perfil: user.perfil,
+    };
   }
 }

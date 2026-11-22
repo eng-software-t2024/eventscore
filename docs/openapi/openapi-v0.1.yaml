@@ -1,13 +1,15 @@
 openapi: 3.0.3
 info:
   title: "EventScore API (Arena Comp 2026)"
-  version: "0.3.0"
+  version: "0.4.0"
   description: |
     Especificação formal completa da API RESTful do **EventScore**, desenvolvida para a competição acadêmica **Arena Comp 2026**.
 
     A versão **v0.2.0** consolida 100% do contrato da aplicação (Sprints 01 e 02 — 44 operações distribuídas em 30 rotas), alinhada ao Contrato v0.3 aprovado pelo Frontend, às decisões arquiteturais do **ADR 0003** (migração V12) e **ADR 0004** (auditoria), e aos recortes homologados de Participantes (`#203`), Frequência (`#205`), Desafios (`#202` / `#245` — PR #31), Resultados (`#223` — PR #35), Bonificações/Penalidades/Classificação (`#206`), Configuração (`#199`), Apuração (`#204`) e Relatórios (`#207` / `#228` / `#229`).
 
     A versão **v0.3.0** acrescenta o `id` de cada item em `BonificacaoItemResumoDto` (resposta de `GET /eventos/{eventoId}/bonificacoes` e de `PUT /eventos/{eventoId}/bonificacoes/{grupoId}`), usado como `registroId` em `GET /auditoria?entidade=BONIFICACAO_GRUPO` (RF18, PR #51). Mudança compatível: o corpo do PUT não muda.
+
+    A versão **v0.4.0** acrescenta gestão exclusiva MASTER, sessões JWT persistidas, telemetria minimizada e auditoria administrativa append-only. Sessões expiram em 15 minutos de inatividade; telemetria é retida por 30 dias após o encerramento do período de teste.
 
     ### Principais Decisões de Contrato:
     - **Prefixo base:** `/api/v1` (definido nos servidores).
@@ -30,6 +32,10 @@ servers:
     description: "Ambiente de desenvolvimento local"
 
 tags:
+  - name: Gestão MASTER
+    description: "Gestão de usuários, sessões e telemetria, exclusiva do perfil MASTER."
+  - name: Telemetria
+    description: "Eventos de uso minimizados, sem credenciais ou conteúdo de formulário."
   - name: Auth
     description: "Autenticação e perfil do usuário do sistema"
   - name: Eventos
@@ -59,6 +65,485 @@ security:
   - bearerAuth: []
 
 paths:
+  /auth/logout:
+    post:
+      operationId: AuthController_logout
+      parameters: []
+      responses:
+        '204':
+          description: Sessão encerrada e mantida por 30 dias.
+      security:
+        - bearerAuth: []
+      tags:
+        - Auth
+  /management/users:
+    get:
+      operationId: ManagementController_users
+      parameters:
+        - name: busca
+          required: false
+          in: query
+          schema:
+            maxLength: 100
+            type: string
+        - name: perfil
+          required: false
+          in: query
+          schema:
+            type: string
+            enum:
+              - ADMIN
+              - MASTER
+        - name: ativo
+          required: false
+          in: query
+          schema:
+            type: boolean
+        - name: pagina
+          required: false
+          in: query
+          schema:
+            minimum: 1
+            default: 1
+            type: integer
+        - name: limite
+          required: false
+          in: query
+          schema:
+            minimum: 1
+            maximum: 100
+            default: 25
+            type: integer
+      responses:
+        '200':
+          description: Usuários filtrados e contagens de referências usadas para habilitar exclusão segura.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - dados
+                  - total
+                  - pagina
+                  - limite
+                properties:
+                  dados:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UsuarioGestaoDto'
+                  total:
+                    type: integer
+                  pagina:
+                    type: integer
+                  limite:
+                    type: integer
+        '403':
+          description: Acesso exclusivo ao perfil MASTER.
+      security:
+        - bearerAuth: []
+      summary: Listar e filtrar usuários
+      tags:
+        - Gestão MASTER
+      description: Acesso exclusivo ao perfil MASTER; ADMIN recebe 403.
+    post:
+      operationId: ManagementController_createUser
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CriarUsuarioDto'
+      responses:
+        '201':
+          description: Usuário ADMIN criado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsuarioGestaoDto'
+        '403':
+          description: Acesso exclusivo ao perfil MASTER.
+      security:
+        - bearerAuth: []
+      summary: Criar usuário ADMIN
+      tags:
+        - Gestão MASTER
+      description: Acesso exclusivo ao perfil MASTER; ADMIN recebe 403.
+  /management/users/{id}:
+    patch:
+      operationId: ManagementController_updateUser
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AtualizarUsuarioDto'
+      responses:
+        '200':
+          description: Dados do usuário atualizados; perfil preservado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsuarioGestaoDto'
+        '403':
+          description: Acesso exclusivo ao perfil MASTER.
+      security:
+        - bearerAuth: []
+      summary: Editar ou ativar/desativar usuário
+      tags:
+        - Gestão MASTER
+      description: Acesso exclusivo ao perfil MASTER; ADMIN recebe 403.
+    delete:
+      operationId: ManagementController_deleteUser
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: number
+      responses:
+        '200':
+          description: Usuário sem referências removido; auditoria administrativa preservada.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  nome:
+                    type: string
+                  email:
+                    type: string
+                    format: email
+        '403':
+          description: Acesso exclusivo ao perfil MASTER.
+      security:
+        - bearerAuth: []
+      summary: Excluir usuário sem referências
+      tags:
+        - Gestão MASTER
+      description: Acesso exclusivo ao perfil MASTER; ADMIN recebe 403.
+  /management/users/{id}/password:
+    post:
+      operationId: ManagementController_resetPassword
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RedefinirSenhaDto'
+      responses:
+        '201':
+          description: Senha redefinida e sessões anteriores revogadas.
+        '403':
+          description: Acesso exclusivo ao perfil MASTER.
+      security:
+        - bearerAuth: []
+      summary: Redefinir senha e revogar sessões existentes
+      tags:
+        - Gestão MASTER
+      description: Acesso exclusivo ao perfil MASTER; ADMIN recebe 403.
+  /management/sessions:
+    get:
+      operationId: ManagementController_sessions
+      parameters:
+        - name: usuarioId
+          required: true
+          in: query
+          schema:
+            type: string
+        - name: limite
+          required: true
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Sessões atuais e encerradas dentro da retenção.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AuthSessionDto'
+        '403':
+          description: Acesso exclusivo ao perfil MASTER.
+      security:
+        - bearerAuth: []
+      summary: Listar sessões e seu estado
+      tags:
+        - Gestão MASTER
+      description: Acesso exclusivo ao perfil MASTER; ADMIN recebe 403.
+  /management/sessions/{id}/revoke:
+    post:
+      operationId: ManagementController_revoke
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RevogarSessaoDto'
+      responses:
+        '201':
+          description: Sessão revogada; mantida por 30 dias.
+        '403':
+          description: Acesso exclusivo ao perfil MASTER.
+      security:
+        - bearerAuth: []
+      summary: Revogar sessão ativa
+      tags:
+        - Gestão MASTER
+      description: Acesso exclusivo ao perfil MASTER; ADMIN recebe 403.
+  /management/telemetry/events:
+    get:
+      operationId: ManagementController_telemetry
+      parameters:
+        - name: limite
+          required: false
+          in: query
+          schema:
+            minimum: 1
+            maximum: 100
+            default: 50
+            type: integer
+        - name: tipo
+          required: false
+          in: query
+          schema:
+            maxLength: 60
+            type: string
+        - name: usuarioId
+          required: false
+          in: query
+          schema:
+            minimum: 1
+            type: number
+        - name: desde
+          required: false
+          in: query
+          schema:
+            format: date-time
+            type: string
+        - name: ate
+          required: false
+          in: query
+          schema:
+            format: date-time
+            type: string
+      responses:
+        '200':
+          description: Eventos de telemetria filtrados, sem credenciais nem conteúdo de formulários.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TelemetryEventDto'
+        '403':
+          description: Acesso exclusivo ao perfil MASTER.
+      security:
+        - bearerAuth: []
+      summary: Consultar telemetria com filtros
+      tags:
+        - Gestão MASTER
+      description: Acesso exclusivo ao perfil MASTER; ADMIN recebe 403.
+  /management/telemetry/users/{id}/timeline:
+    get:
+      operationId: ManagementController_timeline
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: number
+        - name: limite
+          required: true
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Linha do tempo combinando telemetria e auditoria administrativa.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TimelineEventDto'
+        '403':
+          description: Acesso exclusivo ao perfil MASTER.
+      security:
+        - bearerAuth: []
+      summary: Linha do tempo de um usuário
+      tags:
+        - Gestão MASTER
+      description: Acesso exclusivo ao perfil MASTER; ADMIN recebe 403.
+  /management/telemetry/export.csv:
+    get:
+      operationId: ManagementController_exportTelemetry
+      parameters:
+        - name: limite
+          required: false
+          in: query
+          schema:
+            minimum: 1
+            maximum: 100
+            default: 50
+            type: integer
+        - name: tipo
+          required: false
+          in: query
+          schema:
+            maxLength: 60
+            type: string
+        - name: usuarioId
+          required: false
+          in: query
+          schema:
+            minimum: 1
+            type: number
+        - name: desde
+          required: false
+          in: query
+          schema:
+            format: date-time
+            type: string
+        - name: ate
+          required: false
+          in: query
+          schema:
+            format: date-time
+            type: string
+      responses:
+        '200':
+          description: CSV UTF-8 de telemetria; limite máximo de 100 linhas.
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+        '403':
+          description: Acesso exclusivo ao perfil MASTER.
+      security:
+        - bearerAuth: []
+      tags:
+        - Gestão MASTER
+      description: Acesso exclusivo ao perfil MASTER; ADMIN recebe 403.
+  /management/telemetry/period:
+    get:
+      operationId: ManagementController_period
+      parameters: []
+      responses:
+        '200':
+          description: Período de telemetria atual.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TelemetryPeriodDto'
+        '403':
+          description: Acesso exclusivo ao perfil MASTER.
+      security:
+        - bearerAuth: []
+      summary: Consultar período atual e retenção
+      tags:
+        - Gestão MASTER
+      description: Acesso exclusivo ao perfil MASTER; ADMIN recebe 403.
+  /management/telemetry/period/close:
+    post:
+      operationId: ManagementController_closePeriod
+      parameters: []
+      responses:
+        '201':
+          description: Encerramento inicia retenção de telemetria por 30 dias.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - id
+                  - encerrado
+                  - purgeAfter
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  encerrado:
+                    type: boolean
+                  purgeAfter:
+                    type: string
+                    format: date-time
+        '403':
+          description: Acesso exclusivo ao perfil MASTER.
+      security:
+        - bearerAuth: []
+      summary: Encerrar período e iniciar retenção de 30 dias
+      tags:
+        - Gestão MASTER
+      description: Acesso exclusivo ao perfil MASTER; ADMIN recebe 403.
+  /management/audit:
+    get:
+      operationId: ManagementController_audit
+      parameters:
+        - name: limite
+          required: true
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Auditoria administrativa append-only, fora do expurgo de telemetria.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AdminAuditEventDto'
+        '403':
+          description: Acesso exclusivo ao perfil MASTER.
+      security:
+        - bearerAuth: []
+      summary: Consultar auditoria administrativa imutável
+      tags:
+        - Gestão MASTER
+      description: Acesso exclusivo ao perfil MASTER; ADMIN recebe 403.
+  /telemetry/client:
+    post:
+      operationId: ClientTelemetryController_register
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EventoFrontendDto'
+      responses:
+        '204':
+          description: Evento sem conteúdo de formulário aceito.
+      security:
+        - bearerAuth: []
+      summary: Registrar evento sem conteúdo de formulário
+      tags:
+        - Telemetria
+
   /auth/login:
     post:
       tags:
@@ -1992,6 +2477,7 @@ components:
         - id
         - nome
         - email
+        - perfil
       properties:
         id:
           type: integer
@@ -2006,8 +2492,249 @@ components:
           format: email
           description: "E-mail cadastrado do usuário."
           example: "admin@arena.com"
+        perfil:
+          type: string
+          enum: [ADMIN, MASTER]
+          description: "Perfil autenticado do usuário."
 
     # ----------------------------------------------------
+    UsuarioGestaoDto:
+      type: object
+      required:
+        - id
+        - nome
+        - email
+        - perfil
+        - ativo
+        - referencias
+        - podeExcluir
+      properties:
+        id:
+          type: integer
+        nome:
+          type: string
+        email:
+          type: string
+          format: email
+        perfil:
+          type: string
+          enum:
+            - ADMIN
+            - MASTER
+        ativo:
+          type: boolean
+        referencias:
+          type: object
+          additionalProperties:
+            type: integer
+        podeExcluir:
+          type: boolean
+    AuthSessionDto:
+      type: object
+      required:
+        - id
+        - usuarioId
+        - issuedAt
+        - lastActivityAt
+        - expiresAt
+        - usuario
+      properties:
+        id:
+          type: string
+          format: uuid
+        usuarioId:
+          type: integer
+        issuedAt:
+          type: string
+          format: date-time
+        lastActivityAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        endedAt:
+          type: string
+          format: date-time
+          nullable: true
+        endReason:
+          type: string
+          enum:
+            - LOGOUT
+            - EXPIRED
+            - REVOKED
+          nullable: true
+        ip:
+          type: string
+          nullable: true
+        userAgent:
+          type: string
+          nullable: true
+        usuario:
+          type: object
+          properties:
+            nome:
+              type: string
+            email:
+              type: string
+              format: email
+    TelemetryEventDto:
+      type: object
+      required:
+        - id
+        - occurredAt
+        - source
+        - eventType
+        - outcome
+      properties:
+        id:
+          type: string
+          format: uuid
+        usuarioId:
+          type: integer
+          nullable: true
+        occurredAt:
+          type: string
+          format: date-time
+        source:
+          type: string
+          enum:
+            - API
+            - FRONTEND
+            - AUTH
+            - SYSTEM
+        eventType:
+          type: string
+        method:
+          type: string
+          nullable: true
+        route:
+          type: string
+          nullable: true
+        status:
+          type: integer
+          nullable: true
+        durationMs:
+          type: integer
+          nullable: true
+        outcome:
+          type: string
+          enum:
+            - SUCCESS
+            - FAILURE
+            - INFO
+        correlationId:
+          type: string
+          nullable: true
+        ip:
+          type: string
+          nullable: true
+        userAgent:
+          type: string
+          nullable: true
+        details:
+          type: object
+        usuario:
+          type: object
+          nullable: true
+          properties:
+            nome:
+              type: string
+            email:
+              type: string
+              format: email
+    TimelineEventDto:
+      type: object
+      required:
+        - occurredAt
+        - categoria
+      properties:
+        occurredAt:
+          type: string
+          format: date-time
+        categoria:
+          type: string
+          enum:
+            - TELEMETRIA
+            - AUDITORIA_GESTAO
+        eventType:
+          type: string
+        action:
+          type: string
+        source:
+          type: string
+        outcome:
+          type: string
+        route:
+          type: string
+        status:
+          type: integer
+        actorUserId:
+          type: integer
+        details:
+          type: object
+    TelemetryPeriodDto:
+      type: object
+      required:
+        - id
+        - status
+        - startedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+            - OPEN
+            - CLOSED
+        startedAt:
+          type: string
+          format: date-time
+        endedAt:
+          type: string
+          format: date-time
+          nullable: true
+        purgeAfter:
+          type: string
+          format: date-time
+          nullable: true
+    AdminAuditEventDto:
+      type: object
+      required:
+        - id
+        - actorUserId
+        - action
+        - occurredAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        actorUserId:
+          type: integer
+        targetUserId:
+          type: integer
+          nullable: true
+        action:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+        correlationId:
+          type: string
+          nullable: true
+        details:
+          type: object
+        actor:
+          type: object
+          properties:
+            nome:
+              type: string
+            email:
+              type: string
+              format: email
+
+
     # Eventos
     # ----------------------------------------------------
     EventoResumoDto:
@@ -3604,6 +4331,121 @@ components:
     # ----------------------------------------------------
     # Erros Padrão NestJS
     # ----------------------------------------------------
+    CriarUsuarioDto:
+      type: object
+      properties:
+        nome:
+          type: string
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          maxLength: 150
+        senha:
+          type: string
+          format: password
+          minLength: 12
+          maxLength: 128
+      required:
+      - nome
+      - email
+      - senha
+    AtualizarUsuarioDto:
+      type: object
+      properties:
+        nome:
+          type: string
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          maxLength: 150
+        ativo:
+          type: boolean
+    RedefinirSenhaDto:
+      type: object
+      properties:
+        senha:
+          type: string
+          format: password
+          minLength: 12
+          maxLength: 128
+      required:
+      - senha
+    EventoFrontendDto:
+      type: object
+      properties:
+        eventType:
+          type: string
+          enum:
+          - ROUTE_CHANGE
+          - ACTION
+          - MODAL_OPEN
+          - MODAL_CLOSE
+          - FORM_SUBMIT
+          - JS_ERROR
+          - API_FAILURE
+          - TAB_VISIBILITY
+          - IDLE
+        rota:
+          type: string
+          maxLength: 255
+        acao:
+          type: string
+          maxLength: 80
+        visivel:
+          type: boolean
+      required:
+      - eventType
+    FiltroTelemetriaDto:
+      type: object
+      properties:
+        limite:
+          type: number
+          default: 50
+          maximum: 100
+          minimum: 1
+        tipo:
+          type: string
+          maxLength: 60
+        usuarioId:
+          type: number
+          minimum: 1
+        desde:
+          type: string
+          format: date-time
+        ate:
+          type: string
+          format: date-time
+    ListarUsuariosDto:
+      type: object
+      properties:
+        busca:
+          type: string
+          maxLength: 100
+        perfil:
+          type: string
+          enum:
+          - ADMIN
+          - MASTER
+        ativo:
+          type: boolean
+        pagina:
+          type: number
+          default: 1
+          minimum: 1
+        limite:
+          type: number
+          default: 25
+          maximum: 100
+          minimum: 1
+    RevogarSessaoDto:
+      type: object
+      properties:
+        justificativa:
+          type: string
+          maxLength: 255
+
     ErroPadraoDto:
       type: object
       required:

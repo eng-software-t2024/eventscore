@@ -31,6 +31,7 @@
     "db:studio": "prisma studio",
     "db:seed": "npm run build && node --env-file-if-exists=.env dist/scripts/seed-dev.js",
     "db:admin": "node --env-file-if-exists=.env dist/scripts/criar-admin.js",
+    "db:master": "node --env-file-if-exists=.env dist/scripts/criar-master.js",
     "postinstall": "prisma generate"
   },
   "dependencies": {
