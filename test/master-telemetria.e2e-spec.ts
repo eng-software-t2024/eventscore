@@ -140,6 +140,50 @@ describe('Gestão MASTER, sessões e telemetria (e2e)', () => {
     expect(JSON.stringify(rows)).not.toContain(adminToken);
   });
 
+  it('não renova a sessão com telemetria automática, mas renova com atividade real', async () => {
+    const login = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ email: `${prefix}-master@example.test`, senha })
+      .expect(200);
+    const claims = JSON.parse(
+      Buffer.from(login.body.token.split('.')[1], 'base64url').toString(),
+    ) as { jti: string };
+    const lastActivityAt = new Date(Date.now() - 60_000);
+    await prisma.authSession.update({
+      where: { id: claims.jti },
+      data: { lastActivityAt },
+    });
+
+    await request(app.getHttpServer())
+      .post('/api/v1/telemetry/client')
+      .set('Authorization', `Bearer ${login.body.token}`)
+      .send({ eventType: 'TAB_VISIBILITY', visivel: true })
+      .expect(204);
+    await request(app.getHttpServer())
+      .post('/api/v1/telemetry/client')
+      .set('Authorization', `Bearer ${login.body.token}`)
+      .send({ eventType: 'IDLE' })
+      .expect(204);
+    const afterAutomaticEvent = await prisma.authSession.findUniqueOrThrow({
+      where: { id: claims.jti },
+    });
+    expect(afterAutomaticEvent.lastActivityAt.getTime()).toBe(
+      lastActivityAt.getTime(),
+    );
+
+    await request(app.getHttpServer())
+      .post('/api/v1/telemetry/client')
+      .set('Authorization', `Bearer ${login.body.token}`)
+      .send({ eventType: 'ACTION', acao: 'navigation.real_click' })
+      .expect(204);
+    const afterRealActivity = await prisma.authSession.findUniqueOrThrow({
+      where: { id: claims.jti },
+    });
+    expect(afterRealActivity.lastActivityAt.getTime()).toBeGreaterThan(
+      lastActivityAt.getTime(),
+    );
+  });
+
   it('cria, edita, redefine senha e desativa ADMIN com auditoria de negócio', async () => {
     const targetEmail = `${prefix}-criado@example.test`;
     const created = await request(app.getHttpServer())
@@ -242,10 +286,50 @@ describe('Gestão MASTER, sessões e telemetria (e2e)', () => {
     );
   });
 
-  it('fecha período com retenção de 30 dias sem tocar na auditoria administrativa', async () => {
+  it('exporta apenas o tipo filtrado e todos os tipos quando não há filtro', async () => {
+    let period = await prisma.telemetryPeriod.findFirst({
+      where: { status: 'OPEN' },
+    });
+    if (!period)
+      period = await prisma.telemetryPeriod.create({
+        data: { id: randomUUID() },
+      });
+    const tipoCorrespondente = `CSV_MATCH_${randomUUID().slice(0, 8)}`;
+    const tipoAlheio = `CSV_OTHER_${randomUUID().slice(0, 8)}`;
+    await prisma.telemetryEvent.createMany({
+      data: [tipoCorrespondente, tipoAlheio].map((eventType) => ({
+        id: randomUUID(),
+        periodId: period!.id,
+        usuarioId: masterId,
+        source: 'SYSTEM',
+        eventType,
+        outcome: 'INFO',
+      })),
+    });
+
+    const filtrado = await request(app.getHttpServer())
+      .get(
+        `/api/v1/management/telemetry/export.csv?limite=100&tipo=${tipoCorrespondente}`,
+      )
+      .set('Authorization', `Bearer ${masterToken}`)
+      .expect(200);
+    expect(filtrado.text).toContain(`"${tipoCorrespondente}"`);
+    expect(filtrado.text).not.toContain(`"${tipoAlheio}"`);
+
+    const semFiltro = await request(app.getHttpServer())
+      .get('/api/v1/management/telemetry/export.csv?limite=100')
+      .set('Authorization', `Bearer ${masterToken}`)
+      .expect(200);
+    expect(semFiltro.text).toContain(`"${tipoCorrespondente}"`);
+    expect(semFiltro.text).toContain(`"${tipoAlheio}"`);
+  });
+
+  it('fecha período e grava a auditoria na mesma transação', async () => {
+    const correlationId = randomUUID();
     const response = await request(app.getHttpServer())
       .post('/api/v1/management/telemetry/period/close')
       .set('Authorization', `Bearer ${masterToken}`)
+      .set('x-correlation-id', correlationId)
       .send({})
       .expect(201);
     expect(response.body.encerrado).toBe(true);
@@ -256,17 +340,114 @@ describe('Gestão MASTER, sessões e telemetria (e2e)', () => {
       where: { id: response.body.id },
     });
     expect(period.status).toBe('CLOSED');
-    expect(
-      await prisma.adminAuditEvent.count({
-        where: { action: 'TELEMETRY_PERIOD_CLOSED', actorUserId: masterId },
-      }),
-    ).toBeGreaterThan(0);
+    const audit = await prisma.adminAuditEvent.findFirstOrThrow({
+      where: {
+        action: 'TELEMETRY_PERIOD_CLOSED',
+        actorUserId: masterId,
+        correlationId,
+      },
+    });
+    expect(audit.details).toMatchObject({ periodId: period.id, updated: 1 });
     const csv = await request(app.getHttpServer())
       .get('/api/v1/management/telemetry/export.csv')
       .set('Authorization', `Bearer ${masterToken}`)
       .expect(200);
     expect(csv.headers['content-type']).toContain('text/csv');
     expect(csv.text).toContain('horario_utc');
+  });
+
+  it('não grava auditoria quando o fechamento falha e preserva o período aberto', async () => {
+    let period = await prisma.telemetryPeriod.findFirst({
+      where: { status: 'OPEN' },
+    });
+    if (!period)
+      period = await prisma.telemetryPeriod.create({
+        data: { id: randomUUID() },
+      });
+    const correlationId = randomUUID();
+    await prisma.$executeRawUnsafe(`
+      CREATE FUNCTION e2e_fail_telemetry_period_close() RETURNS trigger
+      LANGUAGE plpgsql AS $$ BEGIN
+        IF NEW.status = 'CLOSED' THEN RAISE EXCEPTION 'forced e2e close failure'; END IF;
+        RETURN NEW;
+      END; $$;
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE TRIGGER e2e_fail_telemetry_period_close
+      BEFORE UPDATE ON telemetry_period
+      FOR EACH ROW EXECUTE FUNCTION e2e_fail_telemetry_period_close();
+    `);
+    try {
+      await request(app.getHttpServer())
+        .post('/api/v1/management/telemetry/period/close')
+        .set('Authorization', `Bearer ${masterToken}`)
+        .set('x-correlation-id', correlationId)
+        .send({})
+        .expect(500);
+      const unchanged = await prisma.telemetryPeriod.findUniqueOrThrow({
+        where: { id: period.id },
+      });
+      expect(unchanged.status).toBe('OPEN');
+      expect(
+        await prisma.adminAuditEvent.count({
+          where: { action: 'TELEMETRY_PERIOD_CLOSED', correlationId },
+        }),
+      ).toBe(0);
+    } finally {
+      await prisma.$executeRawUnsafe(
+        'DROP TRIGGER e2e_fail_telemetry_period_close ON telemetry_period',
+      );
+      await prisma.$executeRawUnsafe(
+        'DROP FUNCTION e2e_fail_telemetry_period_close()',
+      );
+    }
+  });
+
+  it('reverte o fechamento se a auditoria falha', async () => {
+    let period = await prisma.telemetryPeriod.findFirst({
+      where: { status: 'OPEN' },
+    });
+    if (!period)
+      period = await prisma.telemetryPeriod.create({
+        data: { id: randomUUID() },
+      });
+    const correlationId = randomUUID();
+    await prisma.$executeRawUnsafe(`
+      CREATE FUNCTION e2e_fail_telemetry_close_audit() RETURNS trigger
+      LANGUAGE plpgsql AS $$ BEGIN
+        IF NEW.action = 'TELEMETRY_PERIOD_CLOSED' THEN RAISE EXCEPTION 'forced e2e audit failure'; END IF;
+        RETURN NEW;
+      END; $$;
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE TRIGGER e2e_fail_telemetry_close_audit
+      BEFORE INSERT ON admin_audit_event
+      FOR EACH ROW EXECUTE FUNCTION e2e_fail_telemetry_close_audit();
+    `);
+    try {
+      await request(app.getHttpServer())
+        .post('/api/v1/management/telemetry/period/close')
+        .set('Authorization', `Bearer ${masterToken}`)
+        .set('x-correlation-id', correlationId)
+        .send({})
+        .expect(500);
+      const unchanged = await prisma.telemetryPeriod.findUniqueOrThrow({
+        where: { id: period.id },
+      });
+      expect(unchanged.status).toBe('OPEN');
+      expect(
+        await prisma.adminAuditEvent.count({
+          where: { action: 'TELEMETRY_PERIOD_CLOSED', correlationId },
+        }),
+      ).toBe(0);
+    } finally {
+      await prisma.$executeRawUnsafe(
+        'DROP TRIGGER e2e_fail_telemetry_close_audit ON admin_audit_event',
+      );
+      await prisma.$executeRawUnsafe(
+        'DROP FUNCTION e2e_fail_telemetry_close_audit()',
+      );
+    }
   });
 
   it('exclui usuário sem referências e preserva o registro de auditoria da ação', async () => {

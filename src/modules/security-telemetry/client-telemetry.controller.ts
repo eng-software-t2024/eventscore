@@ -24,10 +24,15 @@ export class ClientTelemetryController {
     @Body() body: EventoFrontendDto,
     @Req() req: JwtAuthenticatedRequest,
   ) {
-    await this.management.registrarEventoFrontend(req.user!.id, body, {
-      ip: req.ip,
-      userAgent: req.get('user-agent'),
-      correlationId: req.get('x-correlation-id'),
-    });
+    await this.management.registrarEventoFrontend(
+      req.user!.id,
+      body,
+      req.auth!.sessionId,
+      {
+        ip: req.ip,
+        userAgent: req.get('user-agent'),
+        correlationId: req.get('x-correlation-id'),
+      },
+    );
   }
 }

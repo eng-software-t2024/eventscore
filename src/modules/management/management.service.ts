@@ -2,12 +2,30 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import * as argon2 from 'argon2';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { SecurityTelemetryService } from '../security-telemetry/security-telemetry.service.js';
 import type { AtualizarUsuarioDto, CriarUsuarioDto } from './management.dto.js';
+
+const EVENTOS_DE_ATIVIDADE_REAL = new Set([
+  'ROUTE_CHANGE',
+  'ACTION',
+  'FORM_SUBMIT',
+]);
+const EVENTOS_CLIENTE_PERMITIDOS = new Set([
+  'ROUTE_CHANGE',
+  'ACTION',
+  'MODAL_OPEN',
+  'MODAL_CLOSE',
+  'FORM_SUBMIT',
+  'JS_ERROR',
+  'API_FAILURE',
+  'TAB_VISIBILITY',
+  'IDLE',
+]);
 
 @Injectable()
 export class ManagementService {
@@ -428,30 +446,35 @@ export class ManagementService {
   }
 
   async encerrarPeriodo(actor: number, correlationId?: string) {
-    const period = await this.periodo();
-    const now = new Date();
-    const closed = await this.prisma.telemetryPeriod.updateMany({
-      where: { id: period.id, status: 'OPEN' },
-      data: {
-        status: 'CLOSED',
-        endedAt: now,
-        purgeAfter: new Date(now.getTime() + 30 * 86400000),
-      },
+    return this.prisma.$transaction(async (tx) => {
+      let period = await tx.telemetryPeriod.findFirst({
+        where: { status: 'OPEN' },
+        orderBy: { startedAt: 'desc' },
+      });
+      if (!period) {
+        period = await tx.telemetryPeriod.create({
+          data: { id: crypto.randomUUID() },
+        });
+      }
+      const now = new Date();
+      const purgeAfter = new Date(now.getTime() + 30 * 86400000);
+      const closed = await tx.telemetryPeriod.updateMany({
+        where: { id: period.id, status: 'OPEN' },
+        data: { status: 'CLOSED', endedAt: now, purgeAfter },
+      });
+      if (closed.count !== 1)
+        throw new ConflictException('Período de telemetria não está aberto');
+      await tx.adminAuditEvent.create({
+        data: {
+          id: crypto.randomUUID(),
+          actorUserId: actor,
+          action: 'TELEMETRY_PERIOD_CLOSED',
+          correlationId,
+          details: { periodId: period.id, updated: closed.count },
+        },
+      });
+      return { id: period.id, encerrado: closed.count === 1, purgeAfter };
     });
-    await this.prisma.adminAuditEvent.create({
-      data: {
-        id: crypto.randomUUID(),
-        actorUserId: actor,
-        action: 'TELEMETRY_PERIOD_CLOSED',
-        correlationId,
-        details: { periodId: period.id, updated: closed.count },
-      },
-    });
-    return {
-      id: period.id,
-      encerrado: closed.count === 1,
-      purgeAfter: new Date(now.getTime() + 30 * 86400000),
-    };
   }
 
   async registrarEventoFrontend(
@@ -462,21 +485,16 @@ export class ManagementService {
       acao?: string;
       visivel?: boolean;
     },
+    sessionId: string,
     requestMeta: { ip?: string; userAgent?: string; correlationId?: string },
   ) {
-    const allowed = new Set([
-      'ROUTE_CHANGE',
-      'ACTION',
-      'MODAL_OPEN',
-      'MODAL_CLOSE',
-      'FORM_SUBMIT',
-      'JS_ERROR',
-      'API_FAILURE',
-      'TAB_VISIBILITY',
-      'IDLE',
-    ]);
-    if (!allowed.has(event.eventType))
+    if (!EVENTOS_CLIENTE_PERMITIDOS.has(event.eventType))
       throw new ConflictException('Evento de telemetria inválido');
+    if (
+      EVENTOS_DE_ATIVIDADE_REAL.has(event.eventType) &&
+      !(await this.telemetry.validarEAtualizarSessao(sessionId, userId))
+    )
+      throw new UnauthorizedException('Sessão expirada ou revogada');
     const details = {
       ...(event.rota ? { route: normalizeClientRoute(event.rota) } : {}),
       ...(event.acao

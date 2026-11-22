@@ -16,7 +16,7 @@ describe('SecurityTelemetryService', () => {
   const service = new SecurityTelemetryService(prisma as never);
   beforeEach(() => vi.clearAllMocks());
 
-  it('exige sessão persistida com atividade recente e atualiza o instante', async () => {
+  it('renova sessão persistida após atividade real', async () => {
     const now = new Date();
     prisma.authSession.findUnique.mockResolvedValue({
       id: 's',
@@ -30,6 +30,22 @@ describe('SecurityTelemetryService', () => {
     expect(prisma.authSession.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({ data: { lastActivityAt: expect.any(Date) } }),
     );
+  });
+
+  it('valida evento automático sem renovar o último acesso', async () => {
+    const now = new Date();
+    const lastActivityAt = new Date(now.getTime() - 60_000);
+    prisma.authSession.findUnique.mockResolvedValue({
+      id: 's',
+      usuarioId: 9,
+      endedAt: null,
+      expiresAt: new Date(now.getTime() + 3600000),
+      lastActivityAt,
+    });
+
+    await expect(service.validarSessaoSemRenovar('s', 9)).resolves.toBe(true);
+
+    expect(prisma.authSession.updateMany).not.toHaveBeenCalled();
   });
 
   it('encerra sessão após 15 minutos sem atividade', async () => {

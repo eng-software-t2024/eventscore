@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { ApiError, api, token } from '../../api/client';
+import { parametrosTelemetria } from './telemetry-query';
 import './GestaoMaster.css';
 
 type User = {
@@ -90,10 +91,10 @@ export default function GestaoMaster() {
       if (tab === 'sessoes')
         setSessions(await api<Session[]>('/management/sessions?limite=100'));
       if (tab === 'telemetria') {
-        const params = new URLSearchParams({ limite: '100' });
-        if (eventType) params.set('tipo', eventType);
         setEvents(
-          await api<Telemetry[]>(`/management/telemetry/events?${params}`),
+          await api<Telemetry[]>(
+            `/management/telemetry/events?${parametrosTelemetria(eventType)}`,
+          ),
         );
         setPeriod(await api<Period>('/management/telemetry/period'));
       }
@@ -752,7 +753,7 @@ export default function GestaoMaster() {
   async function baixarCsv() {
     try {
       const response = await fetch(
-        '/api/v1/management/telemetry/export.csv?limite=100',
+        `/api/v1/management/telemetry/export.csv?${parametrosTelemetria(eventType)}`,
         { headers: { Authorization: `Bearer ${token.ler()}` } },
       );
       if (!response.ok)

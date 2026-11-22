@@ -67,6 +67,21 @@ export class SecurityTelemetryService implements OnModuleInit, OnModuleDestroy {
     id: string,
     usuarioId: number,
   ): Promise<boolean> {
+    return this.validarSessao(id, usuarioId, true);
+  }
+
+  async validarSessaoSemRenovar(
+    id: string,
+    usuarioId: number,
+  ): Promise<boolean> {
+    return this.validarSessao(id, usuarioId, false);
+  }
+
+  private async validarSessao(
+    id: string,
+    usuarioId: number,
+    renovar: boolean,
+  ): Promise<boolean> {
     const now = new Date();
     const session = await this.prisma.authSession.findUnique({ where: { id } });
     if (!session || session.usuarioId !== usuarioId || session.endedAt)
@@ -84,6 +99,7 @@ export class SecurityTelemetryService implements OnModuleInit, OnModuleDestroy {
       });
       return false;
     }
+    if (!renovar) return true;
     const updated = await this.prisma.authSession.updateMany({
       where: {
         id,

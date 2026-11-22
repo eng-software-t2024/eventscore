@@ -72,10 +72,15 @@ export class JwtAuthGuard implements CanActivate {
       'jti' in payload && typeof payload.jti === 'string'
         ? payload.jti
         : undefined;
+    const telemetryClientEvent =
+      request.method === 'POST' &&
+      (request.path ?? '').replace(/\/+$/, '').endsWith('/telemetry/client');
     if (
       this.sessions &&
       (!sessionId ||
-        !(await this.sessions.validarEAtualizarSessao(sessionId, payload.sub)))
+        !(await (telemetryClientEvent
+          ? this.sessions.validarSessaoSemRenovar(sessionId, payload.sub)
+          : this.sessions.validarEAtualizarSessao(sessionId, payload.sub))))
     ) {
       throw new UnauthorizedException('Sessão expirada ou revogada');
     }
