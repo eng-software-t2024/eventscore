@@ -24,11 +24,19 @@ describe('JwtAuthGuard', () => {
     findByEmail: vi.fn(),
     findById: vi.fn(async (): Promise<AuthUser | null> => admin),
   };
-  const guard = new JwtAuthGuard(jwt, users, new Reflector());
+  const sessions = { validarEAtualizarSessao: vi.fn(async () => true) };
+  const guard = new JwtAuthGuard(
+    jwt,
+    users,
+    new Reflector(),
+    sessions as never,
+  );
 
   beforeEach(() => {
     users.findById.mockReset();
     users.findById.mockResolvedValue(admin);
+    sessions.validarEAtualizarSessao.mockReset();
+    sessions.validarEAtualizarSessao.mockResolvedValue(true);
   });
 
   function context(authorization?: string) {
@@ -42,11 +50,18 @@ describe('JwtAuthGuard', () => {
   }
 
   it('aceita token assinado e expõe somente o ID autenticado', async () => {
-    const token = await jwt.signAsync({ sub: 7 });
+    const token = await jwt.signAsync({
+      sub: 7,
+      jti: '00000000-0000-4000-8000-000000000007',
+    });
     const { request, executionContext } = context(`Bearer ${token}`);
 
     await expect(guard.canActivate(executionContext)).resolves.toBe(true);
     expect(request.user).toEqual({ id: 7 });
+    expect(request.auth).toEqual({
+      perfil: 'ADMIN',
+      sessionId: '00000000-0000-4000-8000-000000000007',
+    });
     expect(users.findById).toHaveBeenCalledWith(7);
   });
 
@@ -83,13 +98,27 @@ describe('JwtAuthGuard', () => {
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
+  it('rejeita sessão persistida expirada ou revogada', async () => {
+    sessions.validarEAtualizarSessao.mockResolvedValueOnce(false);
+    const token = await jwt.signAsync({
+      sub: 7,
+      jti: '00000000-0000-4000-8000-000000000007',
+    });
+    await expect(
+      guard.canActivate(context(`Bearer ${token}`).executionContext),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
   it.each([
     [null, 'conta removida'],
     [{ ...admin, ativo: false }, 'conta inativa'],
     [{ ...admin, perfil: 'OPERADOR' }, 'perfil não administrativo'],
   ])('rejeita %s (%s)', async (account, _description) => {
     users.findById.mockResolvedValueOnce(account);
-    const token = await jwt.signAsync({ sub: 7 });
+    const token = await jwt.signAsync({
+      sub: 7,
+      jti: '00000000-0000-4000-8000-000000000007',
+    });
     await expect(
       guard.canActivate(context(`Bearer ${token}`).executionContext),
     ).rejects.toBeInstanceOf(UnauthorizedException);

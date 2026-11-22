@@ -40,9 +40,18 @@ describe('AuthService', () => {
       id: admin.id,
       nome: admin.nome,
       email: admin.email,
+      perfil: admin.perfil,
     });
     expect(result).not.toHaveProperty('senhaHash');
     expect(result).not.toHaveProperty('senha');
+  });
+
+  it('autentica perfil MASTER e o identifica na resposta pública', async () => {
+    const master = { ...admin, perfil: 'MASTER' };
+    const { service } = setup(master);
+    await expect(
+      service.validateCredentials(credentials),
+    ).resolves.toMatchObject({ id: master.id, perfil: 'MASTER' });
   });
 
   it('rejeita senha incorreta com 401', async () => {
@@ -101,6 +110,7 @@ describe('AuthService', () => {
       id: admin.id,
       nome: admin.nome,
       email: admin.email,
+      perfil: admin.perfil,
     });
     expect(result).not.toHaveProperty('senhaHash');
   });

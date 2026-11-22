@@ -19,6 +19,8 @@ import { ResultadosModule } from './modules/resultados/resultados.module.js';
 import { BonificacoesPenalidadesModule } from './modules/bonificacoes-penalidades/bonificacoes-penalidades.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { DiasEventoModule } from './modules/dias-evento/dias-evento.module.js';
+import { SecurityTelemetryModule } from './modules/security-telemetry/security-telemetry.module.js';
+import { ManagementModule } from './modules/management/management.module.js';
 
 @Module({
   imports: [
@@ -28,6 +30,7 @@ import { DiasEventoModule } from './modules/dias-evento/dias-evento.module.js';
       validate: validateAppEnv,
     }),
     PrismaModule,
+    SecurityTelemetryModule,
     AuditoriaModule,
     AuthModule.register({
       provide: AuthUserRepository,
@@ -46,6 +49,7 @@ import { DiasEventoModule } from './modules/dias-evento/dias-evento.module.js';
     BonificacoesPenalidadesModule,
     ClassificacaoModule,
     ApuracaoModule,
+    ManagementModule,
   ],
 })
 export class AppModule {}

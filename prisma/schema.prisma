@@ -210,8 +210,84 @@ model Usuario {
   apuracoes         Apuracao[]
   auditorias        Auditoria[]
   desempatesManuais DesempateManual[]
+  sessoes           AuthSession[]
+  eventosTelemetria TelemetryEvent[]
+  auditoriaGestao   AdminAuditEvent[]
 
   @@map("usuario")
+}
+
+model AuthSession {
+  id             String    @id @db.Uuid
+  usuarioId      Int       @map("id_usuario")
+  issuedAt       DateTime  @default(now()) @map("issued_at") @db.Timestamptz(6)
+  lastActivityAt DateTime  @default(now()) @map("last_activity_at") @db.Timestamptz(6)
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz(6)
+  endedAt        DateTime? @map("ended_at") @db.Timestamptz(6)
+  endReason      String?   @map("end_reason") @db.VarChar(12)
+  purgeAfter     DateTime? @map("purge_after") @db.Timestamptz(6)
+  ip             String?   @db.Inet
+  userAgent      String?   @map("user_agent") @db.VarChar(512)
+  usuario        Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([usuarioId, issuedAt(sort: Desc)], map: "ix_auth_session_usuario_issued")
+  @@index([expiresAt, endedAt], map: "ix_auth_session_expiration")
+  @@index([purgeAfter], map: "ix_auth_session_purge")
+  @@map("auth_session")
+}
+
+model TelemetryPeriod {
+  id         String           @id @db.Uuid
+  startedAt  DateTime         @default(now()) @map("started_at") @db.Timestamptz(6)
+  endedAt    DateTime?        @map("ended_at") @db.Timestamptz(6)
+  purgeAfter DateTime?        @map("purge_after") @db.Timestamptz(6)
+  status     String           @default("OPEN") @db.VarChar(8)
+  events     TelemetryEvent[]
+
+  @@index([status, startedAt(sort: Desc)], map: "ix_telemetry_period_status")
+  @@index([purgeAfter], map: "ix_telemetry_period_purge")
+  @@map("telemetry_period")
+}
+
+model TelemetryEvent {
+  id            String          @id @db.Uuid
+  periodId      String          @map("period_id") @db.Uuid
+  usuarioId     Int?            @map("id_usuario")
+  occurredAt    DateTime        @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  correlationId String?         @map("correlation_id") @db.VarChar(100)
+  source        String          @db.VarChar(10)
+  eventType     String          @map("event_type") @db.VarChar(60)
+  method        String?         @db.VarChar(10)
+  route         String?         @db.VarChar(255)
+  status        Int?
+  durationMs    Int?            @map("duration_ms")
+  outcome       String          @db.VarChar(12)
+  ip            String?         @db.Inet
+  userAgent     String?         @map("user_agent") @db.VarChar(512)
+  details       Json            @default("{}") @db.JsonB
+  period        TelemetryPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  usuario       Usuario?        @relation(fields: [usuarioId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([occurredAt(sort: Desc)], map: "ix_telemetry_event_occurred")
+  @@index([usuarioId, occurredAt(sort: Desc)], map: "ix_telemetry_event_usuario")
+  @@index([eventType, occurredAt(sort: Desc)], map: "ix_telemetry_event_type")
+  @@map("telemetry_event")
+}
+
+model AdminAuditEvent {
+  id            String   @id @db.Uuid
+  actorUserId   Int      @map("actor_user_id")
+  targetUserId  Int?     @map("target_user_id")
+  action        String   @db.VarChar(40)
+  occurredAt    DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  correlationId String?  @map("correlation_id") @db.VarChar(100)
+  details       Json     @default("{}") @db.JsonB
+  actor         Usuario  @relation(fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([occurredAt(sort: Desc)], map: "ix_admin_audit_occurred")
+  @@index([actorUserId, occurredAt(sort: Desc)], map: "ix_admin_audit_actor")
+  @@index([targetUserId, occurredAt(sort: Desc)], map: "ix_admin_audit_target")
+  @@map("admin_audit_event")
 }
 
 model Auditoria {

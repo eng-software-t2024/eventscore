@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Navigate, NavLink, Outlet, useOutletContext } from 'react-router';
 import { api, ApiError, token, type Schemas } from '../api/client';
+import TelemetryTracker from './TelemetryTracker';
 
 const ABAS = [
   ['/evento', 'Evento'],
@@ -16,12 +17,16 @@ const ABAS = [
 type Evento = Schemas['EventoResumoDto'];
 
 /** undefined = carregando; null = nenhum evento ativo. */
-export type ContextoLayout = { eventoAtivo: Evento | null | undefined; recarregarEventoAtivo: () => void };
+export type ContextoLayout = {
+  eventoAtivo: Evento | null | undefined;
+  recarregarEventoAtivo: () => void;
+  perfil?: string;
+};
 export const useLayout = () => useOutletContext<ContextoLayout>();
 
 export default function Layout() {
   const [eventoAtivo, setEventoAtivo] = useState<Evento | null>();
-  const [usuario, setUsuario] = useState<string>();
+  const [usuario, setUsuario] = useState<{ nome: string; perfil: string }>();
   const logado = Boolean(token.ler());
 
   const [erroEvento, setErroEvento] = useState('');
@@ -45,14 +50,19 @@ export default function Layout() {
     if (!logado) return;
     recarregarEventoAtivo();
     // Contrato v0.3: o cabeçalho mostra quem está logado (GET /auth/me). Token vencido cai no 401 do cliente.
-    api<Schemas['UsuarioResumoDto']>('/auth/me')
-      .then((u) => setUsuario(u.nome))
+    api<{ id: number; nome: string; email: string; perfil: string }>('/auth/me')
+      .then((u) => setUsuario(u))
       .catch(() => setUsuario(undefined));
   }, [logado, recarregarEventoAtivo]);
 
   if (!logado) return <Navigate to="/login" replace />;
 
-  function sair() {
+  async function sair() {
+    try {
+      await api('/auth/logout', { method: 'POST' });
+    } catch {
+      /* token local sempre é removido */
+    }
     token.limpar();
     window.location.assign('/login');
   }
@@ -65,12 +75,26 @@ export default function Layout() {
           {eventoAtivo?.nome ?? 'EventScore'}
         </span>
         {ABAS.map(([rota, nome]) => (
-          <NavLink key={rota} to={rota}>
+          <NavLink
+            key={rota}
+            to={rota}
+            data-telemetry-action={`navigation.${rota.slice(1)}`}
+          >
             {nome}
           </NavLink>
         ))}
-        {usuario && <span className="nav-usuario">{usuario}</span>}
-        <button type="button" onClick={sair} aria-label={usuario ? `Sair (${usuario})` : 'Sair'}>
+        {usuario?.perfil === 'MASTER' && (
+          <NavLink to="/gestao" data-telemetry-action="navigation.gestao">
+            Gestão
+          </NavLink>
+        )}
+        {usuario && <span className="nav-usuario">{usuario.nome}</span>}
+        <button
+          type="button"
+          data-telemetry-action="auth.logout"
+          onClick={sair}
+          aria-label={usuario ? `Sair (${usuario.nome})` : 'Sair'}
+        >
           Sair
         </button>
       </nav>
@@ -82,7 +106,16 @@ export default function Layout() {
           </button>
         </div>
       )}
-      <Outlet context={{ eventoAtivo, recarregarEventoAtivo } satisfies ContextoLayout} />
+      <Outlet
+        context={
+          {
+            eventoAtivo,
+            recarregarEventoAtivo,
+            perfil: usuario?.perfil,
+          } satisfies ContextoLayout
+        }
+      />
+      <TelemetryTracker />
     </div>
   );
 }

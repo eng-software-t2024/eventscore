@@ -9,7 +9,13 @@ export type OpcoesConfirmacao = {
   perigo?: boolean;
 };
 
-export default function DialogoConfirmacao({ opcoes, responder }: { opcoes: OpcoesConfirmacao; responder: (ok: boolean) => void }) {
+export default function DialogoConfirmacao({
+  opcoes,
+  responder,
+}: {
+  opcoes: OpcoesConfirmacao;
+  responder: (ok: boolean) => void;
+}) {
   const dialogo = useRef<HTMLDialogElement>(null);
   const cancelar = useRef<HTMLButtonElement>(null);
 
@@ -23,6 +29,7 @@ export default function DialogoConfirmacao({ opcoes, responder }: { opcoes: Opco
     <dialog
       ref={dialogo}
       className="modal confirmacao"
+      data-telemetry-modal="confirmation"
       aria-labelledby="confirmacao-titulo"
       aria-describedby="confirmacao-mensagem"
       onCancel={(e) => {
@@ -36,10 +43,19 @@ export default function DialogoConfirmacao({ opcoes, responder }: { opcoes: Opco
       <div className="modal-corpo">
         <p id="confirmacao-mensagem">{opcoes.mensagem}</p>
         <div className="modal-acoes">
-          <button ref={cancelar} type="button" className="btn btn-cinza" onClick={() => responder(false)}>
+          <button
+            ref={cancelar}
+            type="button"
+            className="btn btn-cinza"
+            onClick={() => responder(false)}
+          >
             Cancelar
           </button>
-          <button type="button" className={`btn${opcoes.perigo ? ' btn-perigo' : ''}`} onClick={() => responder(true)}>
+          <button
+            type="button"
+            className={`btn${opcoes.perigo ? ' btn-perigo' : ''}`}
+            onClick={() => responder(true)}
+          >
             {opcoes.confirmar ?? 'Confirmar'}
           </button>
         </div>

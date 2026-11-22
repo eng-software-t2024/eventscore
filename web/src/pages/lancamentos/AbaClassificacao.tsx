@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { api } from '../../api/client';
 import { PontoCor } from './comum';
-import { posicaoDoEmpate, posicoesDeTodosEmpates, type Classificacao, type LinhaClassificacao } from './regras.ts';
+import {
+  posicaoDoEmpate,
+  posicoesDeTodosEmpates,
+  type Classificacao,
+  type LinhaClassificacao,
+} from './regras.ts';
 
 /** Aba 3 (RF12 a RF14): classificação calculada pela API; o desempate manual só aparece quando os critérios não resolvem. */
 export default function AbaClassificacao({ eventoId }: { eventoId: number }) {
@@ -17,7 +22,12 @@ export default function AbaClassificacao({ eventoId }: { eventoId: number }) {
 
   useEffect(carregar, [carregar]);
 
-  if (!classificacao) return erro ? <p className="erro">{erro}</p> : <p className="cartao">Carregando...</p>;
+  if (!classificacao)
+    return erro ? (
+      <p className="erro">{erro}</p>
+    ) : (
+      <p className="cartao">Carregando...</p>
+    );
   const { dados, resumo } = classificacao;
 
   return (
@@ -32,7 +42,8 @@ export default function AbaClassificacao({ eventoId }: { eventoId: number }) {
         <div className="tabela-topo">
           <h2 className="titulo-bloco">Classificação</h2>
           <small className="dica">
-            {resumo.desafiosLancados} de {resumo.desafiosTotais} desafios lançados
+            {resumo.desafiosLancados} de {resumo.desafiosTotais} desafios
+            lançados
           </small>
         </div>
         <div className="tabela-rolagem">
@@ -51,7 +62,10 @@ export default function AbaClassificacao({ eventoId }: { eventoId: number }) {
               {dados.map((l) => (
                 <tr key={l.grupoId}>
                   <td>
-                    <strong>{l.posicao}º</strong> {l.empatado && <span className="selo selo-erro">Empate</span>}
+                    <strong>{l.posicao}º</strong>{' '}
+                    {l.empatado && (
+                      <span className="selo selo-erro">Empate</span>
+                    )}
                   </td>
                   <td>
                     <span className="pessoa">
@@ -74,7 +88,13 @@ export default function AbaClassificacao({ eventoId }: { eventoId: number }) {
 
       {resumo.empatesPendentes.length > 0 && (
         // A chave muda quando os empates mudam (ex.: uma correção desfez ou alterou um empate), e o formulário recomeça.
-        <Desempate key={resumo.empatesPendentes.map((g) => g.join('-')).join('|')} base={base} empates={resumo.empatesPendentes} classificacao={dados} onSalvo={carregar} />
+        <Desempate
+          key={resumo.empatesPendentes.map((g) => g.join('-')).join('|')}
+          base={base}
+          empates={resumo.empatesPendentes}
+          classificacao={dados}
+          onSalvo={carregar}
+        />
       )}
     </>
   );
@@ -84,12 +104,23 @@ export default function AbaClassificacao({ eventoId }: { eventoId: number }) {
  * RF14: um formulário para todos os empates pendentes. Um novo POST /desempates substitui o anterior,
  * então as posições de todos os empates vão juntas no mesmo envio.
  */
-function Desempate({ base, empates, classificacao, onSalvo }: { base: string; empates: number[][]; classificacao: LinhaClassificacao[]; onSalvo: () => void }) {
+function Desempate({
+  base,
+  empates,
+  classificacao,
+  onSalvo,
+}: {
+  base: string;
+  empates: number[][];
+  classificacao: LinhaClassificacao[];
+  onSalvo: () => void;
+}) {
   const [ordens, setOrdens] = useState(empates);
   const [justificativa, setJustificativa] = useState('');
   const [erro, setErro] = useState('');
   const [salvando, setSalvando] = useState(false);
-  const nome = (id: number) => classificacao.find((l) => l.grupoId === id)?.grupo ?? '';
+  const nome = (id: number) =>
+    classificacao.find((l) => l.grupoId === id)?.grupo ?? '';
 
   function mover(empate: number, de: number, para: number) {
     setOrdens(
@@ -110,7 +141,10 @@ function Desempate({ base, empates, classificacao, onSalvo }: { base: string; em
     try {
       await api(`${base}/desempates`, {
         method: 'POST',
-        body: JSON.stringify({ posicoes: posicoesDeTodosEmpates(ordens, classificacao), justificativa: justificativa.trim() }),
+        body: JSON.stringify({
+          posicoes: posicoesDeTodosEmpates(ordens, classificacao),
+          justificativa: justificativa.trim(),
+        }),
       });
       onSalvo();
     } catch (err) {
@@ -121,11 +155,20 @@ function Desempate({ base, empates, classificacao, onSalvo }: { base: string; em
   }
 
   return (
-    <form className="cartao desempate" onSubmit={salvar}>
-      <h2 className="titulo-bloco">{ordens.length === 1 ? 'Empate pendente' : `${ordens.length} empates pendentes`}</h2>
+    <form
+      className="cartao desempate"
+      data-telemetry-form="tie_break.save"
+      onSubmit={salvar}
+    >
+      <h2 className="titulo-bloco">
+        {ordens.length === 1
+          ? 'Empate pendente'
+          : `${ordens.length} empates pendentes`}
+      </h2>
       <p className="dica">
-        Os critérios configurados não resolveram. Defina a ordem final de cada empate; todos são registrados juntos, com o responsável e a
-        data gravados pela API (RF14).
+        Os critérios configurados não resolveram. Defina a ordem final de cada
+        empate; todos são registrados juntos, com o responsável e a data
+        gravados pela API (RF14).
       </p>
       {ordens.map((ordem, e) => {
         const posicaoInicial = posicaoDoEmpate(ordem, classificacao);
@@ -138,7 +181,13 @@ function Desempate({ base, empates, classificacao, onSalvo }: { base: string; em
                   <span className="criterio-ordem">{posicaoInicial + i}º</span>
                   <span>{nome(grupoId)}</span>
                   <span className="criterio-acoes">
-                    <button type="button" className="btn-icone" disabled={i === 0} onClick={() => mover(e, i, i - 1)} aria-label={`Subir ${nome(grupoId)}`}>
+                    <button
+                      type="button"
+                      className="btn-icone"
+                      disabled={i === 0}
+                      onClick={() => mover(e, i, i - 1)}
+                      aria-label={`Subir ${nome(grupoId)}`}
+                    >
                       ↑
                     </button>
                     <button
@@ -159,7 +208,13 @@ function Desempate({ base, empates, classificacao, onSalvo }: { base: string; em
       })}
       <label className="campo">
         Justificativa
-        <textarea className="area-texto" value={justificativa} onChange={(e) => setJustificativa(e.target.value)} rows={3} required />
+        <textarea
+          className="area-texto"
+          value={justificativa}
+          onChange={(e) => setJustificativa(e.target.value)}
+          rows={3}
+          required
+        />
       </label>
       {erro && (
         <p className="erro" role="alert">
@@ -168,7 +223,11 @@ function Desempate({ base, empates, classificacao, onSalvo }: { base: string; em
       )}
       <div>
         <button className="btn" disabled={salvando}>
-          {salvando ? 'Registrando...' : ordens.length === 1 ? 'Registrar desempate' : 'Registrar os desempates'}
+          {salvando
+            ? 'Registrando...'
+            : ordens.length === 1
+              ? 'Registrar desempate'
+              : 'Registrar os desempates'}
         </button>
       </div>
     </form>

@@ -1,3 +1,4 @@
+import { limparUsuariosAuthTeste } from './helpers/limpar-usuarios-auth-teste.js';
 import { randomUUID } from 'node:crypto';
 import { type INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
@@ -57,7 +58,7 @@ describe('Acesso real aos endpoints de eventos (T18 + T15)', () => {
         await prisma.evento.deleteMany({ where: { id: eventoId } });
       }
       if (adminId !== undefined) {
-        await prisma.usuario.deleteMany({ where: { id: adminId } });
+        await limparUsuariosAuthTeste(prisma, [adminId]);
       }
     } finally {
       await app?.close();

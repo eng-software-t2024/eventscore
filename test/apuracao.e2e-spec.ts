@@ -1,3 +1,4 @@
+import { limparUsuariosAuthTeste } from './helpers/limpar-usuarios-auth-teste.js';
 import { randomUUID } from 'node:crypto';
 import { type INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
@@ -226,7 +227,14 @@ describe('Apuração individual HTTP com PostgreSQL (#261)', () => {
         await prisma.diaEvento.deleteMany({ where: { eventoId: id } });
         await prisma.evento.delete({ where: { id } });
       }
-      await prisma.usuario.deleteMany({ where: { email } });
+      const testUsers = await prisma.usuario.findMany({
+        where: { email },
+        select: { id: true },
+      });
+      await limparUsuariosAuthTeste(
+        prisma,
+        testUsers.map((user) => user.id),
+      );
     }
     await app?.close();
   });

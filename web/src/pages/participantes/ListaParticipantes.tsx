@@ -2,13 +2,26 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { api, type Schemas } from '../../api/client';
 import Paginacao from '../../components/Paginacao';
 
-type Participante = { id: number; matricula: string; nome: string; turma: string; grupoId: number; grupo: string };
+type Participante = {
+  id: number;
+  matricula: string;
+  nome: string;
+  turma: string;
+  grupoId: number;
+  grupo: string;
+};
 type Pagina = { dados: Participante[]; paginacao: Schemas['PaginacaoMetaDto'] };
 
 const TAMANHO = 20;
 
 /** Lista paginada do contrato: GET /eventos/{eventoId}/participantes?pagina&tamanho&grupoId&busca. */
-export default function ListaParticipantes({ eventoId, versao }: { eventoId: number; versao: number }) {
+export default function ListaParticipantes({
+  eventoId,
+  versao,
+}: {
+  eventoId: number;
+  versao: number;
+}) {
   const [grupos, setGrupos] = useState<Schemas['GrupoResumoDto'][]>([]);
   const [filtro, setFiltro] = useState({ busca: '', grupoId: '', pagina: 1 });
   const [texto, setTexto] = useState('');
@@ -22,7 +35,10 @@ export default function ListaParticipantes({ eventoId, versao }: { eventoId: num
   }, [eventoId]);
 
   useEffect(() => {
-    const params = new URLSearchParams({ pagina: String(filtro.pagina), tamanho: String(TAMANHO) });
+    const params = new URLSearchParams({
+      pagina: String(filtro.pagina),
+      tamanho: String(TAMANHO),
+    });
     if (filtro.grupoId) params.set('grupoId', filtro.grupoId);
     if (filtro.busca) params.set('busca', filtro.busca);
     api<Pagina>(`/eventos/${eventoId}/participantes?${params}`)
@@ -44,9 +60,25 @@ export default function ListaParticipantes({ eventoId, versao }: { eventoId: num
     <section className="cartao tabela-cartao">
       <div className="tabela-topo">
         <h2>Participantes cadastrados{meta ? ` (${meta.totalItens})` : ''}</h2>
-        <form className="filtros" onSubmit={buscar} role="search">
-          <input value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Buscar por nome ou matrícula" aria-label="Buscar participante" />
-          <select value={filtro.grupoId} onChange={(e) => setFiltro({ ...filtro, grupoId: e.target.value, pagina: 1 })} aria-label="Filtrar por grupo">
+        <form
+          className="filtros"
+          data-telemetry-form="participants.search"
+          onSubmit={buscar}
+          role="search"
+        >
+          <input
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+            placeholder="Buscar por nome ou matrícula"
+            aria-label="Buscar participante"
+          />
+          <select
+            value={filtro.grupoId}
+            onChange={(e) =>
+              setFiltro({ ...filtro, grupoId: e.target.value, pagina: 1 })
+            }
+            aria-label="Filtrar por grupo"
+          >
             <option value="">Todos os grupos</option>
             {grupos.map((g) => (
               <option key={g.id} value={g.id}>
@@ -63,7 +95,9 @@ export default function ListaParticipantes({ eventoId, versao }: { eventoId: num
           {erro}
         </p>
       )}
-      {pagina?.dados.length === 0 && <p className="dica">Nenhum participante encontrado.</p>}
+      {pagina?.dados.length === 0 && (
+        <p className="dica">Nenhum participante encontrado.</p>
+      )}
 
       {!!pagina?.dados.length && (
         <div className="tabela-rolagem">
@@ -90,7 +124,10 @@ export default function ListaParticipantes({ eventoId, versao }: { eventoId: num
         </div>
       )}
 
-      <Paginacao meta={meta} irPara={(p) => setFiltro({ ...filtro, pagina: p })} />
+      <Paginacao
+        meta={meta}
+        irPara={(p) => setFiltro({ ...filtro, pagina: p })}
+      />
     </section>
   );
 }
