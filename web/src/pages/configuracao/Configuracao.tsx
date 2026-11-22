@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 import { api, type Schemas } from '../../api/client';
-import { criteriosValidos, montarConfiguracao, paraFormulario, pendenciaConfiguracao, TIPOS_CRITERIO, type Configuracao as Config, type Formulario, type TipoCriterio } from './regras.ts';
+import { criteriosValidos, montarConfiguracao, paraFormulario, pendenciaConfiguracao, persistirConfiguracao, TIPOS_CRITERIO, type Configuracao as Config, type Formulario, type TipoCriterio } from './regras.ts';
 import './Configuracao.css';
 
 type Desafio = { id: number; nome: string };
@@ -49,7 +49,14 @@ export default function Configuracao() {
     setErro('');
     setSalvando(true);
     try {
-      const salva = await api<Config | undefined>(`${base}/configuracao`, { method: 'PUT', body: JSON.stringify(resultado.dados) });
+      const envio = await persistirConfiguracao(resultado.dados, (dados) =>
+        api<Config | undefined>(`${base}/configuracao`, { method: 'PUT', body: JSON.stringify(dados) }),
+      );
+      if (!envio.sucesso) {
+        setErro(envio.erro);
+        return;
+      }
+      const salva = envio.configuracao;
       // A API devolve os itens de bonificação com id; sem isso, um segundo "Salvar" recriaria os itens
       // e apagaria os bônus já lançados para eles.
       if (salva) setForm(paraFormulario(salva, form.conversao.length, form.fatores.length - 1));
@@ -153,12 +160,29 @@ export default function Configuracao() {
             </button>
           </Bloco>
 
-          <Bloco icone="!" titulo="Limites de penalidade" dica="Faixa aceita em cada penalidade lançada.">
+          <Bloco
+            icone="!"
+            titulo="Limites de penalidade"
+            dica="Defina os dois limites conforme as regras do evento antes de lançar penalidades. Enquanto ambos estiverem vazios, esses lançamentos serão recusados."
+            dicaId="limites-penalidade-ajuda"
+          >
             <Linha rotulo="Mínimo por item">
-              <input inputMode="numeric" value={form.penalidadeMin} onChange={(e) => mudar({ penalidadeMin: e.target.value })} aria-label="Penalidade mínima" />
+              <input
+                inputMode="numeric"
+                value={form.penalidadeMin}
+                onChange={(e) => mudar({ penalidadeMin: e.target.value })}
+                aria-label="Penalidade mínima"
+                aria-describedby="limites-penalidade-ajuda"
+              />
             </Linha>
             <Linha rotulo="Máximo por item">
-              <input inputMode="numeric" value={form.penalidadeMax} onChange={(e) => mudar({ penalidadeMax: e.target.value })} aria-label="Penalidade máxima" />
+              <input
+                inputMode="numeric"
+                value={form.penalidadeMax}
+                onChange={(e) => mudar({ penalidadeMax: e.target.value })}
+                aria-label="Penalidade máxima"
+                aria-describedby="limites-penalidade-ajuda"
+              />
             </Linha>
           </Bloco>
 
@@ -257,7 +281,7 @@ export default function Configuracao() {
   );
 }
 
-function Bloco({ icone, titulo, dica, largo, children }: { icone: string; titulo: string; dica: string; largo?: boolean; children: ReactNode }) {
+function Bloco({ icone, titulo, dica, dicaId, largo, children }: { icone: string; titulo: string; dica: string; dicaId?: string; largo?: boolean; children: ReactNode }) {
   return (
     <section className={`cartao config-bloco${largo ? ' config-largo' : ''}`}>
       <h2>
@@ -266,7 +290,7 @@ function Bloco({ icone, titulo, dica, largo, children }: { icone: string; titulo
         </span>
         {titulo}
       </h2>
-      <p className="dica">{dica}</p>
+      <p id={dicaId} className="dica">{dica}</p>
       {children}
     </section>
   );

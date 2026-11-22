@@ -71,6 +71,13 @@ test('penalidade dentro da faixa e com justificativa', () => {
   assert.match((montarPenalidade({ ...ok, justificativa: ' ' }, 10, 50) as { erro: string }).erro, /justificativa/);
 });
 
+test('penalidade sem faixa configurada é bloqueada antes do envio', () => {
+  const ok = { grupoId: '2', pontos: '20', descricao: 'Atraso', justificativa: 'Chegou tarde' };
+  assert.deepEqual(montarPenalidade(ok, null, null), {
+    erro: 'Defina a faixa de penalidade na configuração do evento antes de lançar penalidades.',
+  });
+});
+
 test('desempate dá posições seguidas na ordem escolhida', () => {
   assert.deepEqual(posicoesDesempate([2, 1], 3), [
     { grupoId: 2, posicao: 3 },

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { criteriosValidos, montarConfiguracao, paraFormulario, pendenciaConfiguracao, type Configuracao } from './regras.ts';
+import { criteriosValidos, montarConfiguracao, paraFormulario, pendenciaConfiguracao, persistirConfiguracao, type Configuracao } from './regras.ts';
 
 const exemplo: Configuracao = {
   conversaoPontoExtra: [
@@ -54,6 +54,82 @@ test('aponta o primeiro erro de preenchimento', () => {
   assert.match(erro({ penalidadeMin: '60' }), /mínima/);
   assert.match(erro({ fatores: ['0', '150', '100'] }), /entre 0% e 100%/);
   assert.match(erro({ criterios: [{ tipo: 'MAIOR_PONTUACAO_DESAFIO', desafioId: null }] }), /desafio/);
+});
+
+test('carrega e salva a configuração inicial sem faixa, sem converter campo vazio em zero', () => {
+  const inicial: Configuracao = {
+    conversaoPontoExtra: [],
+    itensBonificacao: [],
+    penalidadeMin: null,
+    penalidadeMax: null,
+    fatoresPresenca: [],
+    criteriosDesempate: [],
+  };
+  const formulario = paraFormulario(inicial, 2, 1);
+  assert.equal(formulario.penalidadeMin, '');
+  assert.equal(formulario.penalidadeMax, '');
+
+  const pronto = {
+    ...formulario,
+    conversao: ['1', '0,5'],
+    fatores: ['0', '100'],
+  };
+  const resultado = montarConfiguracao(pronto, []);
+  assert.ok('dados' in resultado);
+  assert.equal(resultado.dados.penalidadeMin, null);
+  assert.equal(resultado.dados.penalidadeMax, null);
+  assert.deepEqual(resultado.dados.conversaoPontoExtra, [
+    { colocacao: 1, pontoExtra: 1 },
+    { colocacao: 2, pontoExtra: 0.5 },
+  ]);
+  assert.deepEqual(resultado.dados.fatoresPresenca, [
+    { diasPresentes: 0, fator: 0 },
+    { diasPresentes: 1, fator: 1 },
+  ]);
+});
+
+test('aceita limites ambos vazios ou uma faixa inteira válida', () => {
+  const formulario = paraFormulario(exemplo, 2, 2);
+  const semFaixa = montarConfiguracao({ ...formulario, penalidadeMin: ' ', penalidadeMax: '' }, desafios);
+  assert.ok('dados' in semFaixa);
+  assert.equal(semFaixa.dados.penalidadeMin, null);
+  assert.equal(semFaixa.dados.penalidadeMax, null);
+
+  const faixa = montarConfiguracao({ ...formulario, penalidadeMin: '0', penalidadeMax: '50' }, desafios);
+  assert.ok('dados' in faixa);
+  assert.equal(faixa.dados.penalidadeMin, 0);
+  assert.equal(faixa.dados.penalidadeMax, 50);
+});
+
+test('rejeita limite parcial, faixa invertida e valores não inteiros', () => {
+  const formulario = paraFormulario(exemplo, 2, 2);
+  const erro = (penalidadeMin: string, penalidadeMax: string) => {
+    const resultado = montarConfiguracao({ ...formulario, penalidadeMin, penalidadeMax }, desafios);
+    return 'erro' in resultado ? resultado.erro : '';
+  };
+  assert.match(erro('', '50'), /ambos em branco/);
+  assert.match(erro('10', ''), /ambos em branco/);
+  assert.match(erro('51', '50'), /mínima/);
+  assert.match(erro('10,5', '50'), /números inteiros/);
+  assert.match(erro('-1', '50'), /números inteiros/);
+});
+
+test('preserva a recusa do backend e não relata sucesso quando a API bloqueia a gravação', async () => {
+  const resultado = montarConfiguracao(
+    { ...paraFormulario(exemplo, 2, 2), penalidadeMin: '', penalidadeMax: '' },
+    desafios,
+  );
+  assert.ok('dados' in resultado);
+
+  const envio = await persistirConfiguracao(resultado.dados, async () => {
+    throw Object.assign(new Error('Não é possível remover a faixa de penalidade porque já há penalidade lançada.'), {
+      status: 422,
+    });
+  });
+  assert.deepEqual(envio, {
+    sucesso: false,
+    erro: 'Não é possível remover a faixa de penalidade porque já há penalidade lançada.',
+  });
 });
 
 test('critério de tipo que saiu do contrato é descartado', () => {
