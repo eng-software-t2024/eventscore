@@ -62,7 +62,7 @@ ssh koss-vps 'install -d -m 700 "$HOME/release-staging/eventscore"'
 scp /home/olua-dev/audit-reports/eventscore-release-bcde18e-154a670-2026-11-22/package-final-pr55-v3/{eventscore-api-bcde18e.tar,eventscore-web-154a670.tar,compose.api.override.yaml,compose.api.rollback.yaml,compose.web.yaml,image-identities.txt,SHA256SUMS} \
   koss-vps:/home/olua_developer/release-staging/eventscore/
 ssh koss-vps 'cd "$HOME/release-staging/eventscore" && sha256sum -c SHA256SUMS && sudo docker load -i eventscore-api-bcde18e.tar && sudo docker load -i eventscore-web-154a670.tar'
-ssh koss-vps "sudo docker image inspect localhost/eventscore-api:bcde18e-20261121 localhost/eventscore-web:154a670 --format '{{.Id}} {{.Digest}} {{.Os}}/{{.Architecture}} {{.Config.User}} {{json .Config.Healthcheck}} {{json .Config.Labels}}'"
+ssh koss-vps "sudo docker image inspect localhost/eventscore-api:bcde18e-20261121 localhost/eventscore-web:154a670 --format '{{.Id}} RepoDigests={{if .RepoDigests}}{{json .RepoDigests}}{{else}}none (no repository digest){{end}} {{.Os}}/{{.Architecture}} User={{if index .Config \"User\"}}{{index .Config \"User\"}}{{else}}(default){{end}} Healthcheck={{json (index .Config \"Healthcheck\")}} Labels={{json (index .Config \"Labels\")}}'"
 ssh koss-vps 'sudo docker compose -f /home/olua_developer/eventscore-backend/compose.yaml -f /home/olua_developer/release-staging/eventscore/compose.api.override.yaml config --quiet'
 ssh koss-vps 'sudo docker compose -f /home/olua_developer/eventscore-backend/compose.yaml -f /home/olua_developer/release-staging/eventscore/compose.api.override.yaml up -d --no-deps --no-build --pull never api'
 ```
