@@ -17,7 +17,7 @@ Fontes usadas nas decisões: documento de requisitos, regimento da Arena Comp 20
 | # | Ponto | Decisão | Migração |
 |---|---|---|---|
 | 1 | Tipos de critério de desempate | 4 tipos do contrato; desafio só em `MAIOR_PONTUACAO_DESAFIO`; sem coluna `sentido` | V12 |
-| 2 | Perfil do usuário | Coluna mantida; o administrador é gravado como `ADMIN` | Não |
+| 2 | Perfil do usuário | Coluna mantida; novos usuários recebem `ADMIN` por padrão | V13 |
 | 3 | `quantidade_dias` | Coluna mantida; o front envia `quantidadeDias` no `POST /eventos` | Não |
 | 4 | Bloqueio de grupos após resultado (RF03) | Trigger da V6 mantido; a API traduz o erro para 409 | Não |
 | 5 | Classificação gravada x calculada | Calculada na consulta; gravada como apuração só ao registrar desempate manual | Não |
@@ -48,9 +48,9 @@ Fontes usadas nas decisões: documento de requisitos, regimento da Arena Comp 20
 
 ### 2. Perfil do usuário
 
-**Situação.** `usuario.perfil` é obrigatório com padrão `OPERADOR`; o contrato não tem perfil, só o administrador.
+**Situação.** `usuario.perfil` é obrigatório. Conforme solicitação do qq\wqq        back-end, o perfil padrão de novos usuários passa a ser `ADMIN`.
 
-**Decisão.** Manter a coluna. O script do administrador (`npm run db:admin`) e o seed gravam o perfil `ADMIN` explicitamente. A API não expõe perfil e não há 403.
+**Decisão.** Manter a coluna e alterar seu valor padrão para `ADMIN`, conforme migration V13. Novos usuários que não informarem explicitamente um perfil receberão `ADMIN`. Usuários existentes não são modificados pela migration. O script do administrador (`npm run db:admin`) e o seed continuam responsáveis por gravar explicitamente o perfil `ADMIN` quando necessário.
 
 ### 3. `quantidade_dias`
 
