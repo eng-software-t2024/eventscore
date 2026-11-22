@@ -1,4 +1,11 @@
-import { Fragment, useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from 'react';
 import { Link } from 'react-router';
 import { api } from '../../api/client';
 import { confirmar } from '../../components/Confirmacao';
@@ -6,13 +13,33 @@ import type { Configuracao } from '../configuracao/regras.ts';
 import { ListaHistorico, PontoCor, type Grupo } from './comum';
 import { tipoDeFalha } from '../../api/falhas.ts';
 import { bonusPendente, telaMostraRecusado } from './pendentes.ts';
-import { juntarHistoricos, montarBonificacao, montarPenalidade, type Auditoria, type Bonificacao, type Penalidade } from './regras.ts';
+import {
+  juntarHistoricos,
+  montarBonificacao,
+  montarPenalidade,
+  type Auditoria,
+  type Bonificacao,
+  type Penalidade,
+} from './regras.ts';
 import type { EnviosPendentes } from './useEnviosPendentes.ts';
 
-const PENALIDADE_VAZIA = { grupoId: '', pontos: '', descricao: '', justificativa: '' };
+const PENALIDADE_VAZIA = {
+  grupoId: '',
+  pontos: '',
+  descricao: '',
+  justificativa: '',
+};
 
 /** Aba 2 (RF10, RF11): bonificação por item com teto e penalidade com justificativa. */
-export default function AbaBonusPenalidades({ eventoId, grupos, envios }: { eventoId: number; grupos: Grupo[]; envios: EnviosPendentes }) {
+export default function AbaBonusPenalidades({
+  eventoId,
+  grupos,
+  envios,
+}: {
+  eventoId: number;
+  grupos: Grupo[];
+  envios: EnviosPendentes;
+}) {
   const base = `/eventos/${eventoId}`;
   // Lida por ref: a fila mudar (ou o usuário carregar) não pode recarregar os valores que estão sendo digitados.
   const guardadosRef = useRef(envios.guardados);
@@ -21,17 +48,29 @@ export default function AbaBonusPenalidades({ eventoId, grupos, envios }: { even
   }, [envios.guardados]);
   const [config, setConfig] = useState<Configuracao>();
   // Valor digitado por grupo e item: grupoId -> itemBonificacaoId -> texto.
-  const [bonus, setBonus] = useState<Record<number, Record<number, string>>>({});
+  const [bonus, setBonus] = useState<Record<number, Record<number, string>>>(
+    {},
+  );
   const [penalidades, setPenalidades] = useState<Penalidade[]>();
   const [penalidade, setPenalidade] = useState(PENALIDADE_VAZIA);
   const [editando, setEditando] = useState<Penalidade>();
   const [ocupado, setOcupado] = useState<string>();
-  const [aviso, setAviso] = useState<{ tipo: 'erro' | 'sucesso' | 'aviso'; texto: string }>();
+  const [aviso, setAviso] = useState<{
+    tipo: 'erro' | 'sucesso' | 'aviso';
+    texto: string;
+  }>();
   // Histórico aberto (RF18): `bonus-<grupoId>` ou `penalidade-<id>`; sem `itens`, ainda carregando.
-  const [historico, setHistorico] = useState<{ chave: string; itens?: (Auditoria & { rotulo?: string })[] }>();
+  const [historico, setHistorico] = useState<{
+    chave: string;
+    itens?: (Auditoria & { rotulo?: string })[];
+  }>();
 
   const carregar = useCallback(() => {
-    Promise.all([api<Configuracao>(`${base}/configuracao`), api<Bonificacao[]>(`${base}/bonificacoes`), api<Penalidade[]>(`${base}/penalidades`)])
+    Promise.all([
+      api<Configuracao>(`${base}/configuracao`),
+      api<Bonificacao[]>(`${base}/bonificacoes`),
+      api<Penalidade[]>(`${base}/penalidades`),
+    ])
       .then(([cfg, bonificacoes, pens]) => {
         setConfig(cfg);
         const fila = guardadosRef.current();
@@ -44,7 +83,12 @@ export default function AbaBonusPenalidades({ eventoId, grupos, envios }: { even
               return [
                 g.id,
                 bonusPendente(fila[`${base}/bonificacoes/${g.id}`]) ??
-                  Object.fromEntries((daApi?.itens ?? []).map((i) => [i.itemBonificacaoId, String(i.valor)])),
+                  Object.fromEntries(
+                    (daApi?.itens ?? []).map((i) => [
+                      i.itemBonificacaoId,
+                      String(i.valor),
+                    ]),
+                  ),
               ];
             }),
           ),
@@ -61,10 +105,17 @@ export default function AbaBonusPenalidades({ eventoId, grupos, envios }: { even
   const recusasTratadas = useRef(new Set<string>());
   useEffect(() => {
     if (!config) return;
-    const mostraRecusado = (grupoId: number, valores: Record<number, string> | undefined) => {
+    const mostraRecusado = (
+      grupoId: number,
+      valores: Record<number, string> | undefined,
+    ) => {
       const recusado = envios.recusados[`${base}/bonificacoes/${grupoId}`];
       const naTela = montarBonificacao(valores ?? {}, config.itensBonificacao);
-      return !!recusado && 'dados' in naTela && telaMostraRecusado(naTela.dados, recusado);
+      return (
+        !!recusado &&
+        'dados' in naTela &&
+        telaMostraRecusado(naTela.dados, recusado)
+      );
     };
     const voltar = grupos
       .filter((g) => {
@@ -83,7 +134,12 @@ export default function AbaBonusPenalidades({ eventoId, grupos, envios }: { even
             // O usuário mexeu na linha enquanto a busca acontecia: o que ele digitou fica.
             if (!mostraRecusado(grupoId, atual[grupoId])) continue;
             const daApi = bonificacoes.find((b) => b.grupoId === grupoId);
-            novo[grupoId] = Object.fromEntries((daApi?.itens ?? []).map((i) => [i.itemBonificacaoId, String(i.valor)]));
+            novo[grupoId] = Object.fromEntries(
+              (daApi?.itens ?? []).map((i) => [
+                i.itemBonificacaoId,
+                String(i.valor),
+              ]),
+            );
           }
           return novo;
         }),
@@ -92,26 +148,56 @@ export default function AbaBonusPenalidades({ eventoId, grupos, envios }: { even
       .catch(() => {});
   }, [envios.recusados, config, grupos, base, bonus]);
 
-  if (!config) return aviso ? <p className="erro">{aviso.texto}</p> : <p className="cartao">Carregando...</p>;
+  if (!config)
+    return aviso ? (
+      <p className="erro">{aviso.texto}</p>
+    ) : (
+      <p className="cartao">Carregando...</p>
+    );
 
-  const nome = (id: number) => grupos.find((g) => g.id === id)?.nome ?? `grupo ${id}`;
+  const nome = (id: number) =>
+    grupos.find((g) => g.id === id)?.nome ?? `grupo ${id}`;
   const totalBonus = (grupoId: number) =>
-    config.itensBonificacao.reduce((soma, item) => soma + (Number(bonus[grupoId]?.[item.id ?? -1]) || 0), 0);
+    config.itensBonificacao.reduce(
+      (soma, item) => soma + (Number(bonus[grupoId]?.[item.id ?? -1]) || 0),
+      0,
+    );
 
   async function registrarBonus(grupoId: number) {
-    const resultado = montarBonificacao(bonus[grupoId] ?? {}, config!.itensBonificacao);
-    if ('erro' in resultado) return setAviso({ tipo: 'erro', texto: `${nome(grupoId)} · ${resultado.erro}` });
+    const resultado = montarBonificacao(
+      bonus[grupoId] ?? {},
+      config!.itensBonificacao,
+    );
+    if ('erro' in resultado)
+      return setAviso({
+        tipo: 'erro',
+        texto: `${nome(grupoId)} · ${resultado.erro}`,
+      });
     setOcupado(`bonus-${grupoId}`);
     try {
       // Passa pela fila: se a conexão cair, o envio fica guardado e sai em ordem depois (RNF04).
-      const r = await envios.enviar({ caminho: `${base}/bonificacoes/${grupoId}`, corpo: resultado.dados, descricao: `bônus de ${nome(grupoId)}` });
-      if (r.status === 'recusado') setAviso({ tipo: 'erro', texto: r.erro.message });
+      const r = await envios.enviar({
+        caminho: `${base}/bonificacoes/${grupoId}`,
+        corpo: resultado.dados,
+        descricao: `bônus de ${nome(grupoId)}`,
+      });
+      if (r.status === 'recusado')
+        setAviso({ tipo: 'erro', texto: r.erro.message });
       else if (r.status === 'erro-servidor')
-        setAviso({ tipo: 'erro', texto: `${r.erro.message} O bônus de ${nome(grupoId)} ficou guardado neste navegador e será reenviado.` });
+        setAviso({
+          tipo: 'erro',
+          texto: `${r.erro.message} O bônus de ${nome(grupoId)} ficou guardado neste navegador e será reenviado.`,
+        });
       else if (r.status === 'guardado')
-        setAviso({ tipo: 'aviso', texto: `Sem conexão com o servidor: o bônus de ${nome(grupoId)} ficou guardado e será enviado quando a conexão voltar.` });
+        setAviso({
+          tipo: 'aviso',
+          texto: `Sem conexão com o servidor: o bônus de ${nome(grupoId)} ficou guardado e será enviado quando a conexão voltar.`,
+        });
       else if (r.status === 'salvo') {
-        setAviso({ tipo: 'sucesso', texto: `Bônus de ${nome(grupoId)} registrado.` });
+        setAviso({
+          tipo: 'sucesso',
+          texto: `Bônus de ${nome(grupoId)} registrado.`,
+        });
         // O histórico aberto ficaria sem a alteração que acabou de ser feita.
         fecharHistorico(`bonus-${grupoId}`);
       }
@@ -122,22 +208,37 @@ export default function AbaBonusPenalidades({ eventoId, grupos, envios }: { even
 
   async function salvarPenalidade(e: FormEvent) {
     e.preventDefault();
-    const resultado = montarPenalidade(penalidade, config!.penalidadeMin, config!.penalidadeMax);
-    if ('erro' in resultado) return setAviso({ tipo: 'erro', texto: resultado.erro });
+    const resultado = montarPenalidade(
+      penalidade,
+      config!.penalidadeMin,
+      config!.penalidadeMax,
+    );
+    if ('erro' in resultado)
+      return setAviso({ tipo: 'erro', texto: resultado.erro });
     setOcupado('penalidade');
     try {
       const corpo = JSON.stringify(resultado.dados);
-      if (editando) await api(`${base}/penalidades/${editando.id}`, { method: 'PATCH', body: corpo });
+      if (editando)
+        await api(`${base}/penalidades/${editando.id}`, {
+          method: 'PATCH',
+          body: corpo,
+        });
       else await api(`${base}/penalidades`, { method: 'POST', body: corpo });
-      setAviso({ tipo: 'sucesso', texto: editando ? 'Penalidade corrigida.' : `Penalidade aplicada a ${nome(resultado.dados.grupoId)}.` });
+      setAviso({
+        tipo: 'sucesso',
+        texto: editando
+          ? 'Penalidade corrigida.'
+          : `Penalidade aplicada a ${nome(resultado.dados.grupoId)}.`,
+      });
       if (editando) fecharHistorico(`penalidade-${editando.id}`);
       cancelarEdicao();
       carregar();
     } catch (err) {
       // Penalidade é POST, que não é idempotente: reenviar sozinho poderia aplicá-la duas vezes.
-      const texto = tipoDeFalha(err) === 'conexao'
-        ? 'Sem conexão: a penalidade pode não ter sido registrada. O formulário continua preenchido; quando a conexão voltar, confira a lista abaixo antes de enviar de novo.'
-        : (err as Error).message;
+      const texto =
+        tipoDeFalha(err) === 'conexao'
+          ? 'Sem conexão: a penalidade pode não ter sido registrada. O formulário continua preenchido; quando a conexão voltar, confira a lista abaixo antes de enviar de novo.'
+          : (err as Error).message;
       setAviso({ tipo: 'erro', texto });
     } finally {
       setOcupado(undefined);
@@ -145,10 +246,14 @@ export default function AbaBonusPenalidades({ eventoId, grupos, envios }: { even
   }
 
   /** Fecha o histórico de um lançamento, se for o que está aberto. */
-  const fecharHistorico = (chave: string) => setHistorico((h) => (h?.chave === chave ? undefined : h));
+  const fecharHistorico = (chave: string) =>
+    setHistorico((h) => (h?.chave === chave ? undefined : h));
 
   /** Abre ou fecha o histórico; a resposta de um histórico que já foi fechado ou trocado é ignorada. */
-  async function abrirHistorico(chave: string, buscar: () => Promise<(Auditoria & { rotulo?: string })[]>) {
+  async function abrirHistorico(
+    chave: string,
+    buscar: () => Promise<(Auditoria & { rotulo?: string })[]>,
+  ) {
     if (historico?.chave === chave) return setHistorico(undefined);
     setHistorico({ chave });
     try {
@@ -165,23 +270,33 @@ export default function AbaBonusPenalidades({ eventoId, grupos, envios }: { even
     abrirHistorico(`bonus-${grupoId}`, async () => {
       const lista = await api<Bonificacao[]>(`${base}/bonificacoes`);
       const itens = lista.find((b) => b.grupoId === grupoId)?.itens ?? [];
-      const nomeItem = (id: number) => config!.itensBonificacao.find((i) => i.id === id)?.nome ?? `item ${id}`;
+      const nomeItem = (id: number) =>
+        config!.itensBonificacao.find((i) => i.id === id)?.nome ?? `item ${id}`;
       return juntarHistoricos(
         await Promise.all(
           itens.map(async (i) => ({
             rotulo: nomeItem(i.itemBonificacaoId),
-            itens: await api<Auditoria[]>(`/auditoria?entidade=BONIFICACAO_GRUPO&registroId=${i.id}`),
+            itens: await api<Auditoria[]>(
+              `/auditoria?entidade=BONIFICACAO_GRUPO&registroId=${i.id}`,
+            ),
           })),
         ),
       );
     });
 
   const historicoPenalidade = (id: number) =>
-    abrirHistorico(`penalidade-${id}`, () => api<Auditoria[]>(`/auditoria?entidade=PENALIDADE&registroId=${id}`));
+    abrirHistorico(`penalidade-${id}`, () =>
+      api<Auditoria[]>(`/auditoria?entidade=PENALIDADE&registroId=${id}`),
+    );
 
   function editar(p: Penalidade) {
     setEditando(p);
-    setPenalidade({ grupoId: String(p.grupoId), pontos: String(p.pontos), descricao: p.descricao, justificativa: p.justificativa });
+    setPenalidade({
+      grupoId: String(p.grupoId),
+      pontos: String(p.pontos),
+      descricao: p.descricao,
+      justificativa: p.justificativa,
+    });
     setAviso(undefined);
   }
 
@@ -191,7 +306,15 @@ export default function AbaBonusPenalidades({ eventoId, grupos, envios }: { even
   }
 
   async function remover(p: Penalidade) {
-    if (!(await confirmar({ titulo: 'Remover penalidade', mensagem: `Remover a penalidade de ${p.pontos} pontos de ${nome(p.grupoId)}?`, confirmar: 'Remover', perigo: true }))) return;
+    if (
+      !(await confirmar({
+        titulo: 'Remover penalidade',
+        mensagem: `Remover a penalidade de ${p.pontos} pontos de ${nome(p.grupoId)}?`,
+        confirmar: 'Remover',
+        perigo: true,
+      }))
+    )
+      return;
     try {
       await api(`${base}/penalidades/${p.id}`, { method: 'DELETE' });
       if (editando?.id === p.id) cancelarEdicao();
@@ -205,7 +328,10 @@ export default function AbaBonusPenalidades({ eventoId, grupos, envios }: { even
   return (
     <>
       {aviso && (
-        <p className={aviso.tipo} role={aviso.tipo === 'erro' ? 'alert' : 'status'}>
+        <p
+          className={aviso.tipo}
+          role={aviso.tipo === 'erro' ? 'alert' : 'status'}
+        >
           {aviso.texto}
         </p>
       )}
@@ -214,7 +340,11 @@ export default function AbaBonusPenalidades({ eventoId, grupos, envios }: { even
         <h2 className="titulo-bloco">Bonificação por grupo</h2>
         {config.itensBonificacao.length === 0 ? (
           <p className="dica">
-            Nenhum item de bonificação configurado. Cadastre-os em <Link to={`/evento/${eventoId}/configuracao`}>Configuração do evento</Link>.
+            Nenhum item de bonificação configurado. Cadastre-os em{' '}
+            <Link to={`/evento/${eventoId}/configuracao`}>
+              Configuração do evento
+            </Link>
+            .
           </p>
         ) : (
           <div className="tabela-rolagem">
@@ -249,7 +379,15 @@ export default function AbaBonusPenalidades({ eventoId, grupos, envios }: { even
                             className="campo-tabela"
                             inputMode="numeric"
                             value={bonus[g.id]?.[item.id ?? -1] ?? ''}
-                            onChange={(e) => setBonus({ ...bonus, [g.id]: { ...bonus[g.id], [item.id ?? -1]: e.target.value } })}
+                            onChange={(e) =>
+                              setBonus({
+                                ...bonus,
+                                [g.id]: {
+                                  ...bonus[g.id],
+                                  [item.id ?? -1]: e.target.value,
+                                },
+                              })
+                            }
                             aria-label={`${item.nome} de ${g.nome}`}
                           />
                         </td>
@@ -258,7 +396,11 @@ export default function AbaBonusPenalidades({ eventoId, grupos, envios }: { even
                         <strong>{totalBonus(g.id)}</strong>
                       </td>
                       <td className="desafio-linha-acoes">
-                        <button className="btn btn-pequeno" onClick={() => registrarBonus(g.id)} disabled={ocupado === `bonus-${g.id}`}>
+                        <button
+                          className="btn btn-pequeno"
+                          onClick={() => registrarBonus(g.id)}
+                          disabled={ocupado === `bonus-${g.id}`}
+                        >
                           Registrar
                         </button>
                         <button
@@ -286,8 +428,16 @@ export default function AbaBonusPenalidades({ eventoId, grupos, envios }: { even
         )}
       </section>
 
-      <form className="cartao penalidade-form" onSubmit={salvarPenalidade}>
-        <h2 className="titulo-bloco">{editando ? `Corrigir penalidade de ${nome(editando.grupoId)}` : 'Aplicar penalidade'}</h2>
+      <form
+        className="cartao penalidade-form"
+        data-telemetry-form="penalty.save"
+        onSubmit={salvarPenalidade}
+      >
+        <h2 className="titulo-bloco">
+          {editando
+            ? `Corrigir penalidade de ${nome(editando.grupoId)}`
+            : 'Aplicar penalidade'}
+        </h2>
         <p className="dica">
           {config.penalidadeMin === null || config.penalidadeMax === null
             ? 'Defina os dois limites na configuração do evento antes de lançar penalidades.'
@@ -296,7 +446,14 @@ export default function AbaBonusPenalidades({ eventoId, grupos, envios }: { even
         <div className="linha">
           <label className="campo">
             Equipe
-            <select className="seletor" value={penalidade.grupoId} onChange={(e) => setPenalidade({ ...penalidade, grupoId: e.target.value })} required>
+            <select
+              className="seletor"
+              value={penalidade.grupoId}
+              onChange={(e) =>
+                setPenalidade({ ...penalidade, grupoId: e.target.value })
+              }
+              required
+            >
               <option value="">Escolha</option>
               {grupos.map((g) => (
                 <option key={g.id} value={g.id}>
@@ -307,19 +464,35 @@ export default function AbaBonusPenalidades({ eventoId, grupos, envios }: { even
           </label>
           <label className="campo">
             Pontos
-            <input inputMode="numeric" value={penalidade.pontos} onChange={(e) => setPenalidade({ ...penalidade, pontos: e.target.value })} required />
+            <input
+              inputMode="numeric"
+              value={penalidade.pontos}
+              onChange={(e) =>
+                setPenalidade({ ...penalidade, pontos: e.target.value })
+              }
+              required
+            />
           </label>
         </div>
         <label className="campo">
           Descrição
-          <input value={penalidade.descricao} onChange={(e) => setPenalidade({ ...penalidade, descricao: e.target.value })} required placeholder="Ex.: Atraso na entrega" />
+          <input
+            value={penalidade.descricao}
+            onChange={(e) =>
+              setPenalidade({ ...penalidade, descricao: e.target.value })
+            }
+            required
+            placeholder="Ex.: Atraso na entrega"
+          />
         </label>
         <label className="campo">
           Justificativa
           <textarea
             className="area-texto"
             value={penalidade.justificativa}
-            onChange={(e) => setPenalidade({ ...penalidade, justificativa: e.target.value })}
+            onChange={(e) =>
+              setPenalidade({ ...penalidade, justificativa: e.target.value })
+            }
             required
             rows={3}
           />
@@ -329,7 +502,11 @@ export default function AbaBonusPenalidades({ eventoId, grupos, envios }: { even
             {editando ? 'Salvar correção' : 'Aplicar penalidade'}
           </button>
           {editando && (
-            <button type="button" className="btn btn-cinza" onClick={cancelarEdicao}>
+            <button
+              type="button"
+              className="btn btn-cinza"
+              onClick={cancelarEdicao}
+            >
               Cancelar
             </button>
           )}
@@ -338,7 +515,9 @@ export default function AbaBonusPenalidades({ eventoId, grupos, envios }: { even
 
       <section className="cartao tabela-cartao">
         <h2 className="titulo-bloco">Penalidades aplicadas</h2>
-        {penalidades?.length === 0 && <p className="dica">Nenhuma penalidade aplicada.</p>}
+        {penalidades?.length === 0 && (
+          <p className="dica">Nenhuma penalidade aplicada.</p>
+        )}
         {!!penalidades?.length && (
           <div className="tabela-rolagem">
             <table className="tabela">
@@ -362,18 +541,27 @@ export default function AbaBonusPenalidades({ eventoId, grupos, envios }: { even
                       <td>{p.descricao}</td>
                       <td>{p.justificativa}</td>
                       <td className="desafio-linha-acoes">
-                        <button className="btn btn-contorno btn-pequeno" onClick={() => editar(p)}>
+                        <button
+                          className="btn btn-contorno btn-pequeno"
+                          onClick={() => editar(p)}
+                        >
                           Corrigir
                         </button>
                         <button
                           type="button"
                           className="btn btn-contorno btn-pequeno"
                           onClick={() => historicoPenalidade(p.id)}
-                          aria-expanded={historico?.chave === `penalidade-${p.id}`}
+                          aria-expanded={
+                            historico?.chave === `penalidade-${p.id}`
+                          }
                         >
                           Histórico
                         </button>
-                        <button className="btn-excluir" onClick={() => remover(p)} aria-label={`Remover penalidade de ${nome(p.grupoId)}`}>
+                        <button
+                          className="btn-excluir"
+                          onClick={() => remover(p)}
+                          aria-label={`Remover penalidade de ${nome(p.grupoId)}`}
+                        >
                           ×
                         </button>
                       </td>

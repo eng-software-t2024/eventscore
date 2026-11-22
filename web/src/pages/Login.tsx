@@ -19,7 +19,10 @@ export default function Login() {
     try {
       const resposta = await api<Schemas['LoginResponseDto']>('/auth/login', {
         method: 'POST',
-        body: JSON.stringify({ email: dados.get('email'), senha: dados.get('senha') }),
+        body: JSON.stringify({
+          email: dados.get('email'),
+          senha: dados.get('senha'),
+        }),
       });
       token.salvar(resposta.token, dados.get('manter') === 'on');
       navigate('/', { replace: true });
@@ -41,15 +44,29 @@ export default function Login() {
         <form onSubmit={entrar}>
           <span className="login-tag">Acesso administrativo</span>
           <h1>Acesso ao sistema</h1>
-          <p className="login-sub">Entre com suas credenciais para gerenciar provas, notas e a apuração oficial.</p>
+          <p className="login-sub">
+            Entre com suas credenciais para gerenciar provas, notas e a apuração
+            oficial.
+          </p>
 
           <label className="campo">
             E-mail
-            <input name="email" type="email" required autoComplete="username" placeholder="operador@arenacomp.org" />
+            <input
+              name="email"
+              type="email"
+              required
+              autoComplete="username"
+              placeholder="operador@arenacomp.org"
+            />
           </label>
           <label className="campo">
             Senha
-            <input name="senha" type="password" required autoComplete="current-password" />
+            <input
+              name="senha"
+              type="password"
+              required
+              autoComplete="current-password"
+            />
           </label>
           <label className="login-manter">
             <input name="manter" type="checkbox" /> Manter conectado

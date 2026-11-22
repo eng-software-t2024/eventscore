@@ -3,7 +3,16 @@ import { Link } from 'react-router';
 import { api, type Schemas } from '../../api/client';
 import { confirmar } from '../../components/Confirmacao';
 import { useLayout } from '../../components/Layout';
-import { camposAlterados, desafiosDesatualizados, MAX_DESCRICAO, MAX_NOME, montarDesafio, paraFormulario, type Desafio, type FormDesafio } from './regras.ts';
+import {
+  camposAlterados,
+  desafiosDesatualizados,
+  MAX_DESCRICAO,
+  MAX_NOME,
+  montarDesafio,
+  paraFormulario,
+  type Desafio,
+  type FormDesafio,
+} from './regras.ts';
 import './Desafios.css';
 
 type Dia = Schemas['DiaEventoDto'];
@@ -26,12 +35,22 @@ export default function Desafios() {
 
   const carregar = useCallback(() => {
     if (!base) return;
-    Promise.all([api<Desafio[]>(`${base}/desafios`), api<Dia[]>(`${base}/dias`), api<Schemas['GrupoResumoDto'][]>(`${base}/grupos`)])
+    Promise.all([
+      api<Desafio[]>(`${base}/desafios`),
+      api<Dia[]>(`${base}/dias`),
+      api<Schemas['GrupoResumoDto'][]>(`${base}/grupos`),
+    ])
       .then(([lista, ds, gs]) => {
         setDesafios(lista);
         setDias([...ds].sort((a, b) => a.numeroDia - b.numeroDia));
         setGrupos(gs.length);
-        setForm((f) => ({ ...f, pontos: Array.from({ length: gs.length }, (_, i) => f.pontos[i] ?? '') }));
+        setForm((f) => ({
+          ...f,
+          pontos: Array.from(
+            { length: gs.length },
+            (_, i) => f.pontos[i] ?? '',
+          ),
+        }));
       })
       .catch((e: Error) => setErro(e.message));
   }, [base]);
@@ -42,7 +61,8 @@ export default function Desafios() {
   if (eventoAtivo === null) {
     return (
       <p className="cartao">
-        Nenhum evento ativo. Ative um evento na aba <Link to="/evento">Evento</Link> para cadastrar os desafios.
+        Nenhum evento ativo. Ative um evento na aba{' '}
+        <Link to="/evento">Evento</Link> para cadastrar os desafios.
       </p>
     );
   }
@@ -80,10 +100,16 @@ export default function Desafios() {
         const mudancas = camposAlterados(editando, resultado.dados);
         // Nada mudou: não há o que enviar.
         if (Object.keys(mudancas).length > 0) {
-          await api(`${base}/desafios/${editando.id}`, { method: 'PATCH', body: JSON.stringify(mudancas) });
+          await api(`${base}/desafios/${editando.id}`, {
+            method: 'PATCH',
+            body: JSON.stringify(mudancas),
+          });
         }
       } else {
-        await api(`${base}/desafios`, { method: 'POST', body: JSON.stringify(resultado.dados) });
+        await api(`${base}/desafios`, {
+          method: 'POST',
+          body: JSON.stringify(resultado.dados),
+        });
       }
       novo();
       carregar();
@@ -95,7 +121,15 @@ export default function Desafios() {
   }
 
   async function excluir(desafio: Desafio) {
-    if (!(await confirmar({ titulo: 'Excluir desafio', mensagem: `Excluir o desafio "${desafio.nome}"? Essa ação não pode ser desfeita.`, confirmar: 'Excluir', perigo: true }))) return;
+    if (
+      !(await confirmar({
+        titulo: 'Excluir desafio',
+        mensagem: `Excluir o desafio "${desafio.nome}"? Essa ação não pode ser desfeita.`,
+        confirmar: 'Excluir',
+        perigo: true,
+      }))
+    )
+      return;
     setErro('');
     try {
       await api(`${base}/desafios/${desafio.id}`, { method: 'DELETE' });
@@ -125,13 +159,20 @@ export default function Desafios() {
       )}
       {desatualizados.length > 0 && (
         <p className="cartao aviso" role="status">
-          {desatualizados.length === 1 ? 'O desafio' : 'Os desafios'} {desatualizados.map((d) => d.nome).join(', ')}{' '}
-          {desatualizados.length === 1 ? 'tem' : 'têm'} a tabela de pontos com número de linhas diferente dos {grupos} grupos do evento. Edite e salve
-          para completar a tabela; sem isso não dá para lançar as colocações.
+          {desatualizados.length === 1 ? 'O desafio' : 'Os desafios'}{' '}
+          {desatualizados.map((d) => d.nome).join(', ')}{' '}
+          {desatualizados.length === 1 ? 'tem' : 'têm'} a tabela de pontos com
+          número de linhas diferente dos {grupos} grupos do evento. Edite e
+          salve para completar a tabela; sem isso não dá para lançar as
+          colocações.
         </p>
       )}
 
-      <form className="desafio-form" onSubmit={salvar}>
+      <form
+        className="desafio-form"
+        data-telemetry-form="challenge.save"
+        onSubmit={salvar}
+      >
         <section className="cartao desafio-bloco">
           <h2>
             <span className="icone" aria-hidden="true">
@@ -141,15 +182,30 @@ export default function Desafios() {
           </h2>
           <label className="campo">
             Nome
-            <input value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} required maxLength={MAX_NOME} placeholder="Ex.: Hackathon" />
+            <input
+              value={form.nome}
+              onChange={(e) => setForm({ ...form, nome: e.target.value })}
+              required
+              maxLength={MAX_NOME}
+              placeholder="Ex.: Hackathon"
+            />
           </label>
           <label className="campo">
             Descrição
-            <input value={form.descricao} onChange={(e) => setForm({ ...form, descricao: e.target.value })} maxLength={MAX_DESCRICAO} placeholder="Opcional" />
+            <input
+              value={form.descricao}
+              onChange={(e) => setForm({ ...form, descricao: e.target.value })}
+              maxLength={MAX_DESCRICAO}
+              placeholder="Opcional"
+            />
           </label>
           <label className="campo">
             Dia
-            <select value={form.diaId} onChange={(e) => setForm({ ...form, diaId: e.target.value })} required>
+            <select
+              value={form.diaId}
+              onChange={(e) => setForm({ ...form, diaId: e.target.value })}
+              required
+            >
               <option value="">Escolha o dia</option>
               {dias.map((d) => (
                 <option key={d.id} value={d.id}>
@@ -158,7 +214,9 @@ export default function Desafios() {
               ))}
             </select>
           </label>
-          {dias.length === 0 && <p className="dica">O evento ainda não tem dias cadastrados.</p>}
+          {dias.length === 0 && (
+            <p className="dica">O evento ainda não tem dias cadastrados.</p>
+          )}
           <div className="desafio-acoes">
             <button className="btn" disabled={salvando}>
               {salvando ? 'Salvando...' : 'Salvar desafio'}
@@ -180,7 +238,8 @@ export default function Desafios() {
           </h2>
           {grupos === 0 ? (
             <p className="dica">
-              Cadastre os <Link to="/grupos">grupos</Link> antes: a tabela tem uma linha por grupo.
+              Cadastre os <Link to="/grupos">grupos</Link> antes: a tabela tem
+              uma linha por grupo.
             </p>
           ) : (
             <table className="tabela pontos">
@@ -197,14 +256,23 @@ export default function Desafios() {
                     <td>{i + 1}º</td>
                     <td aria-hidden="true">
                       <span className="barra">
-                        <span style={{ width: `${(valores[i] / maximo) * 100}%` }} />
+                        <span
+                          style={{ width: `${(valores[i] / maximo) * 100}%` }}
+                        />
                       </span>
                     </td>
                     <td>
                       <input
                         inputMode="numeric"
                         value={valor}
-                        onChange={(e) => setForm({ ...form, pontos: form.pontos.map((v, j) => (j === i ? e.target.value : v)) })}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            pontos: form.pontos.map((v, j) =>
+                              j === i ? e.target.value : v,
+                            ),
+                          })
+                        }
                         aria-label={`Pontos do ${i + 1}º lugar`}
                       />{' '}
                       pts
@@ -225,7 +293,9 @@ export default function Desafios() {
           </span>
           Desafios cadastrados
         </h2>
-        {desafios?.length === 0 && <p className="dica">Nenhum desafio cadastrado ainda.</p>}
+        {desafios?.length === 0 && (
+          <p className="dica">Nenhum desafio cadastrado ainda.</p>
+        )}
         {!!desafios?.length && (
           <div className="tabela-rolagem">
             <table className="tabela">
@@ -244,17 +314,41 @@ export default function Desafios() {
                   <tr key={d.id}>
                     <td>
                       <strong>{d.nome}</strong>
-                      {desatualizados.includes(d) && <small className="sub erro">Tabela de pontos desatualizada</small>}
-                      {d.descricao && <small className="sub">{d.descricao}</small>}
+                      {desatualizados.includes(d) && (
+                        <small className="sub erro">
+                          Tabela de pontos desatualizada
+                        </small>
+                      )}
+                      {d.descricao && (
+                        <small className="sub">{d.descricao}</small>
+                      )}
                     </td>
                     <td>{nomeDoDia(d.diaId)}</td>
-                    <td>{Math.max(0, ...d.pontosColocacao.map((p) => p.pontos))} pts</td>
+                    <td>
+                      {Math.max(0, ...d.pontosColocacao.map((p) => p.pontos))}{' '}
+                      pts
+                    </td>
                     <td className="desafio-linha-acoes">
-                      <button className="btn btn-contorno" onClick={() => editar(d)}>
+                      <button
+                        className="btn btn-contorno"
+                        onClick={() => editar(d)}
+                      >
                         ✎ Editar
                       </button>
-                      <button className="btn-excluir" onClick={() => excluir(d)} aria-label={`Excluir ${d.nome}`}>
-                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                      <button
+                        className="btn-excluir"
+                        onClick={() => excluir(d)}
+                        aria-label={`Excluir ${d.nome}`}
+                      >
+                        <svg
+                          viewBox="0 0 24 24"
+                          width="18"
+                          height="18"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          aria-hidden="true"
+                        >
                           <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />
                         </svg>
                       </button>

@@ -27,7 +27,11 @@ type Apuracao = {
 };
 
 const TAMANHO = 20;
-const decimal = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
+const decimal = (n: number) =>
+  n.toLocaleString('pt-BR', {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 2,
+  });
 
 // Ponto extra = conversão da colocação final do grupo × fator de presença (RF16), calculado pela API na consulta.
 // "Executar apuração final" do mock virou link para os relatórios: não há nada a gravar (contrato v0.3).
@@ -50,7 +54,10 @@ export default function Apuracao() {
 
   useEffect(() => {
     if (!eventoId) return;
-    const params = new URLSearchParams({ pagina: String(filtro.pagina), tamanho: String(TAMANHO) });
+    const params = new URLSearchParams({
+      pagina: String(filtro.pagina),
+      tamanho: String(TAMANHO),
+    });
     if (filtro.grupoId) params.set('grupoId', filtro.grupoId);
     if (filtro.busca) params.set('busca', filtro.busca);
     api<Apuracao>(`/eventos/${eventoId}/apuracao?${params}`)
@@ -61,7 +68,11 @@ export default function Apuracao() {
       })
       .catch((e: Error) => {
         setApuracao(undefined);
-        if (e instanceof ApiError && e.status === 409 && e.message.includes('empate pendente')) {
+        if (
+          e instanceof ApiError &&
+          e.status === 409 &&
+          e.message.includes('empate pendente')
+        ) {
           setEmpate(e.message);
           setErro('');
         } else {
@@ -75,7 +86,8 @@ export default function Apuracao() {
   if (eventoAtivo === null) {
     return (
       <p className="cartao">
-        Nenhum evento ativo. Ative um evento na aba <Link to="/evento">Evento</Link> para ver a apuração.
+        Nenhum evento ativo. Ative um evento na aba{' '}
+        <Link to="/evento">Evento</Link> para ver a apuração.
       </p>
     );
   }
@@ -86,14 +98,18 @@ export default function Apuracao() {
   }
 
   const resumo = apuracao?.resumo;
-  const pctAptos = resumo?.totalParticipantes ? (resumo.aptos / resumo.totalParticipantes) * 100 : 0;
+  const pctAptos = resumo?.totalParticipantes
+    ? (resumo.aptos / resumo.totalParticipantes) * 100
+    : 0;
 
   return (
     <>
       <header className="hero">
         <div>
           <h1>Apuração individual</h1>
-          <p>Ponto extra = conversão da colocação do grupo × fator de presença.</p>
+          <p>
+            Ponto extra = conversão da colocação do grupo × fator de presença.
+          </p>
         </div>
         <Link to="/relatorios" className="btn btn-claro">
           Ir para os relatórios
@@ -139,10 +155,29 @@ export default function Apuracao() {
 
       <section className="cartao tabela-cartao">
         <div className="tabela-topo">
-          <h2 className="titulo-bloco">Cálculo por aluno{apuracao ? ` (${apuracao.paginacao.totalItens})` : ''}</h2>
-          <form className="filtros" onSubmit={buscar} role="search">
-            <input value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Buscar por nome ou matrícula" aria-label="Buscar aluno" />
-            <select value={filtro.grupoId} onChange={(e) => setFiltro({ ...filtro, grupoId: e.target.value, pagina: 1 })} aria-label="Filtrar por grupo">
+          <h2 className="titulo-bloco">
+            Cálculo por aluno
+            {apuracao ? ` (${apuracao.paginacao.totalItens})` : ''}
+          </h2>
+          <form
+            className="filtros"
+            data-telemetry-form="calculation.search"
+            onSubmit={buscar}
+            role="search"
+          >
+            <input
+              value={texto}
+              onChange={(e) => setTexto(e.target.value)}
+              placeholder="Buscar por nome ou matrícula"
+              aria-label="Buscar aluno"
+            />
+            <select
+              value={filtro.grupoId}
+              onChange={(e) =>
+                setFiltro({ ...filtro, grupoId: e.target.value, pagina: 1 })
+              }
+              aria-label="Filtrar por grupo"
+            >
               <option value="">Todos os grupos</option>
               {grupos.map((g) => (
                 <option key={g.id} value={g.id}>
@@ -155,7 +190,9 @@ export default function Apuracao() {
         </div>
 
         {!apuracao && !empate && !erro && <p className="dica">Carregando...</p>}
-        {apuracao?.dados.length === 0 && <p className="dica">Nenhum aluno encontrado.</p>}
+        {apuracao?.dados.length === 0 && (
+          <p className="dica">Nenhum aluno encontrado.</p>
+        )}
         {!!apuracao?.dados.length && (
           <div className="tabela-rolagem">
             <table className="tabela">
@@ -186,13 +223,16 @@ export default function Apuracao() {
                     <td>{l.turma}</td>
                     <td>
                       {l.grupo}
-                      {l.colocacaoGrupo !== null && <small className="sub">{l.colocacaoGrupo}º lugar</small>}
+                      {l.colocacaoGrupo !== null && (
+                        <small className="sub">{l.colocacaoGrupo}º lugar</small>
+                      )}
                     </td>
                     <td>{decimal(l.pontoExtraGrupo)}</td>
                     <td>
                       {fatorParaPercentual(l.fator)}%
                       <small className="sub">
-                        {l.diasPresentes} de {l.diasTotais} {l.diasTotais === 1 ? 'dia' : 'dias'}
+                        {l.diasPresentes} de {l.diasTotais}{' '}
+                        {l.diasTotais === 1 ? 'dia' : 'dias'}
                       </small>
                     </td>
                     <td>
@@ -205,7 +245,10 @@ export default function Apuracao() {
           </div>
         )}
 
-        <Paginacao meta={apuracao?.paginacao} irPara={(p) => setFiltro({ ...filtro, pagina: p })} />
+        <Paginacao
+          meta={apuracao?.paginacao}
+          irPara={(p) => setFiltro({ ...filtro, pagina: p })}
+        />
       </section>
     </>
   );

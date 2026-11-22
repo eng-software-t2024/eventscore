@@ -6,11 +6,24 @@ type Evento = Schemas['EventoResumoDto'];
 type Dia = Schemas['DiaEventoDto'];
 
 const diaDaSemana = (data: string) =>
-  data ? new Date(`${data}T00:00:00Z`).toLocaleDateString('pt-BR', { weekday: 'long', timeZone: 'UTC' }) : '';
+  data
+    ? new Date(`${data}T00:00:00Z`).toLocaleDateString('pt-BR', {
+        weekday: 'long',
+        timeZone: 'UTC',
+      })
+    : '';
 
 /** Gera os dias contínuos a partir do início, preservando os que já existem quando `manter` é true. */
-const ajustarDatas = (atuais: string[], inicio: string, quantidade: number, manter: boolean) =>
-  Array.from({ length: Math.max(0, quantidade) }, (_, i) => (manter && atuais[i]) || (inicio ? somarDias(inicio, i) : ''));
+const ajustarDatas = (
+  atuais: string[],
+  inicio: string,
+  quantidade: number,
+  manter: boolean,
+) =>
+  Array.from(
+    { length: Math.max(0, quantidade) },
+    (_, i) => (manter && atuais[i]) || (inicio ? somarDias(inicio, i) : ''),
+  );
 
 type Props = { evento?: Evento; onFechar: () => void; onSalvo: () => void };
 
@@ -32,7 +45,10 @@ export default function EventoModal({ evento, onFechar, onSalvo }: Props) {
     if (!evento) return;
     api<Dia[]>(`/eventos/${evento.id}/dias`)
       .then((dias) => {
-        const porNumero = Array.from({ length: evento.quantidadeDias }, (_, i) => dias.find((d) => d.numeroDia === i + 1)?.data ?? '');
+        const porNumero = Array.from(
+          { length: evento.quantidadeDias },
+          (_, i) => dias.find((d) => d.numeroDia === i + 1)?.data ?? '',
+        );
         setDatas(porNumero);
       })
       .catch((e: Error) => setErro(e.message));
@@ -53,27 +69,48 @@ export default function EventoModal({ evento, onFechar, onSalvo }: Props) {
   async function salvar(e: FormEvent) {
     e.preventDefault();
     const problema =
-      (limite === 0 && 'A data final precisa ser igual ou posterior à inicial.') ||
-      (quantidade > limite && `O período comporta no máximo ${limite} dia(s).`) ||
+      (limite === 0 &&
+        'A data final precisa ser igual ou posterior à inicial.') ||
+      (quantidade > limite &&
+        `O período comporta no máximo ${limite} dia(s).`) ||
       validarDias(datas, inicio, fim);
     if (problema) return setErro(problema);
 
     setErro('');
     setSalvando(true);
-    const dados = { nome: nome.trim(), ano, dataInicio: inicio, dataFim: fim, quantidadeDias: quantidade };
+    const dados = {
+      nome: nome.trim(),
+      ano,
+      dataInicio: inicio,
+      dataFim: fim,
+      quantidadeDias: quantidade,
+    };
     try {
       let id = eventoId;
       const existentes = id ? await api<Dia[]>(`/eventos/${id}/dias`) : [];
       const plano = planoDias(existentes, datas);
       // Ordem exigida pelos gatilhos do banco: tira os dias que saem, ajusta o período, cria os que entram.
-      for (const diaId of plano.excluir) await api(`/eventos/${id}/dias/${diaId}`, { method: 'DELETE' });
+      for (const diaId of plano.excluir)
+        await api(`/eventos/${id}/dias/${diaId}`, { method: 'DELETE' });
       if (id) {
-        await api(`/eventos/${id}`, { method: 'PATCH', body: JSON.stringify(dados) });
+        await api(`/eventos/${id}`, {
+          method: 'PATCH',
+          body: JSON.stringify(dados),
+        });
       } else {
-        id = (await api<Evento>('/eventos', { method: 'POST', body: JSON.stringify(dados) })).id;
+        id = (
+          await api<Evento>('/eventos', {
+            method: 'POST',
+            body: JSON.stringify(dados),
+          })
+        ).id;
         setEventoId(id);
       }
-      for (const dia of plano.criar) await api(`/eventos/${id}/dias`, { method: 'POST', body: JSON.stringify(dia) });
+      for (const dia of plano.criar)
+        await api(`/eventos/${id}/dias`, {
+          method: 'POST',
+          body: JSON.stringify(dia),
+        });
       if (!evento) await api(`/eventos/${id}/ativar`, { method: 'POST' });
       onSalvo();
     } catch (err) {
@@ -84,11 +121,24 @@ export default function EventoModal({ evento, onFechar, onSalvo }: Props) {
   }
 
   return (
-    <dialog ref={dialogo} className="modal" onClose={onFechar} aria-labelledby="evento-titulo">
-      <form onSubmit={salvar}>
+    <dialog
+      ref={dialogo}
+      className="modal"
+      onClose={onFechar}
+      aria-labelledby="evento-titulo"
+      data-telemetry-modal="event.save"
+    >
+      <form data-telemetry-form="event.save" onSubmit={salvar}>
         <header className="modal-topo">
-          <h2 id="evento-titulo">{evento ? 'Editar evento' : '+ Cadastrar novo evento'}</h2>
-          <button type="button" className="modal-fechar" onClick={onFechar} aria-label="Fechar">
+          <h2 id="evento-titulo">
+            {evento ? 'Editar evento' : '+ Cadastrar novo evento'}
+          </h2>
+          <button
+            type="button"
+            className="modal-fechar"
+            onClick={onFechar}
+            aria-label="Fechar"
+          >
             ×
           </button>
         </header>
@@ -96,20 +146,44 @@ export default function EventoModal({ evento, onFechar, onSalvo }: Props) {
         <div className="modal-corpo">
           <label className="campo">
             Nome do evento
-            <input value={nome} onChange={(e) => setNome(e.target.value)} required maxLength={100} placeholder="Arena Comp 2026" />
+            <input
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              required
+              maxLength={100}
+              placeholder="Arena Comp 2026"
+            />
           </label>
           <label className="campo campo-curto">
             Ano de realização
-            <input type="number" value={ano} onChange={(e) => setAno(e.target.valueAsNumber)} required min={2000} max={2100} />
+            <input
+              type="number"
+              value={ano}
+              onChange={(e) => setAno(e.target.valueAsNumber)}
+              required
+              min={2000}
+              max={2100}
+            />
           </label>
           <div className="linha">
             <label className="campo">
               Data inicial
-              <input type="date" value={inicio} onChange={(e) => mudarInicio(e.target.value)} required />
+              <input
+                type="date"
+                value={inicio}
+                onChange={(e) => mudarInicio(e.target.value)}
+                required
+              />
             </label>
             <label className="campo">
               Data final
-              <input type="date" value={fim} onChange={(e) => setFim(e.target.value)} min={inicio} required />
+              <input
+                type="date"
+                value={fim}
+                onChange={(e) => setFim(e.target.value)}
+                min={inicio}
+                required
+              />
             </label>
           </div>
           <label className="campo campo-quantidade">
@@ -140,7 +214,11 @@ export default function EventoModal({ evento, onFechar, onSalvo }: Props) {
                       value={data}
                       min={inicio}
                       max={fim}
-                      onChange={(e) => setDatas(datas.map((d, j) => (j === i ? e.target.value : d)))}
+                      onChange={(e) =>
+                        setDatas(
+                          datas.map((d, j) => (j === i ? e.target.value : d)),
+                        )
+                      }
                       aria-label={`Data do dia ${i + 1}`}
                     />
                     <small>{diaDaSemana(data)}</small>
@@ -161,7 +239,11 @@ export default function EventoModal({ evento, onFechar, onSalvo }: Props) {
               Cancelar
             </button>
             <button type="submit" className="btn" disabled={salvando}>
-              {salvando ? 'Salvando...' : evento ? 'Salvar alterações' : '✓ Salvar e definir como ativo'}
+              {salvando
+                ? 'Salvando...'
+                : evento
+                  ? 'Salvar alterações'
+                  : '✓ Salvar e definir como ativo'}
             </button>
           </div>
         </div>

@@ -9,11 +9,20 @@ import './Grupos.css';
 type Grupo = Schemas['GrupoResumoDto'];
 
 // Paleta do mock; "Outra cor" abre o seletor nativo, porque a quantidade de grupos é livre e a cor é única no evento.
-const PALETA = ['#C0392B', '#1D4ED8', '#15803D', '#B7791F', '#6B46C1', '#18181B'];
+const PALETA = [
+  '#C0392B',
+  '#1D4ED8',
+  '#15803D',
+  '#B7791F',
+  '#6B46C1',
+  '#18181B',
+];
 
-const corUsada = (grupos: Grupo[], cor: string) => grupos.some((g) => g.cor.toUpperCase() === cor.toUpperCase());
+const corUsada = (grupos: Grupo[], cor: string) =>
+  grupos.some((g) => g.cor.toUpperCase() === cor.toUpperCase());
 /** Primeira cor da paleta ainda livre no evento; com a paleta toda usada, um cinza para a pessoa trocar. */
-const corLivre = (grupos: Grupo[]) => PALETA.find((c) => !corUsada(grupos, c)) ?? '#808080';
+const corLivre = (grupos: Grupo[]) =>
+  PALETA.find((c) => !corUsada(grupos, c)) ?? '#808080';
 
 // Texto preto em cores claras, branco nas escuras.
 const corDoTexto = (hex: string) => {
@@ -31,7 +40,10 @@ export default function Grupos() {
   const [nome, setNome] = useState('');
   const [cor, setCor] = useState(PALETA[0]);
   // Aviso de revisão depois de criar ou excluir grupo, com o evento em que vale: trocar de evento o esconde.
-  const [revisar, setRevisar] = useState<{ base: string; acao: 'criado' | 'excluído' }>();
+  const [revisar, setRevisar] = useState<{
+    base: string;
+    acao: 'criado' | 'excluído';
+  }>();
 
   const base = eventoAtivo ? `/eventos/${eventoAtivo.id}` : '';
 
@@ -55,13 +67,19 @@ export default function Grupos() {
   if (eventoAtivo === null) {
     return (
       <p className="cartao">
-        Nenhum evento ativo. Ative um evento na aba <Link to="/evento">Evento</Link> para cadastrar os grupos.
+        Nenhum evento ativo. Ative um evento na aba{' '}
+        <Link to="/evento">Evento</Link> para cadastrar os grupos.
       </p>
     );
   }
 
-  const usadas = new Set(grupos?.filter((g) => g.id !== editando?.id).map((g) => g.cor.toUpperCase()));
-  const participantes = grupos?.reduce((soma, g) => soma + g.quantidadeParticipantes, 0) ?? 0;
+  const usadas = new Set(
+    grupos
+      ?.filter((g) => g.id !== editando?.id)
+      .map((g) => g.cor.toUpperCase()),
+  );
+  const participantes =
+    grupos?.reduce((soma, g) => soma + g.quantidadeParticipantes, 0) ?? 0;
 
   function limpar() {
     setEditando(undefined);
@@ -84,7 +102,11 @@ export default function Grupos() {
     setSalvando(true);
     try {
       const corpo = JSON.stringify({ nome: nome.trim(), cor });
-      if (editando) await api(`${base}/grupos/${editando.id}`, { method: 'PATCH', body: corpo });
+      if (editando)
+        await api(`${base}/grupos/${editando.id}`, {
+          method: 'PATCH',
+          body: corpo,
+        });
       else await api(`${base}/grupos`, { method: 'POST', body: corpo });
       limpar();
       carregar();
@@ -103,15 +125,27 @@ export default function Grupos() {
    */
   function avisarRevisao(acao: 'criado' | 'excluído') {
     setRevisar(undefined);
-    Promise.all([api<unknown[]>(`${base}/desafios`), api<{ conversaoPontoExtra: unknown[] }>(`${base}/configuracao`)])
+    Promise.all([
+      api<unknown[]>(`${base}/desafios`),
+      api<{ conversaoPontoExtra: unknown[] }>(`${base}/configuracao`),
+    ])
       .then(([desafios, config]) => {
-        if (desafios.length > 0 || config.conversaoPontoExtra.length > 0) setRevisar({ base, acao });
+        if (desafios.length > 0 || config.conversaoPontoExtra.length > 0)
+          setRevisar({ base, acao });
       })
       .catch(() => {});
   }
 
   async function excluir(grupo: Grupo) {
-    if (!(await confirmar({ titulo: 'Excluir grupo', mensagem: `Excluir o grupo "${grupo.nome}"? Essa ação não pode ser desfeita.`, confirmar: 'Excluir', perigo: true }))) return;
+    if (
+      !(await confirmar({
+        titulo: 'Excluir grupo',
+        mensagem: `Excluir o grupo "${grupo.nome}"? Essa ação não pode ser desfeita.`,
+        confirmar: 'Excluir',
+        perigo: true,
+      }))
+    )
+      return;
     setErro('');
     try {
       await api(`${base}/grupos/${grupo.id}`, { method: 'DELETE' });
@@ -138,28 +172,49 @@ export default function Grupos() {
 
       {revisar?.base === base && !travado && (
         <p className="cartao aviso" role="status">
-          Grupo {revisar.acao}. Revise a tabela de pontos em <Link to="/desafios">Desafios</Link> e a conversão em ponto extra na{' '}
-          <Link to={`/evento/${eventoAtivo.id}/configuracao`}>Configuração</Link>: as duas precisam de uma linha por grupo.
+          Grupo {revisar.acao}. Revise a tabela de pontos em{' '}
+          <Link to="/desafios">Desafios</Link> e a conversão em ponto extra na{' '}
+          <Link to={`/evento/${eventoAtivo.id}/configuracao`}>
+            Configuração
+          </Link>
+          : as duas precisam de uma linha por grupo.
         </p>
       )}
       {travado ? (
         <p className="cartao aviso">
-          Este evento já tem resultado lançado. Os grupos não podem mais ser criados, editados nem excluídos (RF03).
+          Este evento já tem resultado lançado. Os grupos não podem mais ser
+          criados, editados nem excluídos (RF03).
         </p>
       ) : (
-        <form className="cartao grupo-form" onSubmit={salvar}>
+        <form
+          className="cartao grupo-form"
+          data-telemetry-form="groups.save"
+          onSubmit={salvar}
+        >
           <h2>
-            <span className="icone">{editando ? '✎' : '+'}</span> {editando ? `Editar ${editando.nome}` : 'Novo grupo'}
+            <span className="icone">{editando ? '✎' : '+'}</span>{' '}
+            {editando ? `Editar ${editando.nome}` : 'Novo grupo'}
           </h2>
           <div className="grupo-form-linha">
             <label className="campo">
               Nome do grupo
-              <input value={nome} onChange={(e) => setNome(e.target.value)} required maxLength={50} placeholder="Ex.: Alpha Red" />
+              <input
+                value={nome}
+                onChange={(e) => setNome(e.target.value)}
+                required
+                maxLength={50}
+                placeholder="Ex.: Alpha Red"
+              />
             </label>
             <fieldset className="cores">
               <legend className="sr-only">Cor do grupo</legend>
               {PALETA.map((c) => (
-                <label key={c} className="cor" style={{ background: c }} title={usadas.has(c) ? 'Cor já usada' : c}>
+                <label
+                  key={c}
+                  className="cor"
+                  style={{ background: c }}
+                  title={usadas.has(c) ? 'Cor já usada' : c}
+                >
                   <input
                     type="radio"
                     name="cor"
@@ -171,22 +226,41 @@ export default function Grupos() {
                   />
                 </label>
               ))}
-              <label className="cor cor-outra" title="Outra cor" style={PALETA.includes(cor) ? undefined : { background: cor }}>
-                <input type="color" value={cor} onChange={(e) => setCor(e.target.value.toUpperCase())} aria-label="Outra cor" />
+              <label
+                className="cor cor-outra"
+                title="Outra cor"
+                style={PALETA.includes(cor) ? undefined : { background: cor }}
+              >
+                <input
+                  type="color"
+                  value={cor}
+                  onChange={(e) => setCor(e.target.value.toUpperCase())}
+                  aria-label="Outra cor"
+                />
               </label>
             </fieldset>
             <div className="grupo-form-acoes">
               {editando && (
-                <button type="button" className="btn btn-cinza" onClick={limpar}>
+                <button
+                  type="button"
+                  className="btn btn-cinza"
+                  onClick={limpar}
+                >
                   Cancelar
                 </button>
               )}
               <button className="btn" disabled={salvando || usadas.has(cor)}>
-                {salvando ? 'Salvando...' : editando ? 'Salvar grupo' : 'Cadastrar grupo'}
+                {salvando
+                  ? 'Salvando...'
+                  : editando
+                    ? 'Salvar grupo'
+                    : 'Cadastrar grupo'}
               </button>
             </div>
           </div>
-          {usadas.has(cor) && <p className="erro">Essa cor já é de outro grupo do evento.</p>}
+          {usadas.has(cor) && (
+            <p className="erro">Essa cor já é de outro grupo do evento.</p>
+          )}
         </form>
       )}
 
@@ -196,26 +270,49 @@ export default function Grupos() {
         </p>
       )}
 
-      {grupos?.length === 0 && <p className="cartao">Nenhum grupo cadastrado ainda.</p>}
+      {grupos?.length === 0 && (
+        <p className="cartao">Nenhum grupo cadastrado ainda.</p>
+      )}
       <section className="grupos">
         {grupos?.map((grupo) => (
           <article key={grupo.id} className="cartao grupo">
-            <div className="grupo-faixa" style={{ background: grupo.cor, color: corDoTexto(grupo.cor) }}>
+            <div
+              className="grupo-faixa"
+              style={{ background: grupo.cor, color: corDoTexto(grupo.cor) }}
+            >
               {iniciais(grupo.nome)}
             </div>
             <div className="grupo-info">
               <strong>{grupo.nome}</strong>
               <small>
-                {grupo.quantidadeParticipantes} {grupo.quantidadeParticipantes === 1 ? 'integrante' : 'integrantes'}
+                {grupo.quantidadeParticipantes}{' '}
+                {grupo.quantidadeParticipantes === 1
+                  ? 'integrante'
+                  : 'integrantes'}
               </small>
             </div>
             {!travado && (
               <div className="grupo-acoes">
-                <button className="btn btn-contorno" onClick={() => editar(grupo)}>
+                <button
+                  className="btn btn-contorno"
+                  onClick={() => editar(grupo)}
+                >
                   ✎ Editar
                 </button>
-                <button className="btn-excluir" onClick={() => excluir(grupo)} aria-label={`Excluir ${grupo.nome}`}>
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <button
+                  className="btn-excluir"
+                  onClick={() => excluir(grupo)}
+                  aria-label={`Excluir ${grupo.nome}`}
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="18"
+                    height="18"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    aria-hidden="true"
+                  >
                     <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />
                   </svg>
                 </button>

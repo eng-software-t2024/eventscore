@@ -4,6 +4,264 @@
  */
 
 export interface paths {
+    "/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AuthController_logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/management/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Listar e filtrar usuários
+         * @description Acesso exclusivo ao perfil MASTER; ADMIN recebe 403.
+         */
+        get: operations["ManagementController_users"];
+        put?: never;
+        /**
+         * Criar usuário ADMIN
+         * @description Acesso exclusivo ao perfil MASTER; ADMIN recebe 403.
+         */
+        post: operations["ManagementController_createUser"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/management/users/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Excluir usuário sem referências
+         * @description Acesso exclusivo ao perfil MASTER; ADMIN recebe 403.
+         */
+        delete: operations["ManagementController_deleteUser"];
+        options?: never;
+        head?: never;
+        /**
+         * Editar ou ativar/desativar usuário
+         * @description Acesso exclusivo ao perfil MASTER; ADMIN recebe 403.
+         */
+        patch: operations["ManagementController_updateUser"];
+        trace?: never;
+    };
+    "/management/users/{id}/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Redefinir senha e revogar sessões existentes
+         * @description Acesso exclusivo ao perfil MASTER; ADMIN recebe 403.
+         */
+        post: operations["ManagementController_resetPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/management/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Listar sessões e seu estado
+         * @description Acesso exclusivo ao perfil MASTER; ADMIN recebe 403.
+         */
+        get: operations["ManagementController_sessions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/management/sessions/{id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revogar sessão ativa
+         * @description Acesso exclusivo ao perfil MASTER; ADMIN recebe 403.
+         */
+        post: operations["ManagementController_revoke"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/management/telemetry/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Consultar telemetria com filtros
+         * @description Acesso exclusivo ao perfil MASTER; ADMIN recebe 403.
+         */
+        get: operations["ManagementController_telemetry"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/management/telemetry/users/{id}/timeline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Linha do tempo de um usuário
+         * @description Acesso exclusivo ao perfil MASTER; ADMIN recebe 403.
+         */
+        get: operations["ManagementController_timeline"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/management/telemetry/export.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Acesso exclusivo ao perfil MASTER; ADMIN recebe 403. */
+        get: operations["ManagementController_exportTelemetry"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/management/telemetry/period": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Consultar período atual e retenção
+         * @description Acesso exclusivo ao perfil MASTER; ADMIN recebe 403.
+         */
+        get: operations["ManagementController_period"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/management/telemetry/period/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Encerrar período e iniciar retenção de 30 dias
+         * @description Acesso exclusivo ao perfil MASTER; ADMIN recebe 403.
+         */
+        post: operations["ManagementController_closePeriod"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/management/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Consultar auditoria administrativa imutável
+         * @description Acesso exclusivo ao perfil MASTER; ADMIN recebe 403.
+         */
+        get: operations["ManagementController_audit"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/telemetry/client": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Registrar evento sem conteúdo de formulário */
+        post: operations["ClientTelemetryController_register"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/login": {
         parameters: {
             query?: never;
@@ -955,6 +1213,113 @@ export interface components {
              * @example admin@arena.com
              */
             email: string;
+            /**
+             * @description Perfil autenticado do usuário.
+             * @enum {string}
+             */
+            perfil: "ADMIN" | "MASTER";
+        };
+        UsuarioGestaoDto: {
+            id: number;
+            nome: string;
+            /** Format: email */
+            email: string;
+            /** @enum {string} */
+            perfil: "ADMIN" | "MASTER";
+            ativo: boolean;
+            referencias: {
+                [key: string]: number;
+            };
+            podeExcluir: boolean;
+        };
+        AuthSessionDto: {
+            /** Format: uuid */
+            id: string;
+            usuarioId: number;
+            /** Format: date-time */
+            issuedAt: string;
+            /** Format: date-time */
+            lastActivityAt: string;
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: date-time */
+            endedAt?: string | null;
+            /** @enum {string|null} */
+            endReason?: "LOGOUT" | "EXPIRED" | "REVOKED" | null;
+            ip?: string | null;
+            userAgent?: string | null;
+            usuario: {
+                nome?: string;
+                /** Format: email */
+                email?: string;
+            };
+        };
+        TelemetryEventDto: {
+            /** Format: uuid */
+            id: string;
+            usuarioId?: number | null;
+            /** Format: date-time */
+            occurredAt: string;
+            /** @enum {string} */
+            source: "API" | "FRONTEND" | "AUTH" | "SYSTEM";
+            eventType: string;
+            method?: string | null;
+            route?: string | null;
+            status?: number | null;
+            durationMs?: number | null;
+            /** @enum {string} */
+            outcome: "SUCCESS" | "FAILURE" | "INFO";
+            correlationId?: string | null;
+            ip?: string | null;
+            userAgent?: string | null;
+            details?: Record<string, never>;
+            usuario?: {
+                nome?: string;
+                /** Format: email */
+                email?: string;
+            } | null;
+        };
+        TimelineEventDto: {
+            /** Format: date-time */
+            occurredAt: string;
+            /** @enum {string} */
+            categoria: "TELEMETRIA" | "AUDITORIA_GESTAO";
+            eventType?: string;
+            action?: string;
+            source?: string;
+            outcome?: string;
+            route?: string;
+            status?: number;
+            actorUserId?: number;
+            details?: Record<string, never>;
+        };
+        TelemetryPeriodDto: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            status: "OPEN" | "CLOSED";
+            /** Format: date-time */
+            startedAt: string;
+            /** Format: date-time */
+            endedAt?: string | null;
+            /** Format: date-time */
+            purgeAfter?: string | null;
+        };
+        AdminAuditEventDto: {
+            /** Format: uuid */
+            id: string;
+            actorUserId: number;
+            targetUserId?: number | null;
+            action: string;
+            /** Format: date-time */
+            occurredAt: string;
+            correlationId?: string | null;
+            details?: Record<string, never>;
+            actor?: {
+                nome?: string;
+                /** Format: email */
+                email?: string;
+            };
         };
         EventoResumoDto: {
             /**
@@ -1994,6 +2359,53 @@ export interface components {
          * @enum {string}
          */
         TipoCriterioDesempate: "MAIOR_PONTUACAO_DESAFIO" | "MAIOR_SOMA_DESAFIOS" | "MAIOR_BONIFICACAO" | "MENOR_PENALIDADE";
+        CriarUsuarioDto: {
+            nome: string;
+            /** Format: email */
+            email: string;
+            /** Format: password */
+            senha: string;
+        };
+        AtualizarUsuarioDto: {
+            nome?: string;
+            /** Format: email */
+            email?: string;
+            ativo?: boolean;
+        };
+        RedefinirSenhaDto: {
+            /** Format: password */
+            senha: string;
+        };
+        EventoFrontendDto: {
+            /** @enum {string} */
+            eventType: "ROUTE_CHANGE" | "ACTION" | "MODAL_OPEN" | "MODAL_CLOSE" | "FORM_SUBMIT" | "JS_ERROR" | "API_FAILURE" | "TAB_VISIBILITY" | "IDLE";
+            rota?: string;
+            acao?: string;
+            visivel?: boolean;
+        };
+        FiltroTelemetriaDto: {
+            /** @default 50 */
+            limite: number;
+            tipo?: string;
+            usuarioId?: number;
+            /** Format: date-time */
+            desde?: string;
+            /** Format: date-time */
+            ate?: string;
+        };
+        ListarUsuariosDto: {
+            busca?: string;
+            /** @enum {string} */
+            perfil?: "ADMIN" | "MASTER";
+            ativo?: boolean;
+            /** @default 1 */
+            pagina: number;
+            /** @default 25 */
+            limite: number;
+        };
+        RevogarSessaoDto: {
+            justificativa?: string;
+        };
         ErroPadraoDto: {
             /**
              * @description Código de status HTTP correspondente.
@@ -2241,6 +2653,460 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    AuthController_logout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sessão encerrada e mantida por 30 dias. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ManagementController_users: {
+        parameters: {
+            query?: {
+                busca?: string;
+                perfil?: "ADMIN" | "MASTER";
+                ativo?: boolean;
+                pagina?: number;
+                limite?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Usuários filtrados e contagens de referências usadas para habilitar exclusão segura. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        dados: components["schemas"]["UsuarioGestaoDto"][];
+                        total: number;
+                        pagina: number;
+                        limite: number;
+                    };
+                };
+            };
+            /** @description Acesso exclusivo ao perfil MASTER. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ManagementController_createUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CriarUsuarioDto"];
+            };
+        };
+        responses: {
+            /** @description Usuário ADMIN criado. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsuarioGestaoDto"];
+                };
+            };
+            /** @description Acesso exclusivo ao perfil MASTER. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ManagementController_deleteUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Usuário sem referências removido; auditoria administrativa preservada. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id?: number;
+                        nome?: string;
+                        /** Format: email */
+                        email?: string;
+                    };
+                };
+            };
+            /** @description Acesso exclusivo ao perfil MASTER. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ManagementController_updateUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AtualizarUsuarioDto"];
+            };
+        };
+        responses: {
+            /** @description Dados do usuário atualizados; perfil preservado. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsuarioGestaoDto"];
+                };
+            };
+            /** @description Acesso exclusivo ao perfil MASTER. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ManagementController_resetPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RedefinirSenhaDto"];
+            };
+        };
+        responses: {
+            /** @description Senha redefinida e sessões anteriores revogadas. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Acesso exclusivo ao perfil MASTER. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ManagementController_sessions: {
+        parameters: {
+            query: {
+                usuarioId: string;
+                limite: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sessões atuais e encerradas dentro da retenção. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthSessionDto"][];
+                };
+            };
+            /** @description Acesso exclusivo ao perfil MASTER. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ManagementController_revoke: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RevogarSessaoDto"];
+            };
+        };
+        responses: {
+            /** @description Sessão revogada; mantida por 30 dias. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Acesso exclusivo ao perfil MASTER. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ManagementController_telemetry: {
+        parameters: {
+            query?: {
+                limite?: number;
+                tipo?: string;
+                usuarioId?: number;
+                desde?: string;
+                ate?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Eventos de telemetria filtrados, sem credenciais nem conteúdo de formulários. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TelemetryEventDto"][];
+                };
+            };
+            /** @description Acesso exclusivo ao perfil MASTER. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ManagementController_timeline: {
+        parameters: {
+            query: {
+                limite: string;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Linha do tempo combinando telemetria e auditoria administrativa. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimelineEventDto"][];
+                };
+            };
+            /** @description Acesso exclusivo ao perfil MASTER. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ManagementController_exportTelemetry: {
+        parameters: {
+            query?: {
+                limite?: number;
+                tipo?: string;
+                usuarioId?: number;
+                desde?: string;
+                ate?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description CSV UTF-8 de telemetria; limite máximo de 100 linhas. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+            /** @description Acesso exclusivo ao perfil MASTER. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ManagementController_period: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Período de telemetria atual. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TelemetryPeriodDto"];
+                };
+            };
+            /** @description Acesso exclusivo ao perfil MASTER. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ManagementController_closePeriod: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Encerramento inicia retenção de telemetria por 30 dias. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        encerrado: boolean;
+                        /** Format: date-time */
+                        purgeAfter: string;
+                    };
+                };
+            };
+            /** @description Acesso exclusivo ao perfil MASTER. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ManagementController_audit: {
+        parameters: {
+            query: {
+                limite: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Auditoria administrativa append-only, fora do expurgo de telemetria. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAuditEventDto"][];
+                };
+            };
+            /** @description Acesso exclusivo ao perfil MASTER. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ClientTelemetryController_register: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EventoFrontendDto"];
+            };
+        };
+        responses: {
+            /** @description Evento sem conteúdo de formulário aceito. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     autenticarUsuario: {
         parameters: {
             query?: never;

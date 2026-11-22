@@ -1,7 +1,17 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 import { api, type Schemas } from '../../api/client';
-import { criteriosValidos, montarConfiguracao, paraFormulario, pendenciaConfiguracao, persistirConfiguracao, TIPOS_CRITERIO, type Configuracao as Config, type Formulario, type TipoCriterio } from './regras.ts';
+import {
+  criteriosValidos,
+  montarConfiguracao,
+  paraFormulario,
+  pendenciaConfiguracao,
+  persistirConfiguracao,
+  TIPOS_CRITERIO,
+  type Configuracao as Config,
+  type Formulario,
+  type TipoCriterio,
+} from './regras.ts';
 import './Configuracao.css';
 
 type Desafio = { id: number; nome: string };
@@ -30,8 +40,12 @@ export default function Configuracao() {
         setEvento(ev);
         setDesafios(des);
         setForm(paraFormulario(config, grupos.length, ev.quantidadeDias));
-        setDescartados(config.criteriosDesempate.length - criteriosValidos(config).length);
-        setPendencia(pendenciaConfiguracao(config, grupos.length, ev.quantidadeDias));
+        setDescartados(
+          config.criteriosDesempate.length - criteriosValidos(config).length,
+        );
+        setPendencia(
+          pendenciaConfiguracao(config, grupos.length, ev.quantidadeDias),
+        );
       })
       .catch((e: Error) => setErro(e.message));
   }, [base]);
@@ -50,7 +64,10 @@ export default function Configuracao() {
     setSalvando(true);
     try {
       const envio = await persistirConfiguracao(resultado.dados, (dados) =>
-        api<Config | undefined>(`${base}/configuracao`, { method: 'PUT', body: JSON.stringify(dados) }),
+        api<Config | undefined>(`${base}/configuracao`, {
+          method: 'PUT',
+          body: JSON.stringify(dados),
+        }),
       );
       if (!envio.sucesso) {
         setErro(envio.erro);
@@ -59,7 +76,10 @@ export default function Configuracao() {
       const salva = envio.configuracao;
       // A API devolve os itens de bonificação com id; sem isso, um segundo "Salvar" recriaria os itens
       // e apagaria os bônus já lançados para eles.
-      if (salva) setForm(paraFormulario(salva, form.conversao.length, form.fatores.length - 1));
+      if (salva)
+        setForm(
+          paraFormulario(salva, form.conversao.length, form.fatores.length - 1),
+        );
       setSalvo(true);
       // O formulário tem uma linha por grupo e por dia, então o que foi salvo cobre tudo.
       setPendencia(null);
@@ -77,15 +97,23 @@ export default function Configuracao() {
     mudar({ criterios: lista });
   };
   const tiposLivres = (Object.keys(TIPOS_CRITERIO) as TipoCriterio[]).filter(
-    (t) => t === 'MAIOR_PONTUACAO_DESAFIO' || !criterios.some((c) => c.tipo === t),
+    (t) =>
+      t === 'MAIOR_PONTUACAO_DESAFIO' || !criterios.some((c) => c.tipo === t),
   );
 
   return (
-    <form onSubmit={salvar} className="config">
+    <form
+      data-telemetry-form="event_rules.save"
+      onSubmit={salvar}
+      className="config"
+    >
       <header className="hero">
         <div>
           <h1>Configuração do evento</h1>
-          <p>{evento ? `${evento.nome} · ` : ''}Regras de pontuação usadas em toda a apuração.</p>
+          <p>
+            {evento ? `${evento.nome} · ` : ''}Regras de pontuação usadas em
+            toda a apuração.
+          </p>
         </div>
         <div className="hero-acoes">
           <Link to="/evento" className="btn btn-escuro">
@@ -116,46 +144,84 @@ export default function Configuracao() {
 
       {form && (
         <div className="config-grade">
-          <Bloco icone="1º" titulo="Conversão em ponto extra" dica="Ponto extra do aluno pela colocação final do grupo.">
-            {form.conversao.length === 0 && <p className="dica">Cadastre os grupos para definir uma linha por colocação.</p>}
+          <Bloco
+            icone="1º"
+            titulo="Conversão em ponto extra"
+            dica="Ponto extra do aluno pela colocação final do grupo."
+          >
+            {form.conversao.length === 0 && (
+              <p className="dica">
+                Cadastre os grupos para definir uma linha por colocação.
+              </p>
+            )}
             {form.conversao.map((valor, i) => (
               <Linha key={i} rotulo={`${i + 1}º lugar`}>
                 <input
                   inputMode="decimal"
                   value={valor}
-                  onChange={(e) => mudar({ conversao: form.conversao.map((v, j) => (j === i ? e.target.value : v)) })}
+                  onChange={(e) =>
+                    mudar({
+                      conversao: form.conversao.map((v, j) =>
+                        j === i ? e.target.value : v,
+                      ),
+                    })
+                  }
                   aria-label={`Ponto extra do ${i + 1}º lugar`}
                 />
               </Linha>
             ))}
           </Bloco>
 
-          <Bloco icone="+" titulo="Bonificações extras" dica="Cada item aceita pontos até o seu teto.">
+          <Bloco
+            icone="+"
+            titulo="Bonificações extras"
+            dica="Cada item aceita pontos até o seu teto."
+          >
             {form.itens.map((item, i) => (
               <div key={item.id ?? `novo-${i}`} className="config-item">
                 <input
                   value={item.nome}
-                  onChange={(e) => mudar({ itens: form.itens.map((it, j) => (j === i ? { ...it, nome: e.target.value } : it)) })}
+                  onChange={(e) =>
+                    mudar({
+                      itens: form.itens.map((it, j) =>
+                        j === i ? { ...it, nome: e.target.value } : it,
+                      ),
+                    })
+                  }
                   placeholder="Nome do item"
                   aria-label={`Nome do item ${i + 1}`}
                 />
                 <input
                   inputMode="numeric"
                   value={item.teto}
-                  onChange={(e) => mudar({ itens: form.itens.map((it, j) => (j === i ? { ...it, teto: e.target.value } : it)) })}
+                  onChange={(e) =>
+                    mudar({
+                      itens: form.itens.map((it, j) =>
+                        j === i ? { ...it, teto: e.target.value } : it,
+                      ),
+                    })
+                  }
                   aria-label={`Teto de ${item.nome || `item ${i + 1}`}`}
                 />
                 <button
                   type="button"
                   className="btn-icone"
-                  onClick={() => mudar({ itens: form.itens.filter((_, j) => j !== i) })}
+                  onClick={() =>
+                    mudar({ itens: form.itens.filter((_, j) => j !== i) })
+                  }
                   aria-label={`Remover ${item.nome || `item ${i + 1}`}`}
                 >
                   ×
                 </button>
               </div>
             ))}
-            <button type="button" className="btn btn-contorno" onClick={() => mudar({ itens: [...form.itens, { nome: '', teto: '' }] })}>
+            <button
+              type="button"
+              className="btn btn-contorno"
+              onClick={() =>
+                mudar({ itens: [...form.itens, { nome: '', teto: '' }] })
+              }
+            >
               + Adicionar item
             </button>
           </Bloco>
@@ -186,19 +252,34 @@ export default function Configuracao() {
             </Linha>
           </Bloco>
 
-          <Bloco icone="%" titulo="Fator de presença" dica="Multiplica o ponto extra conforme os dias presentes.">
+          <Bloco
+            icone="%"
+            titulo="Fator de presença"
+            dica="Multiplica o ponto extra conforme os dias presentes."
+          >
             {form.fatores
               .map((valor, d) => ({ valor, d }))
               .reverse()
               .map(({ valor, d }) => {
                 const total = form.fatores.length - 1;
-                const rotulo = d === total ? `Presença total (${d} ${d === 1 ? 'dia' : 'dias'})` : d === 0 ? 'Ausência (0 dias)' : `Presença parcial (${d} ${d === 1 ? 'dia' : 'dias'})`;
+                const rotulo =
+                  d === total
+                    ? `Presença total (${d} ${d === 1 ? 'dia' : 'dias'})`
+                    : d === 0
+                      ? 'Ausência (0 dias)'
+                      : `Presença parcial (${d} ${d === 1 ? 'dia' : 'dias'})`;
                 return (
                   <Linha key={d} rotulo={rotulo} sufixo="%">
                     <input
                       inputMode="decimal"
                       value={valor}
-                      onChange={(e) => mudar({ fatores: form.fatores.map((v, j) => (j === d ? e.target.value : v)) })}
+                      onChange={(e) =>
+                        mudar({
+                          fatores: form.fatores.map((v, j) =>
+                            j === d ? e.target.value : v,
+                          ),
+                        })
+                      }
                       aria-label={`Fator para ${rotulo}, em porcentagem`}
                     />
                   </Linha>
@@ -206,14 +287,26 @@ export default function Configuracao() {
               })}
           </Bloco>
 
-          <Bloco icone="⇅" titulo="Critérios de desempate" dica="Aplicados nesta ordem; se nenhum resolver, o empate vai para decisão manual." largo>
+          <Bloco
+            icone="⇅"
+            titulo="Critérios de desempate"
+            dica="Aplicados nesta ordem; se nenhum resolver, o empate vai para decisão manual."
+            largo
+          >
             {descartados > 0 && (
               <p className="erro">
-                {descartados === 1 ? 'Um critério salvo usa' : `${descartados} critérios salvos usam`} &quot;Maior presença&quot;, que saiu do contrato. Ele foi
+                {descartados === 1
+                  ? 'Um critério salvo usa'
+                  : `${descartados} critérios salvos usam`}{' '}
+                &quot;Maior presença&quot;, que saiu do contrato. Ele foi
                 retirado da lista e some ao salvar.
               </p>
             )}
-            {criterios.length === 0 && <p className="dica">Nenhum critério: todo empate irá para decisão manual.</p>}
+            {criterios.length === 0 && (
+              <p className="dica">
+                Nenhum critério: todo empate irá para decisão manual.
+              </p>
+            )}
             <ol className="criterios">
               {criterios.map((c, i) => (
                 <li key={i} className="criterio">
@@ -221,7 +314,16 @@ export default function Configuracao() {
                   <select
                     value={c.tipo}
                     onChange={(e) =>
-                      mudar({ criterios: criterios.map((x, j) => (j === i ? { tipo: e.target.value as TipoCriterio, desafioId: null } : x)) })
+                      mudar({
+                        criterios: criterios.map((x, j) =>
+                          j === i
+                            ? {
+                                tipo: e.target.value as TipoCriterio,
+                                desafioId: null,
+                              }
+                            : x,
+                        ),
+                      })
                     }
                     aria-label={`Tipo do ${i + 1}º critério`}
                   >
@@ -236,7 +338,18 @@ export default function Configuracao() {
                   {c.tipo === 'MAIOR_PONTUACAO_DESAFIO' && (
                     <select
                       value={c.desafioId ?? ''}
-                      onChange={(e) => mudar({ criterios: criterios.map((x, j) => (j === i ? { ...x, desafioId: Number(e.target.value) || null } : x)) })}
+                      onChange={(e) =>
+                        mudar({
+                          criterios: criterios.map((x, j) =>
+                            j === i
+                              ? {
+                                  ...x,
+                                  desafioId: Number(e.target.value) || null,
+                                }
+                              : x,
+                          ),
+                        })
+                      }
                       aria-label={`Desafio do ${i + 1}º critério`}
                     >
                       <option value="">Escolha o desafio</option>
@@ -248,7 +361,13 @@ export default function Configuracao() {
                     </select>
                   )}
                   <span className="criterio-acoes">
-                    <button type="button" className="btn-icone" disabled={i === 0} onClick={() => moverCriterio(i, i - 1)} aria-label={`Subir ${i + 1}º critério`}>
+                    <button
+                      type="button"
+                      className="btn-icone"
+                      disabled={i === 0}
+                      onClick={() => moverCriterio(i, i - 1)}
+                      aria-label={`Subir ${i + 1}º critério`}
+                    >
                       ↑
                     </button>
                     <button
@@ -260,7 +379,16 @@ export default function Configuracao() {
                     >
                       ↓
                     </button>
-                    <button type="button" className="btn-icone" onClick={() => mudar({ criterios: criterios.filter((_, j) => j !== i) })} aria-label={`Remover ${i + 1}º critério`}>
+                    <button
+                      type="button"
+                      className="btn-icone"
+                      onClick={() =>
+                        mudar({
+                          criterios: criterios.filter((_, j) => j !== i),
+                        })
+                      }
+                      aria-label={`Remover ${i + 1}º critério`}
+                    >
                       ×
                     </button>
                   </span>
@@ -270,7 +398,20 @@ export default function Configuracao() {
             <button
               type="button"
               className="btn btn-contorno"
-              onClick={() => mudar({ criterios: [...criterios, { tipo: tiposLivres.find((t) => t !== 'MAIOR_PONTUACAO_DESAFIO') ?? 'MAIOR_PONTUACAO_DESAFIO', desafioId: null }] })}
+              onClick={() =>
+                mudar({
+                  criterios: [
+                    ...criterios,
+                    {
+                      tipo:
+                        tiposLivres.find(
+                          (t) => t !== 'MAIOR_PONTUACAO_DESAFIO',
+                        ) ?? 'MAIOR_PONTUACAO_DESAFIO',
+                      desafioId: null,
+                    },
+                  ],
+                })
+              }
             >
               + Adicionar critério
             </button>
@@ -281,7 +422,21 @@ export default function Configuracao() {
   );
 }
 
-function Bloco({ icone, titulo, dica, dicaId, largo, children }: { icone: string; titulo: string; dica: string; dicaId?: string; largo?: boolean; children: ReactNode }) {
+function Bloco({
+  icone,
+  titulo,
+  dica,
+  dicaId,
+  largo,
+  children,
+}: {
+  icone: string;
+  titulo: string;
+  dica: string;
+  dicaId?: string;
+  largo?: boolean;
+  children: ReactNode;
+}) {
   return (
     <section className={`cartao config-bloco${largo ? ' config-largo' : ''}`}>
       <h2>
@@ -290,13 +445,23 @@ function Bloco({ icone, titulo, dica, dicaId, largo, children }: { icone: string
         </span>
         {titulo}
       </h2>
-      <p id={dicaId} className="dica">{dica}</p>
+      <p id={dicaId} className="dica">
+        {dica}
+      </p>
       {children}
     </section>
   );
 }
 
-function Linha({ rotulo, sufixo, children }: { rotulo: string; sufixo?: string; children: ReactNode }) {
+function Linha({
+  rotulo,
+  sufixo,
+  children,
+}: {
+  rotulo: string;
+  sufixo?: string;
+  children: ReactNode;
+}) {
   return (
     <div className="config-linha">
       <span>{rotulo}</span>

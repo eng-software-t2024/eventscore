@@ -12,6 +12,7 @@ import Lancamentos from './pages/lancamentos/Lancamentos';
 import Login from './pages/Login';
 import Participantes from './pages/participantes/Participantes';
 import Relatorios from './pages/relatorios/Relatorios';
+import MasterRoute from './pages/gestao/MasterRoute';
 import './index.css';
 
 const router = createBrowserRouter([
@@ -29,6 +30,7 @@ const router = createBrowserRouter([
       { path: 'frequencia', element: <Frequencia /> },
       { path: 'lancamentos', element: <Lancamentos /> },
       { path: 'relatorios', element: <Relatorios /> },
+      { path: 'gestao', element: <MasterRoute /> },
       { path: '*', element: <Navigate to="/evento" replace /> },
     ],
   },
