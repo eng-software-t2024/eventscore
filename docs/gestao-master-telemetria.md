@@ -57,10 +57,10 @@ envia somente eventos minimizados para `POST /telemetry/client`.
 ## Ordem de implantação e rollback
 
 1. Fazer backup do banco e validar a restauração fora de produção.
-2. Aplicar a migration V13 pelo papel de migrations e conferir histórico,
+2. Aplicar a migration V14 pelo papel de migrations e conferir histórico,
    constraint de perfil, tabelas, índices e trigger append-only.
 3. Publicar backend e frontend compatíveis na mesma janela; não criar a
-   conta MASTER antes de a API com V13 estar saudável.
+   conta MASTER antes de a API com V14 estar saudável.
 4. Criar MASTER pelo prompt oculto, validar acesso MASTER e confirmar 403
    para ADMIN.
 5. Encerrar o período de telemetria ao concluir os testes; não remover

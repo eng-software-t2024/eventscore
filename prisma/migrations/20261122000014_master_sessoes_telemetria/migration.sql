@@ -1,4 +1,4 @@
--- V13: sessões autenticadas, telemetria operacional e gestão MASTER.
+-- V14: sessões autenticadas, telemetria operacional e gestão MASTER.
 -- A auditoria de negócio existente permanece imutável e sem expurgo.
 
 ALTER TABLE usuario DROP CONSTRAINT usuario_perfil_check;
