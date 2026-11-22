@@ -1,0 +1,4 @@
+services:
+  api:
+    image: localhost/eventscore-api:bcde18e-20261121
+    pull_policy: never

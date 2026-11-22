@@ -1,0 +1,41 @@
+ARG NODE_IMAGE=node:24-bookworm-slim@sha256:0e2646ab57e77b7a384a0cb59b6815b182c77e1f9c3ba36bd8435bd9c4e6680e
+
+FROM ${NODE_IMAGE} AS build
+WORKDIR /app
+COPY deploy/release/debian.sources /etc/apt/sources.list.d/debian.sources
+RUN apt-get -o Acquire::Check-Valid-Until=false update \
+    && apt-get install -y --no-install-recommends \
+      openssl=3.0.22-1~deb12u2 \
+      ca-certificates=20250419~deb12u2 \
+    && rm -rf /var/lib/apt/lists/*
+COPY package.json package-lock.json ./
+COPY prisma ./prisma
+COPY prisma.config.ts ./
+RUN npm ci
+COPY . .
+ARG VCS_REF
+RUN npm run build \
+    && cp -a src/generated/prisma /tmp/generated-prisma \
+    && npm prune --omit=dev --omit=optional --ignore-scripts
+
+FROM ${NODE_IMAGE} AS runtime
+ARG VCS_REF
+ENV NODE_ENV=production
+WORKDIR /app
+COPY deploy/release/debian.sources /etc/apt/sources.list.d/debian.sources
+RUN apt-get -o Acquire::Check-Valid-Until=false update \
+    && apt-get install -y --no-install-recommends \
+      openssl=3.0.22-1~deb12u2 \
+      ca-certificates=20250419~deb12u2 \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=build --chown=node:node /app/node_modules ./node_modules
+COPY --from=build --chown=node:node /app/dist ./dist
+COPY --from=build --chown=node:node /tmp/generated-prisma ./dist/generated/prisma
+COPY --from=build --chown=node:node /app/package.json ./package.json
+USER node
+EXPOSE 3000
+LABEL org.opencontainers.image.source="https://github.com/hanrrysantos/event-score" \
+      org.opencontainers.image.revision="${VCS_REF}"
+HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+CMD ["node", "dist/main.js"]
