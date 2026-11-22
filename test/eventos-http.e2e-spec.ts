@@ -1,3 +1,4 @@
+import { limparUsuariosAuthTeste } from './helpers/limpar-usuarios-auth-teste.js';
 import { randomUUID } from 'node:crypto';
 import { type INestApplication, ValidationPipe } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -83,7 +84,7 @@ describe('Eventos HTTP com PostgreSQL e login real (T19)', () => {
         });
       }
       if (adminId !== undefined) {
-        await prisma.usuario.deleteMany({ where: { id: adminId } });
+        await limparUsuariosAuthTeste(prisma, [adminId]);
       }
     } finally {
       await app?.close();

@@ -1,3 +1,4 @@
+import { limparUsuariosAuthTeste } from './helpers/limpar-usuarios-auth-teste.js';
 import {
   INestApplication,
   RequestMethod,
@@ -88,7 +89,7 @@ describe('DiasEventoController (e2e)', () => {
       await prisma.evento.delete({ where: { id: eventoId } });
     }
     if (adminUserId) {
-      await prisma.usuario.delete({ where: { id: adminUserId } });
+      await limparUsuariosAuthTeste(prisma, [adminUserId]);
     }
     await app.close();
   });

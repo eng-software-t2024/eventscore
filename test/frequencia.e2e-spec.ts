@@ -1,3 +1,4 @@
+import { limparUsuariosAuthTeste } from './helpers/limpar-usuarios-auth-teste.js';
 import { randomUUID } from 'node:crypto';
 import { ValidationPipe, type INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
@@ -193,7 +194,7 @@ describe('Frequência individual por participante e dia (e2e)', () => {
       await prisma.evento.deleteMany({
         where: { id: { in: [eventoId, outroEventoId] } },
       });
-      await prisma.usuario.delete({ where: { id: usuarioId } });
+      await limparUsuariosAuthTeste(prisma, [usuarioId]);
     }
     await app?.close();
   });

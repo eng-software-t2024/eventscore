@@ -1,3 +1,4 @@
+import { limparUsuariosAuthTeste } from './helpers/limpar-usuarios-auth-teste.js';
 import { randomUUID } from 'node:crypto';
 import { Controller, Get, INestApplication, Req } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -95,7 +96,7 @@ describe('Autenticação persistida (e2e)', () => {
 
   afterAll(async () => {
     if (prisma && idsCriados.length > 0) {
-      await prisma.usuario.deleteMany({ where: { id: { in: idsCriados } } });
+      await limparUsuariosAuthTeste(prisma, idsCriados);
     }
     await app?.close();
   });
@@ -122,6 +123,7 @@ describe('Autenticação persistida (e2e)', () => {
       id: adminId,
       nome: 'Administradora de teste',
       email,
+      perfil: 'ADMIN',
     });
     expect(JSON.stringify(response.body)).not.toContain(senha);
     expect(JSON.stringify(response.body)).not.toContain('senhaHash');
@@ -175,6 +177,7 @@ describe('Autenticação persistida (e2e)', () => {
       id: adminId,
       nome: 'Administradora de teste',
       email,
+      perfil: 'ADMIN',
     });
     expect(response.body).not.toHaveProperty('senhaHash');
     await request(app.getHttpServer()).get('/health').expect(200);

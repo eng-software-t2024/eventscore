@@ -87,6 +87,7 @@ describe('POST /api/v1/auth/login', () => {
       id: 7,
       nome: user.nome,
       email: user.email,
+      perfil: user.perfil,
     });
     expect(response.body).not.toHaveProperty('senha');
     expect(response.body).not.toHaveProperty('senhaHash');
@@ -94,8 +95,10 @@ describe('POST /api/v1/auth/login', () => {
       sub: number;
       iat: number;
       exp: number;
+      jti: string;
     }>(response.body.token);
     expect(payload.sub).toBe(7);
+    expect(payload.jti).toMatch(/^[0-9a-f-]{36}$/i);
     expect(payload.exp - payload.iat).toBe(3600);
     expect(response.body.expiraEm).toBe(
       new Date(payload.exp * 1000).toISOString(),

@@ -1,3 +1,4 @@
+import { limparUsuariosAuthTeste } from './helpers/limpar-usuarios-auth-teste.js';
 import { randomUUID } from 'node:crypto';
 import {
   ConflictException,
@@ -163,7 +164,7 @@ describe('Persistência da configuração do evento (integração)', () => {
       await limparEvento(eventoId);
       await limparEvento(outroEventoId);
       if (typeof usuarioId === 'number') {
-        await prisma.usuario.deleteMany({ where: { id: usuarioId } });
+        await limparUsuariosAuthTeste(prisma, [usuarioId]);
       }
     }
     await module?.close();
