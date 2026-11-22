@@ -1,0 +1,15 @@
+.git
+.git/**
+node_modules
+web
+dist
+coverage
+audit-reports
+.env
+.env.*
+!.env.example
+src/generated/prisma
+*.tar
+*.tar.gz
+*.dump
+*.log

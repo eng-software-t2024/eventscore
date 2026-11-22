@@ -1,0 +1,4 @@
+services:
+  api:
+    image: eventscore-backend-api@sha256:4e1863af80cd969673db07cbb294caf183dbaf6c4e660b64ac938b1c857fd687
+    pull_policy: never
