@@ -204,7 +204,7 @@ model Usuario {
   nome      String  @db.VarChar(150)
   email     String  @db.VarChar(150)
   senhaHash String  @map("senha_hash") @db.VarChar(255)
-  perfil    String  @default("OPERADOR") @db.VarChar(20)
+  perfil    String  @default("ADMIN") @db.VarChar(20)
   ativo     Boolean @default(true)
 
   apuracoes         Apuracao[]
