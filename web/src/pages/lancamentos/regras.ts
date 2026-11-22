@@ -84,10 +84,11 @@ export function montarBonificacao(
 /** RF11: pontos dentro da faixa configurada e justificativa obrigatória. */
 export function montarPenalidade(
   f: { grupoId: string; pontos: string; descricao: string; justificativa: string },
-  minimo: number,
-  maximo: number,
+  minimo: number | null,
+  maximo: number | null,
 ): { dados: Omit<Penalidade, 'id'> } | { erro: string } {
   if (!f.grupoId) return { erro: 'Escolha o grupo penalizado.' };
+  if (minimo === null || maximo === null) return { erro: 'Defina a faixa de penalidade na configuração do evento antes de lançar penalidades.' };
   const pontos = lerNumero(f.pontos);
   if (!Number.isInteger(pontos) || pontos < minimo || pontos > maximo) return { erro: `A penalidade deve estar entre ${minimo} e ${maximo} pontos.` };
   if (!f.descricao.trim()) return { erro: 'Descreva a penalidade.' };

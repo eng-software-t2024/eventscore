@@ -13,8 +13,8 @@ export type TipoCriterio = keyof typeof TIPOS_CRITERIO;
 export type Configuracao = {
   conversaoPontoExtra: { colocacao: number; pontoExtra: number }[];
   itensBonificacao: { id?: number; nome: string; teto: number }[];
-  penalidadeMin: number;
-  penalidadeMax: number;
+  penalidadeMin: number | null;
+  penalidadeMax: number | null;
   fatoresPresenca: { diasPresentes: number; fator: number }[];
   criteriosDesempate: { ordem: number; tipo: TipoCriterio; desafioId: number | null; descricao: string }[];
 };
@@ -96,10 +96,19 @@ export function montarConfiguracao(
   const itemRuim = itensBonificacao.find((i) => !(i.teto >= 1));
   if (itemRuim) return { erro: `O teto de "${itemRuim.nome}" precisa ser um número inteiro maior que zero.` };
 
-  const penalidadeMin = inteiro(f.penalidadeMin);
-  const penalidadeMax = inteiro(f.penalidadeMax);
-  if (!(penalidadeMin >= 0) || !(penalidadeMax >= 0)) return { erro: 'Os limites de penalidade precisam ser números inteiros.' };
-  if (penalidadeMin > penalidadeMax) return { erro: 'A penalidade mínima não pode ser maior que a máxima.' };
+  const minimoVazio = f.penalidadeMin.trim() === '';
+  const maximoVazio = f.penalidadeMax.trim() === '';
+  if (minimoVazio !== maximoVazio) {
+    return { erro: 'Preencha os dois limites de penalidade ou deixe ambos em branco.' };
+  }
+  const penalidadeMin = minimoVazio ? null : inteiro(f.penalidadeMin);
+  const penalidadeMax = maximoVazio ? null : inteiro(f.penalidadeMax);
+  if (penalidadeMin !== null && (!(penalidadeMin >= 0) || !(penalidadeMax !== null && penalidadeMax >= 0))) {
+    return { erro: 'Os limites de penalidade precisam ser números inteiros.' };
+  }
+  if (penalidadeMin !== null && penalidadeMax !== null && penalidadeMin > penalidadeMax) {
+    return { erro: 'A penalidade mínima não pode ser maior que a máxima.' };
+  }
 
   const fatoresPresenca = f.fatores.map((t, d) => ({ diasPresentes: d, fator: percentualParaFator(t) }));
   if (fatoresPresenca.some((p) => !(p.fator >= 0 && p.fator <= 1))) return { erro: 'Cada fator de presença precisa estar entre 0% e 100%.' };
@@ -116,4 +125,19 @@ export function montarConfiguracao(
   }
 
   return { dados: { conversaoPontoExtra, itensBonificacao, penalidadeMin, penalidadeMax, fatoresPresenca, criteriosDesempate } };
+}
+
+/** Preserva a recusa da API sem transformar uma configuração bloqueada em sucesso local. */
+export async function persistirConfiguracao(
+  dados: Configuracao,
+  enviar: (dados: Configuracao) => Promise<Configuracao | undefined>,
+): Promise<{ sucesso: true; configuracao?: Configuracao } | { sucesso: false; erro: string }> {
+  try {
+    return { sucesso: true, configuracao: await enviar(dados) };
+  } catch (erro) {
+    return {
+      sucesso: false,
+      erro: erro instanceof Error ? erro.message : 'Não foi possível salvar a configuração.',
+    };
+  }
 }

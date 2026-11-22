@@ -289,7 +289,9 @@ export default function AbaBonusPenalidades({ eventoId, grupos, envios }: { even
       <form className="cartao penalidade-form" onSubmit={salvarPenalidade}>
         <h2 className="titulo-bloco">{editando ? `Corrigir penalidade de ${nome(editando.grupoId)}` : 'Aplicar penalidade'}</h2>
         <p className="dica">
-          Entre {config.penalidadeMin} e {config.penalidadeMax} pontos, com justificativa obrigatória.
+          {config.penalidadeMin === null || config.penalidadeMax === null
+            ? 'Defina os dois limites na configuração do evento antes de lançar penalidades.'
+            : `Entre ${config.penalidadeMin} e ${config.penalidadeMax} pontos, com justificativa obrigatória.`}
         </p>
         <div className="linha">
           <label className="campo">
