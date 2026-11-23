@@ -1,0 +1,13 @@
+# Unifica identidades duplicadas da mesma pessoa (métricas PR6 e PR7)
+# Nomes canônicos iguais aos do .mailmap do Deefy
+Netinho <josegomescabralneto@gmail.com>
+Netinho <josegomescabralneto@gmail.com> <jose.gc.neto@aluno.uepa.br>
+Hanrry Santos <hanrry.jsantos@gmail.com>
+Hanrry Santos <hanrry.jsantos@gmail.com> <hanrry.santos@aluno.uepa.br>
+Lucas Henrique <lucashsouza101@gmail.com>
+Lucas Henrique <lucashsouza101@gmail.com> <167329143+LucaasHenrique@users.noreply.github.com>
+Luiz Meneses <menesesluizf@gmail.com>
+Saylon Batista <saylonbatista07@gmail.com>
+ikki157 <ikki.carvalho@aluno.uepa.br>
+ikki157 <ikki.carvalho@aluno.uepa.br> <178819341+ikki157@users.noreply.github.com>
+Igo Martins <igo.martins@aluno.uepa.br>
